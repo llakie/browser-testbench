@@ -1,7 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { TargetRegistry } from "../config/target-registry.js";
-import type { DoctorCheck, TargetName } from "../config/types.js";
+import type { DoctorCheck, TargetDeviceOption, TargetName } from "../config/types.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { VerificationStore } from "./verification-store.js";
@@ -26,14 +26,19 @@ export class DoctorService {
       label: "Node.js",
       status: major >= 22 ? "ready" : "blocked",
       detail: process.version,
-      ...(major < 22 ? { action: "Install Node.js 22 or newer." } : {}),
+      ...(major < 22 ? { action: "Installiere Node.js 22 oder neuer." } : {}),
     };
   }
 
   private static async targetCheck(name: TargetName): Promise<DoctorCheck> {
     const definition = TargetRegistry.definitions[name];
     if (!TargetRegistry.isSupported(name)) {
-      return { id: name, label: definition.label, status: "skip", detail: `Not supported on ${process.platform}.` };
+      return {
+        id: name,
+        label: definition.label,
+        status: "skip",
+        detail: `Auf ${this.platformLabel()} nicht verfügbar.`,
+      };
     }
 
     switch (name) {
@@ -56,24 +61,37 @@ export class DoctorService {
     for (const path of paths) {
       if (await this.exists(path)) return { id, label, status: "ready", detail: path };
     }
-    return { id, label, status: "blocked", detail: "Browser not found.", action: `Install ${label}.` };
+    return {
+      id,
+      label,
+      status: "blocked",
+      detail: "Browser nicht gefunden.",
+      action: `Installiere ${label}.`,
+    };
   }
 
   private static async safariCheck(): Promise<DoctorCheck> {
     const binary = "/usr/bin/safaridriver";
     if (!(await this.exists(binary))) {
-      return { id: "safari", label: "Apple Safari", status: "blocked", detail: "safaridriver not found." };
+      return { id: "safari", label: "Apple Safari", status: "blocked", detail: "Safari WebDriver nicht gefunden." };
     }
     const verified = await VerificationStore.read("safari");
     if (verified) {
-      return { id: "safari", label: "Apple Safari", status: "ready", detail: `Verified ${verified.verifiedAt}.` };
+      return {
+        id: "safari",
+        label: "Apple Safari",
+        status: "ready",
+        detail: `WebDriver am ${this.formatDate(verified.verifiedAt)} bestätigt.`,
+      };
     }
     return {
       id: "safari",
       label: "Apple Safari",
       status: "action",
-      detail: "safaridriver is installed; authorization is intentionally not probed to avoid macOS dialogs.",
-      action: "Once only, run 'sudo safaridriver --enable', then verify with 'btb verify safari'.",
+      detail:
+        "Safari WebDriver ist installiert. Die Berechtigung wird nicht automatisch geprüft, damit macOS keine Dialoge öffnet.",
+      action: "Aktiviere Safari WebDriver einmalig und bestätige ihn anschließend für die Testbench.",
+      commands: ["sudo safaridriver --enable", TestbenchPaths.cliCommand("verify", "safari")],
     };
   }
 
@@ -82,31 +100,33 @@ export class DoctorService {
     if (xcode.code !== 0) {
       return {
         id: "safari-ios",
-        label: "Safari on iOS Simulator",
+        label: TargetRegistry.definitions["safari-ios"].label,
         status: "blocked",
-        detail: "Xcode is not available.",
-        action: "Install Xcode and select it with xcode-select.",
+        detail: "Xcode ist nicht verfügbar.",
+        action: "Installiere Xcode und wähle die Installation mit xcode-select aus.",
       };
     }
     const runtimes = await CommandRunner.run("xcrun", ["simctl", "list", "runtimes", "--json"], { timeoutMs: 8_000 });
     if (runtimes.code !== 0) {
       return {
         id: "safari-ios",
-        label: "Safari on iOS Simulator",
+        label: TargetRegistry.definitions["safari-ios"].label,
         status: "blocked",
-        detail: "simctl could not list runtimes.",
-        action: "Open Xcode and install an iOS Simulator runtime.",
+        detail: "Die installierten iOS-Laufzeitumgebungen konnten nicht ermittelt werden.",
+        action: "Öffne Xcode und installiere eine iOS-Laufzeitumgebung für den Simulator.",
       };
     }
-    const parsed = JSON.parse(runtimes.stdout) as { runtimes?: Array<{ isAvailable?: boolean; name?: string }> };
-    const available = parsed.runtimes?.find((runtime) => runtime.isAvailable && runtime.name?.includes("iOS"));
-    if (!available) {
+    const parsed = JSON.parse(runtimes.stdout) as {
+      runtimes?: Array<{ isAvailable?: boolean; name?: string; version?: string; identifier?: string }>;
+    };
+    const available = parsed.runtimes?.filter((runtime) => runtime.isAvailable && runtime.name?.includes("iOS")) ?? [];
+    if (available.length === 0) {
       return {
         id: "safari-ios",
-        label: "Safari on iOS Simulator",
+        label: TargetRegistry.definitions["safari-ios"].label,
         status: "blocked",
-        detail: "No available iOS runtime.",
-        action: "Install an iOS runtime in Xcode Settings > Components.",
+        detail: "Keine iOS-Laufzeitumgebung verfügbar.",
+        action: "Installiere eine iOS-Laufzeitumgebung unter Xcode > Einstellungen > Komponenten.",
       };
     }
     const devices = await CommandRunner.run("xcrun", ["simctl", "list", "devices", "available", "--json"], {
@@ -114,26 +134,55 @@ export class DoctorService {
     });
     const deviceData =
       devices.code === 0
-        ? (JSON.parse(devices.stdout) as { devices?: Record<string, Array<{ name?: string; isAvailable?: boolean }>> })
+        ? (JSON.parse(devices.stdout) as {
+            devices?: Record<string, Array<{ name?: string; udid?: string; isAvailable?: boolean; state?: string }>>;
+          })
         : undefined;
-    const phone = Object.values(deviceData?.devices ?? {})
-      .flat()
-      .find((device) => device.isAvailable !== false && device.name?.startsWith("iPhone"));
-    if (!phone) {
+    const options = this.iosDeviceOptions(available, deviceData?.devices ?? {});
+    if (options.length === 0) {
       return {
         id: "safari-ios",
-        label: "Safari on iOS Simulator",
+        label: TargetRegistry.definitions["safari-ios"].label,
         status: "blocked",
-        detail: `${available.name ?? "iOS runtime"} exists, but no available iPhone Simulator was found.`,
-        action: "Create an iPhone Simulator in Xcode > Window > Devices and Simulators.",
+        detail: `${available.map((runtime) => runtime.name).join(", ")} vorhanden, aber kein verfügbarer Simulator gefunden.`,
+        action: "Lege unter Xcode > Fenster > Geräte und Simulatoren einen iOS-Simulator an.",
       };
     }
     return {
       id: "safari-ios",
-      label: "Safari on iOS Simulator",
+      label: TargetRegistry.definitions["safari-ios"].label,
       status: "ready",
-      detail: `${available.name ?? "iOS runtime"}; ${phone.name}`,
+      detail: `${options.length} ${options.length === 1 ? "iOS-Simulator ist" : "iOS-Simulatoren sind"} verfügbar.`,
+      devices: options,
     };
+  }
+
+  static iosDeviceOptions(
+    runtimes: Array<{ name?: string; version?: string; identifier?: string }>,
+    devices: Record<string, Array<{ name?: string; udid?: string; isAvailable?: boolean; state?: string }>>,
+  ): TargetDeviceOption[] {
+    const versions = new Map(
+      runtimes.filter((runtime) => runtime.identifier).map((runtime) => [runtime.identifier!, runtime.version]),
+    );
+    return Object.entries(devices).flatMap(([runtimeId, entries]) => {
+      const platformVersion = versions.get(runtimeId);
+      if (!versions.has(runtimeId)) return [];
+      return entries
+        .filter((device) => device.isAvailable !== false && device.name && device.udid)
+        .map((device) => ({
+          id: device.udid!,
+          name: device.name!,
+          platformVersion,
+          state: device.state,
+          compatible: true,
+          config: {
+            name: "safari-ios" as const,
+            deviceName: device.name!,
+            ...(platformVersion ? { platformVersion } : {}),
+            udid: device.udid!,
+          },
+        }));
+    });
   }
 
   private static async androidCheck(): Promise<DoctorCheck> {
@@ -141,20 +190,20 @@ export class DoctorService {
     if (!sdkRoot) {
       return {
         id: "chrome-android",
-        label: "Chrome on Android Emulator",
+        label: TargetRegistry.definitions["chrome-android"].label,
         status: "blocked",
-        detail: "Android SDK not found.",
-        action: "Install Android Studio or set ANDROID_HOME.",
+        detail: "Android SDK nicht gefunden.",
+        action: "Installiere Android Studio oder setze die Umgebungsvariable ANDROID_HOME.",
       };
     }
     const emulator = join(sdkRoot, "emulator", process.platform === "win32" ? "emulator.exe" : "emulator");
     if (!(await this.exists(emulator))) {
       return {
         id: "chrome-android",
-        label: "Chrome on Android Emulator",
+        label: TargetRegistry.definitions["chrome-android"].label,
         status: "blocked",
-        detail: "Android emulator binary not found.",
-        action: "Install Android Emulator from the SDK Manager.",
+        detail: "Android Emulator nicht gefunden.",
+        action: "Installiere Android Emulator über den SDK Manager.",
       };
     }
     const avds = await CommandRunner.run(emulator, ["-list-avds"], { timeoutMs: 8_000 });
@@ -165,27 +214,30 @@ export class DoctorService {
     if (names.length === 0) {
       return {
         id: "chrome-android",
-        label: "Chrome on Android Emulator",
+        label: TargetRegistry.definitions["chrome-android"].label,
         status: "blocked",
-        detail: "No Android Virtual Device found.",
-        action: "Create a Google APIs or Play Store AVD in Android Studio.",
+        detail: "Kein virtuelles Android-Gerät (AVD) gefunden.",
+        action: "Lege in Android Studio ein AVD mit Google APIs oder Google Play Store an.",
       };
     }
-    const chromeCapable = await this.findChromeCapableAvd(names);
-    if (!chromeCapable) {
+    const options = await this.androidDeviceOptions(names);
+    const chromeCapable = options.filter((option) => option.compatible);
+    if (chromeCapable.length === 0) {
       return {
         id: "chrome-android",
-        label: "Chrome on Android Emulator",
+        label: TargetRegistry.definitions["chrome-android"].label,
         status: "action",
-        detail: `AVDs found (${names.join(", ")}), but none is identified as a Google APIs/Play Store image.`,
-        action: "Create an AVD using a Google APIs or Google Play system image.",
+        detail: `AVDs gefunden (${names.join(", ")}), aber keines verwendet ein Google-APIs-/Play-Store-Abbild.`,
+        action: "Lege ein AVD mit einem Systemabbild für Google APIs oder Google Play Store an.",
+        devices: options,
       };
     }
     return {
       id: "chrome-android",
-      label: "Chrome on Android Emulator",
+      label: TargetRegistry.definitions["chrome-android"].label,
       status: "ready",
-      detail: `${chromeCapable} (${sdkRoot})`,
+      detail: `${chromeCapable.length} von ${options.length} ${options.length === 1 ? "virtuellem Android-Gerät ist" : "virtuellen Android-Geräten sind"} für Chrome geeignet.`,
+      devices: options,
     };
   }
 
@@ -200,9 +252,10 @@ export class DoctorService {
     return undefined;
   }
 
-  private static async findChromeCapableAvd(names: string[]): Promise<string | undefined> {
+  static async androidDeviceOptions(names: string[]): Promise<TargetDeviceOption[]> {
     const avdHome =
       process.env.ANDROID_AVD_HOME ?? join(process.env.HOME ?? process.env.USERPROFILE ?? "", ".android", "avd");
+    const options: TargetDeviceOption[] = [];
     for (const name of names) {
       const pointer = join(avdHome, `${name}.ini`);
       try {
@@ -210,12 +263,20 @@ export class DoctorService {
         const path = pointerText.match(/^path=(.+)$/m)?.[1];
         if (!path) continue;
         const config = await readFile(join(path, "config.ini"), "utf8");
-        if (/tag\.id=google_apis_playstore/.test(config)) return name;
+        const image = config.match(/^image\.sysdir\.1=(.+)$/m)?.[1];
+        const platformVersion = image?.match(/android-([^/]+)/)?.[1];
+        options.push({
+          id: name,
+          name,
+          platformVersion,
+          compatible: /^tag\.id=google_apis_playstore/m.test(config),
+          config: { name: "chrome-android", avd: name, ...(platformVersion ? { platformVersion } : {}) },
+        });
       } catch {
         // Ignore malformed or externally managed AVD entries.
       }
     }
-    return undefined;
+    return options;
   }
 
   private static chromePaths(): string[] {
@@ -256,5 +317,17 @@ export class DoctorService {
     } catch {
       return false;
     }
+  }
+
+  private static platformLabel(): string {
+    if (process.platform === "darwin") return "macOS";
+    if (process.platform === "win32") return "Windows";
+    return "Linux";
+  }
+
+  private static formatDate(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" }).format(date);
   }
 }

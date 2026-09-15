@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Command } from "commander";
 import open from "open";
@@ -9,29 +8,28 @@ import { ConfigLoader } from "./config/config-loader.js";
 import { TargetRegistry } from "./config/target-registry.js";
 import { TARGET_NAMES, type TargetName } from "./config/types.js";
 import { TestbenchPaths } from "./infrastructure/paths.js";
-import { eventBus } from "./orchestration/event-bus.js";
 import { TestRunner } from "./orchestration/test-runner.js";
 import { DoctorService } from "./setup/doctor-service.js";
+import { McpIntegrationService, type McpClientId } from "./setup/mcp-integration-service.js";
 import { SetupService } from "./setup/setup-service.js";
 import { VerificationStore } from "./setup/verification-store.js";
 import { FixtureServer } from "./support/fixture-server.js";
 import { ApiServer } from "./transports/api-server.js";
 import { McpServerHost } from "./transports/mcp-server.js";
+import { RemoteTestbench } from "./transports/testbench-client.js";
 
 const program = new Command();
-program.name("btb").description("Portable browser and simulator test bench").version("0.1.0");
+program.name("browser-testbench").description("Portable browser and simulator test bench").version("0.1.0");
 
 program
   .command("targets")
-  .description("List available target profiles")
+  .description("Ask the running Testbench which targets are available")
+  .option("--server <url>", "Testbench server URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
   .option("--json", "Output JSON")
   .action(async (options) => {
-    const definitions = Object.values(TargetRegistry.definitions);
-    console.log(
-      options.json
-        ? JSON.stringify(definitions, null, 2)
-        : definitions.map((item) => `${item.name.padEnd(16)} ${item.label}`).join("\n"),
-    );
+    const capabilities = await new RemoteTestbench({ server: options.server, token: options.token }).capabilities();
+    console.log(options.json ? JSON.stringify(capabilities, null, 2) : OutputFormatter.doctor(capabilities.checks));
   });
 
 program
@@ -75,36 +73,6 @@ program
   });
 
 program
-  .command("run")
-  .description("Run a reusable suite or the built-in smoke test")
-  .option("-c, --config <path>", "Config file")
-  .option("-u, --url <url>", "Ad-hoc URL")
-  .option("-t, --targets <names>", "Comma-separated targets", "chrome")
-  .option("-s, --specs <patterns>", "Comma-separated spec globs")
-  .option("--headless", "Use headless mode where supported")
-  .option("--json", "Output final JSON")
-  .option("--jsonl", "Stream JSON events")
-  .action(async (options) => {
-    const configPath = options.config ?? (await ConfigLoader.find());
-    const config = configPath
-      ? await ConfigLoader.load(configPath)
-      : ConfigLoader.fromOptions({
-          url: options.url ?? "http://127.0.0.1:4173",
-          targets: parseTargets(options.targets) ?? ["chrome"],
-          specs: split(options.specs),
-          headless: options.headless,
-        });
-    const unsubscribe = options.jsonl ? eventBus.subscribe((event) => console.log(JSON.stringify(event))) : undefined;
-    try {
-      const summary = await new TestRunner(eventBus).run(config);
-      console.log(options.json ? JSON.stringify(summary, null, 2) : OutputFormatter.summary(summary));
-      if (summary.status !== "passed") process.exitCode = 1;
-    } finally {
-      unsubscribe?.();
-    }
-  });
-
-program
   .command("verify")
   .description("Run the built-in fixture test against one target")
   .argument("<target>", `One of: ${TARGET_NAMES.join(", ")}`)
@@ -138,6 +106,7 @@ program
   .option("--device-name <name>")
   .option("--platform-version <version>")
   .option("--avd <name>")
+  .option("--udid <id>")
   .option("--headless")
   .action(async (options) => {
     const controller = new InteractiveController();
@@ -148,6 +117,7 @@ program
       deviceName: options.deviceName,
       platformVersion: options.platformVersion,
       avd: options.avd,
+      udid: options.udid,
     });
     console.log(JSON.stringify(result, null, 2));
     console.log("Session is open. Press Ctrl+C to close it.");
@@ -175,11 +145,10 @@ program
 
 program
   .command("serve")
-  .description("Start the optional localhost REST/SSE API")
+  .description("Start the browser Testbench service and setup UI")
   .option("--host <host>", "Bind host", "127.0.0.1")
-  .option("--port <port>", "Bind port", "0")
+  .option("--port <port>", "Bind port", "55808")
   .option("--token <token>", "Bearer token (recommended outside loopback)")
-  .option("-c, --config <path>", "JSON configuration edited by the setup UI", "testbench.config.json")
   .option("--no-open", "Do not open the setup UI in the default browser")
   .action(async (options) => {
     if (options.host !== "127.0.0.1" && options.host !== "localhost" && !options.token)
@@ -188,7 +157,6 @@ program
       host: options.host,
       port: Number(options.port),
       token: options.token,
-      configPath: resolve(options.config),
     });
     const address = await server.start();
     const url = `http://${address.host}:${address.port}/setup`;
@@ -206,26 +174,17 @@ program
 
 program
   .command("mcp")
-  .description("Start the Codex-compatible MCP server over stdio")
+  .description("Start the MCP server over stdio")
   .action(async () => McpServerHost.start());
 
 program
   .command("mcp-config")
-  .description("Print the Codex command that registers this MCP server")
-  .action(() =>
-    console.log(
-      `codex mcp add browser-testbench -- node \"${resolve(TestbenchPaths.projectRoot, "dist", "cli.js")}\" mcp`,
-    ),
-  );
-
-program
-  .command("report")
-  .description("Print a stored run summary without opening a GUI")
-  .argument("<summary>", "Path to summary.json")
-  .option("--json")
-  .action(async (summaryPath, options) => {
-    const summary = JSON.parse(await readFile(resolve(summaryPath), "utf8"));
-    console.log(options.json ? JSON.stringify(summary, null, 2) : OutputFormatter.summary(summary));
+  .description("Print the setup command or configuration for an MCP client")
+  .option("--client <client>", "codex, claude-code, gemini-cli, copilot-vscode, or other", "codex")
+  .action(async (options) => {
+    const clients: McpClientId[] = ["codex", "claude-code", "gemini-cli", "copilot-vscode", "other"];
+    if (!clients.includes(options.client)) throw new Error(`Unknown MCP client '${options.client}'.`);
+    console.log((await McpIntegrationService.status(options.client)).command);
   });
 
 function split(value?: string): string[] | undefined {
@@ -247,6 +206,10 @@ function requireTarget(value: string): TargetName {
 
 function defaultTargets(): TargetName[] {
   return TargetRegistry.defaultTargets();
+}
+
+function defaultServerUrl(): string {
+  return process.env.BROWSER_TESTBENCH_URL ?? "http://127.0.0.1:55808";
 }
 
 function untilSignal(): Promise<void> {

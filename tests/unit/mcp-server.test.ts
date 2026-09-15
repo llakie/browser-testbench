@@ -23,10 +23,11 @@ describe("MCP transport", () => {
           "tap",
           "swipe",
           "pinch",
-          "run_suite",
-          "get_run_status",
-          "list_artifacts",
-          "read_artifact",
+          "wait_for_element",
+          "wait_for_text",
+          "wait_for_url",
+          "get_diagnostics",
+          "get_devtools_instructions",
         ]),
       );
       const result = await client.callTool({ name: "list_targets", arguments: {} });

@@ -13,6 +13,7 @@ export class InputSchemas {
       deviceName: z.string().min(1).optional(),
       platformVersion: z.string().min(1).optional(),
       avd: z.string().min(1).optional(),
+      udid: z.string().min(1).optional(),
       recordVideo: z.boolean().optional(),
       capabilities: z.record(z.string(), z.unknown()).optional(),
     }),
@@ -22,6 +23,25 @@ export class InputSchemas {
     targets: z.array(this.target).min(1).optional(),
   });
 
+  static readonly config = z.strictObject({
+    name: z.string().min(1),
+    baseUrl: z.url(),
+    targetPolicy: z.enum(["available", "strict"]).optional(),
+    targets: z.array(this.targetConfig).min(1),
+    specs: z.array(z.string()).optional(),
+    artifactsDir: z.string().optional(),
+    timeoutMs: z.number().int().positive().optional(),
+    maxDesktopWorkers: z.number().int().positive().optional(),
+    failFast: z.boolean().optional(),
+  });
+
+  static readonly remoteConfig = z.strictObject({
+    server: z.url(),
+    token: z.string().min(1).optional(),
+    targetPolicy: z.enum(["available", "strict"]).default("available"),
+    targets: z.array(this.targetConfig).min(1),
+  });
+
   static readonly startSession = z.strictObject({
     target: this.target,
     url: z.url().optional(),
@@ -29,15 +49,8 @@ export class InputSchemas {
     deviceName: z.string().min(1).optional(),
     platformVersion: z.string().min(1).optional(),
     avd: z.string().min(1).optional(),
+    udid: z.string().min(1).optional(),
     capabilities: z.record(z.string(), z.unknown()).optional(),
-  });
-
-  static readonly run = z.strictObject({
-    configPath: z.string().min(1).optional(),
-    url: z.url().optional(),
-    targets: z.array(this.target).min(1).optional(),
-    specs: z.array(z.string().min(1)).min(1).optional(),
-    headless: z.boolean().optional(),
   });
 
   static readonly setup = z.strictObject({
@@ -48,6 +61,10 @@ export class InputSchemas {
       .optional(),
   });
 
+  static readonly mcpIntegration = z.strictObject({
+    client: z.enum(["codex", "claude-code", "gemini-cli"]),
+  });
+
   static readonly navigate = z.strictObject({ url: z.url() });
   static readonly click = z.strictObject({ selector: z.string().min(1) });
   static readonly type = z.strictObject({
@@ -56,6 +73,23 @@ export class InputSchemas {
     clear: z.boolean().default(true),
   });
   static readonly screenshot = z.strictObject({ path: z.string().min(1).optional() });
+  static readonly wait = z.discriminatedUnion("type", [
+    z.strictObject({
+      type: z.literal("element"),
+      selector: z.string().min(1),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("text"),
+      text: z.string().min(1),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("url"),
+      value: z.string().min(1),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+  ]);
   static readonly inspect = z.strictObject({
     limit: z.coerce.number().int().min(1).max(500).default(100),
   });
@@ -104,6 +138,7 @@ export class InputSchemas {
 }
 
 export type StartSessionInput = z.infer<typeof InputSchemas.startSession>;
-export type RunInput = z.infer<typeof InputSchemas.run>;
 export type GestureInput = z.infer<typeof InputSchemas.gesture>;
 export type GestureRequest = z.input<typeof InputSchemas.gesture>;
+export type WaitRequest = z.input<typeof InputSchemas.wait>;
+export type RemoteConfigInput = z.input<typeof InputSchemas.remoteConfig>;

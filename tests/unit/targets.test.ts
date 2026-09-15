@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { BrowserSession, SelectorParser } from "../../src/automation/browser-session.js";
 import { TargetRegistry } from "../../src/config/target-registry.js";
+import { TestbenchPaths } from "../../src/infrastructure/paths.js";
 
 describe("TargetRegistry", () => {
+  it("provides a CLI command using the canonical executable", () => {
+    const command = TestbenchPaths.cliCommand("doctor");
+    expect(command).toContain("dist/cli.js");
+    expect(command).toContain("doctor");
+    expect(command).toContain("dist/cli.js");
+  });
   it("uses branded desktop browser capabilities", () => {
     expect(TargetRegistry.capabilities({ name: "chrome" })).toMatchObject({ browserName: "chrome" });
     expect(TargetRegistry.capabilities({ name: "firefox" })).toMatchObject({ browserName: "firefox" });
@@ -11,11 +18,14 @@ describe("TargetRegistry", () => {
   });
 
   it("builds Appium web capabilities for both simulators", () => {
-    expect(TargetRegistry.capabilities({ name: "safari-ios", deviceName: "iPhone 17" })).toMatchObject({
+    expect(
+      TargetRegistry.capabilities({ name: "safari-ios", deviceName: "iPhone 17", udid: "SIMULATOR-ID" }),
+    ).toMatchObject({
       platformName: "iOS",
       browserName: "Safari",
       "appium:automationName": "XCUITest",
       "appium:deviceName": "iPhone 17",
+      "appium:udid": "SIMULATOR-ID",
     });
     expect(TargetRegistry.capabilities({ name: "chrome-android", avd: "Pixel_Test" })).toMatchObject({
       platformName: "Android",

@@ -1,10 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { ArtifactCatalog } from "../artifacts/artifact-catalog.js";
 import { InteractiveController } from "../automation/interactive-controller.js";
 import { InputSchemas } from "../config/input-schemas.js";
 import { TargetRegistry } from "../config/target-registry.js";
-import { runStore } from "../orchestration/run-store.js";
 import { DoctorService } from "../setup/doctor-service.js";
 
 export class McpServerHost {
@@ -14,7 +12,7 @@ export class McpServerHost {
       { name: "browser-testbench", version: "0.1.0" },
       {
         instructions:
-          "Use doctor before starting an unfamiliar target. Use start_session for interactive exploration and run_suite for repeatable tests. Safari authorization is never probed automatically. Close interactive sessions when finished.",
+          "Use doctor before starting an unfamiliar target. Use the session tools as a remote control for exploration and debugging. Project-owned tests use the same remote controls through the Node client. Safari authorization is never probed automatically. Close sessions when finished.",
       },
     );
     const target = InputSchemas.target;
@@ -149,6 +147,63 @@ export class McpServerHost {
     );
 
     server.registerTool(
+      "wait_for_element",
+      {
+        description: "Wait until an element is present and visible in the active session.",
+        inputSchema: InputSchemas.wait.options[0].shape,
+        annotations: { readOnlyHint: true },
+      },
+      async ({ selector, timeoutMs }) => {
+        await interactive.wait({ type: "element", selector, timeoutMs });
+        return textResult({ ready: true });
+      },
+    );
+
+    server.registerTool(
+      "wait_for_text",
+      {
+        description: "Wait until text appears in the active page.",
+        inputSchema: InputSchemas.wait.options[1].shape,
+        annotations: { readOnlyHint: true },
+      },
+      async ({ text, timeoutMs }) => {
+        await interactive.wait({ type: "text", text, timeoutMs });
+        return textResult({ ready: true });
+      },
+    );
+
+    server.registerTool(
+      "wait_for_url",
+      {
+        description: "Wait until the active URL contains a value.",
+        inputSchema: InputSchemas.wait.options[2].shape,
+        annotations: { readOnlyHint: true },
+      },
+      async ({ value, timeoutMs }) => {
+        await interactive.wait({ type: "url", value, timeoutMs });
+        return textResult({ ready: true });
+      },
+    );
+
+    server.registerTool(
+      "get_diagnostics",
+      {
+        description: "Return captured console output and HTTP request/response diagnostics for the active session.",
+        annotations: { readOnlyHint: true },
+      },
+      async () => textResult(await interactive.diagnostics()),
+    );
+
+    server.registerTool(
+      "get_devtools_instructions",
+      {
+        description: "Explain how to open the native developer tools for the active browser or simulator.",
+        annotations: { readOnlyHint: true },
+      },
+      async () => textResult(interactive.debugTools()),
+    );
+
+    server.registerTool(
       "close_session",
       {
         description: "Close the active interactive browser/device session and its Appium process.",
@@ -156,69 +211,6 @@ export class McpServerHost {
       async () => {
         await interactive.close();
         return textResult({ closed: true });
-      },
-    );
-
-    server.registerTool(
-      "run_suite",
-      {
-        description: "Start a repeatable suite asynchronously. Poll get_run_status with the returned run ID.",
-        inputSchema: InputSchemas.run.shape,
-      },
-      async (input) => textResult(await runStore.start(input)),
-    );
-
-    server.registerTool(
-      "get_run_status",
-      {
-        description: "Get the latest state and artifact path for a test run.",
-        inputSchema: InputSchemas.runId.shape,
-        annotations: { readOnlyHint: true },
-      },
-      async ({ runId }) => {
-        const run = runStore.get(runId);
-        return run ? textResult(run) : { content: [{ type: "text", text: `Unknown run '${runId}'.` }], isError: true };
-      },
-    );
-
-    server.registerTool(
-      "list_artifacts",
-      {
-        description: "List the safely addressable files produced by a test run.",
-        inputSchema: InputSchemas.runId.shape,
-        annotations: { readOnlyHint: true },
-      },
-      async ({ runId }) => textResult(await ArtifactCatalog.list(runId)),
-    );
-
-    server.registerTool(
-      "read_artifact",
-      {
-        description:
-          "Read one artifact from a run. PNG screenshots are returned as images; text artifacts are returned as text.",
-        inputSchema: InputSchemas.artifact.shape,
-        annotations: { readOnlyHint: true },
-      },
-      async ({ runId, path }) => {
-        const artifact = await ArtifactCatalog.read(runId, path);
-        if (artifact.mimeType === "image/png") {
-          return {
-            content: [{ type: "image" as const, data: artifact.data.toString("base64"), mimeType: "image/png" }],
-          };
-        }
-        if (
-          artifact.mimeType.startsWith("text/") ||
-          artifact.mimeType.includes("json") ||
-          artifact.mimeType.includes("xml")
-        ) {
-          return { content: [{ type: "text" as const, text: artifact.data.toString("utf8") }] };
-        }
-        return textResult({
-          path: artifact.path,
-          size: artifact.size,
-          mimeType: artifact.mimeType,
-          base64: artifact.data.toString("base64"),
-        });
       },
     );
 

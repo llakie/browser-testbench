@@ -4,7 +4,6 @@ import { mkdir } from "node:fs/promises";
 import type { ChildProcess } from "node:child_process";
 import { CommandRunner } from "./command-runner.js";
 import { TestbenchPaths } from "./paths.js";
-import type { WebServerConfig } from "../config/types.js";
 
 export class ManagedProcess {
   readonly child: ChildProcess;
@@ -47,19 +46,6 @@ export class ManagedProcess {
 }
 
 export class ServiceManager {
-  static async startWebServer(config: WebServerConfig): Promise<ManagedProcess> {
-    const process = new ManagedProcess(config.command, config.cwd, config.env);
-    if (config.healthUrl) {
-      try {
-        await this.waitForUrl(config.healthUrl, config.timeoutMs ?? 60_000, process);
-      } catch (error) {
-        await process.stop();
-        throw error;
-      }
-    }
-    return process;
-  }
-
   static async startAppium(): Promise<{ process: ManagedProcess; port: number }> {
     const port = await this.freePort();
     const appiumHome = TestbenchPaths.cache("appium");

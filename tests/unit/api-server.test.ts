@@ -1,6 +1,3 @@
-import { mkdtemp, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { eventBus } from "../../src/orchestration/event-bus.js";
 import { ApiServer } from "../../src/transports/api-server.js";
@@ -18,45 +15,45 @@ describe("ApiServer", () => {
     expect((await targets.json()) as object).toHaveProperty("safari-ios");
   });
 
-  it("serves the Eta setup UI and hot-saves its fixed JSON config", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "browser-testbench-ui-"));
-    const configPath = join(directory, "testbench.config.json");
-    server = new ApiServer({ host: "127.0.0.1", port: 0, configPath });
+  it("serves the environment UI and project-facing capabilities", async () => {
+    server = new ApiServer({ host: "127.0.0.1", port: 0 });
     const address = await server.start();
     const baseUrl = `http://${address.host}:${address.port}`;
 
     const page = await fetch(`${baseUrl}/setup`);
     expect(page.headers.get("content-type")).toContain("text/html");
-    expect(await page.text()).toContain("Vom Projekt zum echten Browser-Test");
+    expect(await page.text()).toContain("Browser und Geräte für deine Projekte");
     expect((await fetch(`${baseUrl}/ui-assets/setup.css`)).status).toBe(200);
 
     const initial = (await fetch(`${baseUrl}/v1/workbench`).then((response) => response.json())) as {
-      configExists: boolean;
+      platform: string;
+      targets: Array<{ name: string }>;
+      mcpClients: Array<{ id: string }>;
+    };
+    expect(initial.platform).toBe(process.platform);
+    expect(initial.targets.map((target) => target.name)).toEqual([
+      "chrome",
+      "firefox",
+      "safari",
+      "edge",
+      "safari-ios",
+      "chrome-android",
+    ]);
+    expect(initial.mcpClients.map((client) => client.id)).toEqual([
+      "codex",
+      "claude-code",
+      "gemini-cli",
+      "copilot-vscode",
+      "other",
+    ]);
+
+    const capabilities = (await fetch(`${baseUrl}/v1/capabilities`).then((response) => response.json())) as {
       platform: string;
       targets: Array<{ name: string }>;
     };
-    expect(initial.configExists).toBe(false);
-    expect(initial.platform).toBe(process.platform);
-    expect(initial.targets.every((target) => target.name !== "edge")).toBe(process.platform !== "win32");
-
-    const config = {
-      name: "ui-suite",
-      baseUrl: "http://127.0.0.1:4173",
-      targets: ["chrome"],
-      specs: ["tests/browser/**/*.spec.mjs"],
-    };
-    const saved = await fetch(`${baseUrl}/v1/workbench/config`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(config),
-    });
-    expect(saved.status).toBe(200);
-    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual(config);
-    const refreshed = (await fetch(`${baseUrl}/v1/workbench`).then((response) => response.json())) as {
-      configExists: boolean;
-      config: { name: string };
-    };
-    expect(refreshed).toMatchObject({ configExists: true, config: { name: "ui-suite" } });
+    expect(capabilities.platform).toBe(process.platform);
+    expect(capabilities.targets.map((target) => target.name)).toContain("chrome");
+    expect((await fetch(`${baseUrl}/v1/workbench/config`, { method: "PUT" })).status).toBe(404);
   });
 
   it("enforces a bearer token when configured", async () => {
@@ -73,7 +70,7 @@ describe("ApiServer", () => {
   it("rejects invalid requests at the API boundary", async () => {
     server = new ApiServer({ host: "127.0.0.1", port: 0 });
     const address = await server.start();
-    const response = await fetch(`http://${address.host}:${address.port}/v1/session`, {
+    const response = await fetch(`http://${address.host}:${address.port}/v1/sessions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ target: "netscape" }),
@@ -81,7 +78,7 @@ describe("ApiServer", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: "Invalid request" });
 
-    const gesture = await fetch(`http://${address.host}:${address.port}/v1/session/gesture`, {
+    const gesture = await fetch(`http://${address.host}:${address.port}/v1/sessions/missing/gesture`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "swipe", direction: "diagonal" }),

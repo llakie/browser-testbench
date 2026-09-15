@@ -16,4 +16,18 @@ export class TestbenchPaths {
     const executable = process.platform === "win32" ? `${name}.cmd` : name;
     return join(this.projectRoot, "node_modules", ".bin", executable);
   }
+
+  static cliCommand(...args: string[]): string {
+    return [process.execPath, join(this.projectRoot, "dist", "cli.js"), ...args]
+      .map((part) => this.shellArgument(part))
+      .join(" ");
+  }
+
+  static shellCommand(parts: string[]): string {
+    return parts.map((part) => this.shellArgument(part)).join(" ");
+  }
+
+  private static shellArgument(value: string): string {
+    return /[\s"]/u.test(value) ? `"${value.replaceAll('"', '\\"')}"` : value;
+  }
 }

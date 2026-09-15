@@ -7,14 +7,7 @@ export const TARGET_NAMES = ["chrome", "firefox", "safari", "edge", "safari-ios"
 export type TargetName = (typeof TARGET_NAMES)[number];
 export type TargetKind = "desktop" | "mobile";
 export type CheckStatus = "ready" | "action" | "blocked" | "skip";
-
-export interface WebServerConfig {
-  command: string;
-  cwd?: string;
-  healthUrl?: string;
-  timeoutMs?: number;
-  env?: Record<string, string>;
-}
+export type TargetPolicy = "available" | "strict";
 
 export interface TargetConfig {
   name: TargetName;
@@ -23,6 +16,7 @@ export interface TargetConfig {
   deviceName?: string;
   platformVersion?: string;
   avd?: string;
+  udid?: string;
   recordVideo?: boolean;
   capabilities?: Record<string, unknown>;
 }
@@ -30,7 +24,7 @@ export interface TargetConfig {
 export interface TestbenchConfig {
   name: string;
   baseUrl: string;
-  webServer?: WebServerConfig;
+  targetPolicy?: TargetPolicy;
   targets: Array<TargetName | TargetConfig>;
   specs?: string[];
   artifactsDir?: string;
@@ -46,6 +40,7 @@ export interface NormalizedConfig extends Omit<TestbenchConfig, "targets"> {
   timeoutMs: number;
   maxDesktopWorkers: number;
   failFast: boolean;
+  targetPolicy: TargetPolicy;
 }
 
 export interface DoctorCheck {
@@ -54,6 +49,17 @@ export interface DoctorCheck {
   status: CheckStatus;
   detail: string;
   action?: string;
+  commands?: string[];
+  devices?: TargetDeviceOption[];
+}
+
+export interface TargetDeviceOption {
+  id: string;
+  name: string;
+  platformVersion?: string;
+  state?: string;
+  compatible: boolean;
+  config: TargetConfig;
 }
 
 export interface TargetDefinition {
@@ -118,6 +124,7 @@ export interface TestbenchEvent {
   type: string;
   timestamp: string;
   runId?: string;
+  sessionId?: string;
   target?: TargetName;
   test?: string;
   data?: Record<string, unknown>;

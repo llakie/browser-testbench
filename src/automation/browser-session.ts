@@ -104,8 +104,32 @@ export class BrowserHandle {
     return this.driver.manage().logs().get("browser");
   }
 
+  async logs(type: "browser" | "performance"): Promise<unknown[]> {
+    return this.driver.manage().logs().get(type);
+  }
+
+  async waitForElement(selector: string, timeoutMs: number): Promise<void> {
+    const element = await this.driver.wait(until.elementLocated(SelectorParser.parse(selector)), timeoutMs);
+    await this.driver.wait(until.elementIsVisible(element), timeoutMs);
+  }
+
+  async waitForText(text: string, timeoutMs: number): Promise<void> {
+    await this.driver.wait(
+      async () => this.execute<boolean>("return (document.body?.innerText ?? '').includes(arguments[0])", text),
+      timeoutMs,
+    );
+  }
+
+  async waitForUrl(value: string, timeoutMs: number): Promise<void> {
+    await this.driver.wait(async () => (await this.getUrl()).includes(value), timeoutMs);
+  }
+
   async getWindowRect(): Promise<{ x: number; y: number; width: number; height: number }> {
     return this.driver.manage().window().getRect();
+  }
+
+  async setWindowRect(width: number, height: number): Promise<void> {
+    await this.driver.manage().window().setRect({ width, height });
   }
 }
 

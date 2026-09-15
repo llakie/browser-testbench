@@ -33,14 +33,14 @@ export class TargetRegistry {
     },
     "safari-ios": {
       name: "safari-ios",
-      label: "Safari on iOS Simulator",
+      label: "Safari im iOS-Simulator",
       kind: "mobile",
       supportedPlatforms: ["darwin"],
       serial: true,
     },
     "chrome-android": {
       name: "chrome-android",
-      label: "Chrome on Android Emulator",
+      label: "Chrome im Android-Emulator",
       kind: "mobile",
       supportedPlatforms: ["darwin", "win32", "linux"],
       serial: true,
@@ -71,6 +71,7 @@ export class TargetRegistry {
       case "chrome":
         return {
           browserName: "chrome",
+          "goog:loggingPrefs": { browser: "ALL", performance: "ALL" },
           ...(target.headless ? { "goog:chromeOptions": { args: ["--headless=new"] } } : {}),
           ...common,
         };
@@ -95,6 +96,7 @@ export class TargetRegistry {
           "appium:automationName": "XCUITest",
           "appium:deviceName": target.deviceName ?? "iPhone 16",
           ...(target.platformVersion ? { "appium:platformVersion": target.platformVersion } : {}),
+          ...(target.udid ? { "appium:udid": target.udid } : {}),
           ...common,
         };
       case "chrome-android":
@@ -106,6 +108,7 @@ export class TargetRegistry {
           "appium:chromedriverExecutableDir": TestbenchPaths.cache("chromedrivers"),
           ...(target.platformVersion ? { "appium:platformVersion": target.platformVersion } : {}),
           ...(target.avd ? { "appium:avd": target.avd } : {}),
+          ...(target.udid ? { "appium:udid": target.udid } : {}),
           ...common,
         };
     }

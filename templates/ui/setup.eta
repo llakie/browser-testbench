@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <title><%= it.title %> · Setup</title>
+    <title><%= it.title %> · Einrichtung</title>
     <link rel="stylesheet" href="/fontawesome/css/fontawesome.min.css" />
     <link rel="stylesheet" href="/fontawesome/css/solid.min.css" />
     <link rel="stylesheet" href="/ui-assets/setup.css" />
@@ -14,175 +14,199 @@
     <header class="topbar">
       <a class="brand" href="/setup" aria-label="Browser Testbench Startseite">
         <span class="brand__mark"><i class="fa-solid fa-flask-vial" aria-hidden="true"></i></span>
-        <span>
-          <strong>Browser Testbench</strong>
-          <small>Lokale Browser- und Gerätetests</small>
-        </span>
+        <span><strong>Browser Testbench</strong><small>Browser- und Gerätetests auf diesem Rechner</small></span>
       </a>
       <div class="host-badge" id="host-badge" aria-live="polite">
-        <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
-        Umgebung wird erkannt
+        <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> System wird geprüft
       </div>
     </header>
 
     <main class="shell">
       <section class="hero">
         <div>
-          <p class="eyebrow">Get going</p>
-          <h1>Vom Projekt zum echten Browser-Test.</h1>
+          <p class="eyebrow">Zentrale Testumgebung</p>
+          <h1>Browser und Geräte für deine Projekte</h1>
           <p class="hero__copy">
-            Verbinde deine Anwendung, wähle die verfügbaren Browser und starte den ersten Lauf – Server und Artefakte
-            übernimmt die Testbench.
+            Richte Browser, Simulatoren und Emulatoren einmal zentral ein. Deine Anwendung, Testfälle und die Auswahl
+            der Testziele bleiben in den jeweiligen Projekten.
           </p>
         </div>
-        <div class="config-location">
-          <i class="fa-solid fa-file-code" aria-hidden="true"></i>
-          <span>
-            <small>Konfigurationsdatei</small>
-            <code id="config-path">wird geladen …</code>
-          </span>
-        </div>
       </section>
-
-      <nav class="steps" aria-label="Setup-Schritte">
-        <a href="#environment"><span>1</span> Umgebung</a>
-        <a href="#project"><span>2</span> Projekt</a>
-        <a href="#targets"><span>3</span> Ziele</a>
-        <a href="#run"><span>4</span> Testlauf</a>
-      </nav>
 
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 
       <section class="panel" id="environment">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Schritt 1</p>
-            <h2>Deine Umgebung</h2>
-            <p>Nur sichere Prüfungen laufen automatisch. Schritte mit Systemrechten bleiben bewusst bei dir.</p>
+            <p class="eyebrow">Lokale Testumgebung</p>
+            <h2>Browser und Geräte</h2>
+            <p>Hier siehst du, was einsatzbereit ist und wo noch etwas eingerichtet werden muss.</p>
           </div>
           <button class="button button--secondary" id="refresh-environment" type="button">
             <i class="fa-solid fa-rotate" aria-hidden="true"></i> Neu prüfen
           </button>
         </div>
-        <div class="check-grid" id="checks" aria-live="polite"></div>
-        <div class="guided-actions" id="guided-actions" hidden>
-          <div>
-            <h3>Geführtes Setup</h3>
-            <p id="setup-summary">Automatisierbare Abhängigkeiten können direkt eingerichtet werden.</p>
+        <div class="environment-group environment-group--capabilities">
+          <div class="subsection-heading">
+            <h3>Verfügbarkeit auf diesem Rechner</h3>
+            <p>Die Testbench ermittelt diese Angaben direkt auf deinem Rechner.</p>
           </div>
-          <button class="button button--secondary" id="run-setup" type="button">
-            <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Setup ausführen
+          <div class="check-grid" id="checks" aria-live="polite"></div>
+        </div>
+        <div class="guided-actions" id="guided-actions" hidden>
+          <div class="guided-actions__content">
+            <h3>Einrichtung für mobile Geräte</h3>
+            <p id="setup-summary"></p>
+            <div class="setup-action-list" id="setup-action-list"></div>
+          </div>
+          <button class="button button--secondary" id="run-setup" type="button" hidden>
+            <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Fehlende Komponenten einrichten
           </button>
+        </div>
+        <div class="integration-card">
+          <span class="integration-card__icon"><i class="fa-solid fa-plug" aria-hidden="true"></i></span>
+          <div class="integration-card__content">
+            <div class="integration-card__heading">
+              <div>
+                <h3>KI-Assistent über MCP anbinden</h3>
+                <p>
+                  Die Testbench verwendet den offenen MCP-Standard und ist nicht an einen bestimmten Anbieter gebunden.
+                </p>
+              </div>
+              <button class="button button--secondary" id="register-mcp" type="button" hidden>
+                <i class="fa-solid fa-link" aria-hidden="true"></i> Automatisch einrichten
+              </button>
+            </div>
+            <label class="integration-client">
+              <span>KI-Assistent</span>
+              <select id="mcp-client" aria-label="KI-Assistent auswählen"></select>
+            </label>
+            <p class="integration-status" id="mcp-status">Anbindung wird geprüft …</p>
+            <p id="mcp-instruction"></p>
+            <div id="mcp-command"></div>
+          </div>
         </div>
       </section>
 
-      <form id="configuration-form">
-        <section class="panel" id="project">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Schritt 2</p>
-              <h2>Projekt verbinden</h2>
-              <p>Der Projektserver wird vor jedem Lauf gestartet und danach wieder sauber beendet.</p>
-            </div>
-            <span class="save-state" id="save-state"
-              ><i class="fa-solid fa-circle" aria-hidden="true"></i> Ungespeichert</span
-            >
-          </div>
-
-          <div class="form-grid">
-            <label>
-              <span>Projektname</span>
-              <input id="project-name" name="name" required autocomplete="off" />
-            </label>
-            <label>
-              <span>URL der Anwendung</span>
-              <input id="base-url" name="baseUrl" type="url" required placeholder="http://127.0.0.1:3000" />
-              <small>Hier wartet die Testbench, bis deine Anwendung erreichbar ist.</small>
-            </label>
-            <label class="form-grid__wide">
-              <span>Startbefehl</span>
-              <div class="input-with-icon">
-                <i class="fa-solid fa-terminal" aria-hidden="true"></i>
-                <input id="server-command" name="serverCommand" placeholder="npm run dev" autocomplete="off" />
-              </div>
-              <small>Leer lassen, wenn du den Server selbst startest.</small>
-            </label>
-            <label>
-              <span>Arbeitsverzeichnis</span>
-              <input id="server-cwd" name="serverCwd" placeholder="." autocomplete="off" />
-            </label>
-            <label>
-              <span>Optionaler Health-Check</span>
-              <input id="health-url" name="healthUrl" type="url" placeholder="http://127.0.0.1:3000/health" />
-            </label>
-            <label class="form-grid__wide">
-              <span>Testdateien</span>
-              <input id="specs" name="specs" placeholder="tests/browser/**/*.spec.mjs" autocomplete="off" />
-              <small>Mehrere Glob-Muster mit Komma trennen.</small>
-            </label>
-          </div>
-
-          <details class="advanced">
-            <summary><i class="fa-solid fa-sliders" aria-hidden="true"></i> Erweiterte JSON-Konfiguration</summary>
-            <p>Direkte Änderungen werden vor dem Speichern validiert und mit dem Formular synchronisiert.</p>
-            <label>
-              <span class="sr-only">JSON-Konfiguration</span>
-              <textarea id="json-editor" spellcheck="false" rows="18"></textarea>
-            </label>
-            <button class="button button--quiet" id="apply-json" type="button">
-              <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i> JSON ins Formular übernehmen
-            </button>
-          </details>
-        </section>
-
-        <section class="panel" id="targets">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Schritt 3</p>
-              <h2>Browser und Geräte</h2>
-              <p id="target-help">
-                Angezeigt werden die Ziele, die auf diesem Rechner grundsätzlich unterstützt werden.
-              </p>
-            </div>
-          </div>
-          <div class="target-grid" id="target-list"></div>
-        </section>
-
-        <section class="panel run-panel" id="run">
-          <div>
-            <p class="eyebrow">Schritt 4</p>
-            <h2>Bereit für den ersten Lauf?</h2>
-            <p>Speichern wirkt sofort. Beim Start liest die Testbench die aktuelle JSON-Datei neu ein.</p>
-          </div>
-          <div class="run-actions">
-            <button class="button button--secondary" id="save-config" type="submit">
-              <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Speichern
-            </button>
-            <button class="button button--primary" id="save-and-run" type="button">
-              <i class="fa-solid fa-play" aria-hidden="true"></i> Speichern &amp; testen
-            </button>
-          </div>
-        </section>
-      </form>
-
-      <section class="panel results" id="results" hidden>
+      <section class="panel" id="configuration">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Testlauf</p>
-            <h2 id="result-title">Tests laufen …</h2>
-            <p id="result-copy">Der konfigurierte Projektserver wird vorbereitet.</p>
+            <p class="eyebrow">Projektkonfiguration</p>
+            <h2>Projektkonfiguration erstellen</h2>
+            <p>
+              Stelle die Konfiguration für dein Projekt zusammen und speichere sie dort als
+              <code>testbench.config.json</code>.
+            </p>
           </div>
-          <span class="run-status status--running" id="run-status">
-            <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Läuft
-          </span>
         </div>
-        <div class="result-grid" id="result-grid"></div>
+
+        <form id="config-form">
+          <fieldset class="config-options">
+            <legend>Verhalten</legend>
+            <label class="config-toggle">
+              <input id="config-available" type="checkbox" checked />
+              <span>
+                <strong>Nicht verfügbare Testziele überspringen</strong>
+                <small>So kann dieselbe Datei auf macOS und Windows verwendet werden.</small>
+              </span>
+            </label>
+            <label class="config-toggle">
+              <input id="config-headless" type="checkbox" checked />
+              <span>
+                <strong>Desktopbrowser im Hintergrund ausführen</strong>
+                <small>Safari sowie Simulatoren und Emulatoren sind davon nicht betroffen.</small>
+              </span>
+            </label>
+          </fieldset>
+
+          <fieldset class="config-targets">
+            <legend>Testziele</legend>
+            <p>Wähle die Browser und Geräte, auf denen dein Projekt getestet werden soll.</p>
+            <div class="config-target-list" id="config-target-list"></div>
+          </fieldset>
+
+          <div class="config-output">
+            <div class="config-output__heading">
+              <div>
+                <h3>Vorschau der <code>testbench.config.json</code></h3>
+                <p>Die Vorschau wird bei jeder Änderung sofort aktualisiert.</p>
+              </div>
+              <div class="config-output__actions">
+                <button class="button button--secondary" id="copy-config" type="button">
+                  <i class="fa-solid fa-copy" aria-hidden="true"></i> JSON kopieren
+                </button>
+                <button class="button button--primary" id="download-config" type="button">
+                  <i class="fa-solid fa-download" aria-hidden="true"></i> Datei herunterladen
+                </button>
+              </div>
+            </div>
+            <pre class="config-preview"><code id="config-preview"></code></pre>
+            <p class="config-message" id="config-message" role="status" aria-live="polite"></p>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" id="connect">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Zum Abschluss</p>
+            <h2>Projekt anbinden und Test starten</h2>
+            <p>
+              Lege die erzeugte <code>testbench.config.json</code> in deinem Projekt ab. Dein Test-Runner steuert damit
+              Browser und Geräte über die Testbench. URLs, Assertions und Ergebnisordner bleiben vollständig im Projekt.
+            </p>
+          </div>
+        </div>
+        <div class="project-command">
+          <span class="integration-card__icon"><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i></span>
+          <div>
+            <h3>Client im Projekt installieren</h3>
+            <p>Installiere die Testbench als Entwicklungsabhängigkeit in deinem Projekt.</p>
+            <div id="project-install-command"></div>
+          </div>
+        </div>
+        <div class="project-command">
+          <span class="integration-card__icon"><i class="fa-solid fa-play" aria-hidden="true"></i></span>
+          <div>
+            <h3>Im eigenen Test verwenden</h3>
+            <p>
+              Der Test öffnet selbst eine Session. Dadurch kannst du Vitest, Node, Playwrights Test-Runner oder jedes
+              andere Projektwerkzeug für Ablauf und Assertions verwenden.
+            </p>
+            <div id="project-client-example"></div>
+          </div>
+        </div>
+        <div class="project-command">
+          <span class="integration-card__icon"><i class="fa-solid fa-bug" aria-hidden="true"></i></span>
+          <div>
+            <h3>Browser zum Debuggen öffnen</h3>
+            <p>
+              Öffne ohne Testablauf direkt eine URL im gewünschten Browser oder Gerät. Die Session bleibt aktiv, bis du
+              im Terminal <kbd>Ctrl</kbd> + <kbd>C</kbd> drückst.
+            </p>
+            <div class="debug-controls">
+              <label>
+                <span>Adresse deiner Anwendung</span>
+                <div class="input-with-icon">
+                  <i class="fa-solid fa-link" aria-hidden="true"></i>
+                  <input id="debug-url" type="url" value="http://127.0.0.1:3000" />
+                </div>
+              </label>
+              <label>
+                <span>Browser oder Gerät</span>
+                <select id="debug-target"></select>
+              </label>
+            </div>
+            <div id="debug-open-command"></div>
+            <p class="debug-tools-note" id="debug-tools-note"></p>
+          </div>
+        </div>
       </section>
     </main>
 
     <footer>
-      <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Lokal, portabel und ohne Cloud-Zwang</span>
-      <a href="/health">API-Status</a>
+      <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Lokal ausgeführt und projektunabhängig</span>
+      <a href="/health">Serverstatus</a>
     </footer>
   </body>
 </html>

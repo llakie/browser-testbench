@@ -1,38 +1,45 @@
-import { ConfigFileStore } from "../config/config-file-store.js";
 import { TargetRegistry } from "../config/target-registry.js";
-import type { TargetName } from "../config/types.js";
+import { TARGET_NAMES } from "../config/types.js";
 import { DoctorService } from "./doctor-service.js";
+import { McpIntegrationService } from "./mcp-integration-service.js";
 import { SetupService } from "./setup-service.js";
+import { TestbenchPaths } from "../infrastructure/paths.js";
 
 export class WorkbenchService {
-  constructor(private readonly configs: ConfigFileStore) {}
-
   async state(): Promise<Record<string, unknown>> {
-    const stored = await this.configs.read();
-    const supportedTargets = TargetRegistry.defaultTargets();
-    const selectedTargets = stored.config.targets
-      .map((target) => (typeof target === "string" ? target : target.name))
-      .filter(
-        (target): target is TargetName => TargetRegistry.isTargetName(target) && TargetRegistry.isSupported(target),
-      );
-    const [checks, actions] = await Promise.all([
-      DoctorService.inspect(supportedTargets),
-      SetupService.plan(selectedTargets),
+    const targets = [...TARGET_NAMES];
+    const [checks, actions, mcpClients] = await Promise.all([
+      DoctorService.inspect(targets),
+      SetupService.plan(targets),
+      McpIntegrationService.statuses(),
     ]);
 
     return {
       platform: process.platform,
       platformLabel: this.platformLabel(),
       architecture: process.arch,
-      config: stored.config,
-      configExists: stored.exists,
-      configPath: this.configs.displayPath(),
-      targets: supportedTargets.map((name) => ({
+      mcpClients,
+      targets: targets.map((name) => ({
         ...TargetRegistry.definitions[name],
         check: checks.find((check) => check.id === name),
       })),
       checks,
       actions,
+      clientInstallCommand: `npm install --save-dev ${JSON.stringify(`file:${TestbenchPaths.projectRoot}`)}`,
+    };
+  }
+
+  async capabilities(): Promise<Record<string, unknown>> {
+    const targets = [...TARGET_NAMES];
+    const checks = await DoctorService.inspect(targets);
+    return {
+      platform: process.platform,
+      architecture: process.arch,
+      targets: targets.map((name) => ({
+        ...TargetRegistry.definitions[name],
+        check: checks.find((check) => check.id === name),
+      })),
+      checks,
     };
   }
 

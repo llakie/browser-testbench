@@ -29,10 +29,13 @@ describe("MCP browser control", () => {
         await client.callTool({ name: "start_session", arguments: { target: "chrome", url, headless: true } });
         await client.callTool({ name: "type", arguments: { selector: "#name", value: "MCP" } });
         await client.callTool({ name: "click", arguments: { selector: "#submit" } });
+        await client.callTool({ name: "wait_for_text", arguments: { text: "Hello MCP", timeoutMs: 5_000 } });
         const inspection = await client.callTool({ name: "inspect_page", arguments: { limit: 20 } });
         expect(JSON.stringify(inspection.content)).toContain("Browser Testbench Fixture");
         const source = await client.callTool({ name: "get_page_source", arguments: { maxCharacters: 10_000 } });
         expect(JSON.stringify(source.content)).toContain("Hello MCP");
+        const diagnostics = await client.callTool({ name: "get_diagnostics", arguments: {} });
+        expect(JSON.stringify(diagnostics.content)).toContain("fixture submitted");
         const screenshot = await client.callTool({ name: "take_screenshot", arguments: { path: screenshotPath } });
         expect(JSON.stringify(screenshot.content)).toContain(screenshotPath);
         await client.callTool({ name: "close_session", arguments: {} });

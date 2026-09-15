@@ -10,6 +10,7 @@ import { SpecLoader } from "./spec-loader.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import { VideoRecorder } from "../automation/video-recorder.js";
 import { MobileGestures } from "../automation/mobile-gestures.js";
+import { TargetSelector } from "./target-selector.js";
 import type {
   NormalizedConfig,
   RunSummary,
@@ -41,13 +42,13 @@ export class TestRunner {
     await this.writeManifest(artifacts, config, summary);
     this.events.publish({ type: "run.started", runId, data: { name: config.name, baseUrl: config.baseUrl } });
 
-    let webServer: ManagedProcess | undefined;
     let appium: { process: ManagedProcess; port: number } | undefined;
     try {
-      if (config.webServer) webServer = await ServiceManager.startWebServer(config.webServer);
+      const selection = await TargetSelector.resolve(config.targets);
+      summary.targets.push(...selection.unavailable);
       const tests = await SpecLoader.load(config);
       if (
-        config.targets.some(
+        selection.runnable.some(
           (target) =>
             TargetRegistry.definitions[target.name].kind === "mobile" && TargetRegistry.isSupported(target.name),
         )
@@ -55,8 +56,8 @@ export class TestRunner {
         appium = await ServiceManager.startAppium();
       }
 
-      const parallel = config.targets.filter((target) => !TargetRegistry.definitions[target.name].serial);
-      const serial = config.targets.filter((target) => TargetRegistry.definitions[target.name].serial);
+      const parallel = selection.runnable.filter((target) => !TargetRegistry.definitions[target.name].serial);
+      const serial = selection.runnable.filter((target) => TargetRegistry.definitions[target.name].serial);
       summary.targets.push(
         ...(await this.runPool(parallel, config.maxDesktopWorkers, (target) =>
           this.runTarget(target, tests, config, artifacts, runId, appium?.port),
@@ -67,16 +68,17 @@ export class TestRunner {
         summary.targets.push(result);
         if (config.failFast && result.status === "failed") break;
       }
-      summary.status = summary.targets.some((target) => target.status !== "passed") ? "failed" : "passed";
+      const executed = summary.targets.filter((target) => !selection.unavailable.includes(target));
+      const executionFailed = executed.some((target) => target.status !== "passed");
+      const unavailableIsFailure = config.targetPolicy === "strict" && selection.unavailable.length > 0;
+      summary.status = executionFailed || unavailableIsFailure || selection.runnable.length === 0 ? "failed" : "passed";
     } catch (error) {
       summary.status = "failed";
       this.events.publish({ type: "run.error", runId, data: { error: this.errorMessage(error) } });
       throw Object.assign(error instanceof Error ? error : new Error(String(error)), { summary });
     } finally {
       if (appium?.process.recentOutput) await artifacts.writeRunFile("appium.log", appium.process.recentOutput);
-      if (webServer?.recentOutput) await artifacts.writeRunFile("web-server.log", webServer.recentOutput);
       await appium?.process.stop();
-      await webServer?.stop();
       summary.finishedAt = new Date().toISOString();
       await artifacts.writeSummary(summary);
       this.events.publish({
