@@ -44,7 +44,9 @@ describe("REST browser control", () => {
           "mocked",
         );
         await browser.clearFetchMocks();
-        await browser.fill("placeholder=Your name", "REST");
+        await browser.fill('[placeholder="Your name"]', "REST");
+        await expect(browser.count("placeholder=Your name")).rejects.toThrow();
+        await expect(browser.count("//input")).rejects.toThrow();
         await browser.append("#name", " Client");
         await browser.waitForValue("#name", "REST Client");
         expect((await browser.state("#name")).value).toBe("REST Client");
@@ -61,16 +63,26 @@ describe("REST browser control", () => {
         await browser.blur("#name");
         await browser.hover("#submit");
         expect((await browser.elementScreenshotBase64("#fixture-form")).length).toBeGreaterThan(100);
-        await browser.click("role=button|Submit");
+        await browser.click('button[data-testid="submit"]');
         await browser.waitForText("Hello REST Client");
         await browser.waitForNetworkIdle(100, 5_000);
-        expect((await browser.inspect()).title).toBe("Browser Testbench Fixture");
+        const inspection = await browser.inspect();
+        expect(inspection.title).toBe("Browser Testbench Fixture");
+        for (const element of inspection.elements) {
+          expect(
+            await browser.evaluate<boolean>("return Boolean(document.querySelector(arguments[0]))", [element.selector]),
+          ).toBe(true);
+        }
         await browser.click("#alert");
         expect((await browser.alert("accept")).text).toBe("Fixture alert");
         await browser.switchFrame("#fixture-frame");
         expect((await browser.state("#frame-button")).text).toBe("Frame action");
         await browser.switchFrame();
-        expect((await browser.state("shadow=#shadow-host >>> #shadow-button")).text).toBe("Shadow action");
+        expect(
+          await browser.evaluate<string>(
+            'return document.querySelector("#shadow-host").shadowRoot.querySelector("#shadow-button").textContent',
+          ),
+        ).toBe("Shadow action");
         await browser.setStorage("local", "fixture", "stored");
         expect(await browser.storage("local")).toMatchObject({ fixture: "stored" });
         await browser.setCookie({ name: "fixture", value: "cookie" });

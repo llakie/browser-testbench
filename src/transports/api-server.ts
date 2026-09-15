@@ -117,6 +117,10 @@ export class ApiServer {
       const { limit } = InputSchemas.inspect.parse(request.query);
       response.json(await this.sessions.get(request.params.id).inspect(limit));
     });
+    this.app.get("/v1/sessions/:id/source", async (request, response) => {
+      const { maxCharacters } = InputSchemas.pageSource.parse(request.query);
+      response.json(await this.sessions.get(request.params.id).source(maxCharacters));
+    });
     this.app.post("/v1/sessions/:id/navigate", async (request, response) => {
       const { url } = InputSchemas.navigate.parse(request.body);
       response.json(await this.sessions.get(request.params.id).navigate(url));

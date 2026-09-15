@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 import { Command } from "commander";
 import open from "open";
 import { OutputFormatter } from "./artifacts/output-formatter.js";
-import { InteractiveController } from "./automation/interactive-controller.js";
 import { ConfigLoader } from "./config/config-loader.js";
 import { TargetRegistry } from "./config/target-registry.js";
 import { TARGET_NAMES, type TargetName } from "./config/types.js";
@@ -13,7 +12,6 @@ import { DoctorService } from "./setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "./setup/mcp-integration-service.js";
 import { SetupService } from "./setup/setup-service.js";
 import { VerificationStore } from "./setup/verification-store.js";
-import { TargetCatalogService } from "./setup/target-catalog-service.js";
 import { FixtureServer } from "./support/fixture-server.js";
 import { ApiServer } from "./transports/api-server.js";
 import { McpServerHost } from "./transports/mcp-server.js";
@@ -116,20 +114,23 @@ program
   .option("--download-dir <path>")
   .option("--video <path>", "Record a mobile simulator session to MP4")
   .option("--headless")
+  .option("--server <url>", "Testbench server URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
   .action(async (options) => {
-    const controller = new InteractiveController();
-    const { options: sessionOptions } = await TargetCatalogService.sessionOptions({
+    const session = await new RemoteTestbench({ server: options.server, token: options.token }).open({
       target: options.target,
       url: options.url,
       headless: options.headless,
       downloadDir: options.downloadDir ? resolve(options.downloadDir) : undefined,
       videoPath: options.video ? resolve(options.video) : undefined,
     });
-    const result = await controller.start(sessionOptions);
-    console.log(JSON.stringify(result, null, 2));
-    console.log("Session is open. Press Ctrl+C to close it.");
-    await untilSignal();
-    await controller.close();
+    try {
+      console.log(JSON.stringify({ id: session.id, target: session.target, runtime: session.runtime }, null, 2));
+      console.log("Session is open. Press Ctrl+C to close it.");
+      await untilSignal();
+    } finally {
+      await session.close();
+    }
   });
 
 program
@@ -139,22 +140,19 @@ program
   .requiredOption("-u, --url <url>", "URL")
   .option("-o, --output <path>", "PNG output path")
   .option("--headless")
+  .option("--server <url>", "Testbench server URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
   .action(async (options) => {
-    const controller = new InteractiveController();
+    const session = await new RemoteTestbench({ server: options.server, token: options.token }).open({
+      target: options.target,
+      url: options.url,
+      headless: options.headless,
+    });
     try {
-      await controller.start(
-        (
-          await TargetCatalogService.sessionOptions({
-            target: options.target,
-            url: options.url,
-            headless: options.headless,
-          })
-        ).options,
-      );
-      const screenshot = await controller.screenshot(options.output ? resolve(options.output) : undefined);
-      console.log(screenshot.path);
+      const output = resolve(options.output ?? `screenshot-${Date.now()}.png`);
+      console.log(await session.screenshot(output));
     } finally {
-      await controller.close();
+      await session.close();
     }
   });
 
@@ -190,7 +188,9 @@ program
 program
   .command("mcp")
   .description("Start the MCP server over stdio")
-  .action(async () => McpServerHost.start());
+  .option("--server <url>", "Testbench server URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
+  .action(async (options) => McpServerHost.start({ server: options.server, token: options.token }));
 
 program
   .command("mcp-config")

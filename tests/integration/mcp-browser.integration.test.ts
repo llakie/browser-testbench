@@ -5,6 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { describe, expect, it } from "vitest";
 import { FixtureServer } from "../../src/support/fixture-server.js";
+import { ApiServer } from "../../src/transports/api-server.js";
 
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
 
@@ -14,11 +15,13 @@ describe("MCP browser control", () => {
     async () => {
       const fixture = new FixtureServer();
       const url = await fixture.start();
+      const api = new ApiServer({ host: "127.0.0.1", port: 0 });
+      const address = await api.start();
       const outputDirectory = await mkdtemp(join(tmpdir(), "browser-testbench-mcp-"));
       const screenshotPath = join(outputDirectory, "mcp.png");
       const transport = new StdioClientTransport({
         command: process.execPath,
-        args: ["--import", "tsx", "src/cli.ts", "mcp"],
+        args: ["--import", "tsx", "src/cli.ts", "mcp", "--server", `http://${address.host}:${address.port}`],
         cwd: process.cwd(),
         stderr: "pipe",
       });
@@ -29,7 +32,7 @@ describe("MCP browser control", () => {
         await client.callTool({ name: "start_session", arguments: { target: "chrome", url, headless: true } });
         await client.callTool({
           name: "element_action",
-          arguments: { action: "fill", selector: "placeholder=Your name", value: "MCP" },
+          arguments: { action: "fill", selector: '[placeholder="Your name"]', value: "MCP" },
         });
         await client.callTool({ name: "element_action", arguments: { action: "check", selector: "#terms" } });
         await client.callTool({
@@ -49,6 +52,7 @@ describe("MCP browser control", () => {
         await client.callTool({ name: "close_session", arguments: {} });
       } finally {
         await client.close();
+        await api.stop();
         await fixture.stop();
       }
     },

@@ -111,6 +111,31 @@ export class InteractiveController {
     const browser = this.session.active;
     const elements = await browser.execute((maxItems: number) => {
       const selector = "a,button,input,textarea,select,[role],[contenteditable='true'],h1,h2,h3";
+      const cssSelector = (element: HTMLElement): string => {
+        if (element.id) return `#${CSS.escape(element.id)}`;
+        if (element.dataset.testid) return `[data-testid=${JSON.stringify(element.dataset.testid)}]`;
+        const ariaLabel = element.getAttribute("aria-label");
+        if (ariaLabel) return `[aria-label=${JSON.stringify(ariaLabel)}]`;
+        const placeholder = element.getAttribute("placeholder");
+        if (placeholder) return `[placeholder=${JSON.stringify(placeholder)}]`;
+        const name = element.getAttribute("name");
+        if (name) return `${element.tagName.toLowerCase()}[name=${JSON.stringify(name)}]`;
+
+        const path: string[] = [];
+        let current: HTMLElement | null = element;
+        while (current) {
+          let segment = current.tagName.toLowerCase();
+          const parent: HTMLElement | null = current.parentElement;
+          if (parent) {
+            const siblings = Array.from(parent.children).filter((child) => child.tagName === current?.tagName);
+            if (siblings.length > 1) segment += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+          }
+          path.unshift(segment);
+          if (!parent || current === document.body) break;
+          current = parent;
+        }
+        return path.join(" > ");
+      };
       return Array.from(document.querySelectorAll<HTMLElement>(selector))
         .slice(0, maxItems)
         .map((element) => ({
@@ -126,17 +151,7 @@ export class InteractiveController {
             element.getAttribute("name") ??
             undefined,
           value: "value" in element ? String((element as HTMLInputElement).value) : undefined,
-          selector: element.id
-            ? `#${CSS.escape(element.id)}`
-            : element.dataset.testid
-              ? `testid=${element.dataset.testid}`
-              : element.getAttribute("aria-label")
-                ? `~${element.getAttribute("aria-label")}`
-                : element.getAttribute("placeholder")
-                  ? `placeholder=${element.getAttribute("placeholder")}`
-                  : element.getAttribute("name")
-                    ? `${element.tagName.toLowerCase()}[name=${JSON.stringify(element.getAttribute("name"))}]`
-                    : `${element.tagName.toLowerCase()}=${(element.innerText || element.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80)}`,
+          selector: cssSelector(element),
           disabled: "disabled" in element ? Boolean((element as HTMLInputElement).disabled) : false,
           checked: "checked" in element ? Boolean((element as HTMLInputElement).checked) : undefined,
         }));

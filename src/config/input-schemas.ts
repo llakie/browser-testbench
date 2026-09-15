@@ -254,14 +254,8 @@ export class InputSchemas {
     limit: z.coerce.number().int().min(1).max(500).default(100),
   });
   static readonly pageSource = z.strictObject({
-    maxCharacters: z.number().int().min(1_000).max(500_000).default(100_000),
+    maxCharacters: z.coerce.number().int().min(1_000).max(500_000).default(100_000),
   });
-  static readonly runId = z.strictObject({ runId: z.string().min(1) });
-  static readonly artifact = z.strictObject({
-    runId: z.string().min(1),
-    path: z.string().min(1),
-  });
-
   static readonly gestureArea = z.strictObject({
     left: z.number().nonnegative(),
     top: z.number().nonnegative(),

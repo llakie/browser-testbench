@@ -163,7 +163,7 @@ for (const target of targets) {
   const browser = await testbench.open({ target, url: "http://127.0.0.1:3000", headless: true });
 
   try {
-    await browser.click("button=Anmelden");
+    await browser.click('button[type="submit"]');
     await browser.waitForText("Willkommen");
     await browser.screenshot(\`artifacts/anmeldung-\${target}.png\`);
   } finally {

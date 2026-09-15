@@ -54,7 +54,7 @@ npm run dev -- verify safari
 
 ### Interaktiv entwickeln und debuggen
 
-Ein KI-Assistent kann über MCP eine Session öffnen, navigieren, Elemente untersuchen, klicken, tippen, Screenshots erzeugen und mobile Gesten auslösen. Console-Ausgaben und HTTP-Requests/-Responses sind über `get_diagnostics` verfügbar. WebSocket-Transport und WebSocket-Frame-Inspektion sind aktuell nicht Bestandteil der Testbench.
+Ein KI-Assistent kann über MCP eine Session öffnen, navigieren, Elemente untersuchen, klicken, tippen, Screenshots erzeugen und mobile Gesten auslösen. Der MCP-Prozess arbeitet dabei als schlanke Brücke zum laufenden Testbench-Server; Zielauflösung, Sessions und Gerätesperren bleiben zentral. Console-Ausgaben und HTTP-Requests/-Responses sind über `get_diagnostics` verfügbar. WebSocket-Transport und WebSocket-Frame-Inspektion sind aktuell nicht Bestandteil der Testbench.
 
 Für native Browser-DevTools liefert `get_devtools_instructions` die passende Verbindung:
 
@@ -85,9 +85,9 @@ for (const target of targets) {
   });
 
   try {
-    await browser.fill("label=E-Mail-Adresse", "test@example.com");
-    await browser.check("testid=terms");
-    await browser.click("button=Anmelden");
+    await browser.fill('input[name="email"]', "test@example.com");
+    await browser.check('[data-testid="terms"]');
+    await browser.click('button[type="submit"]');
     await browser.waitForText("Willkommen");
     assert.match((await browser.inspect()).url, /dashboard/);
     await browser.screenshot(`artifacts/login-${target}.png`);
@@ -129,9 +129,10 @@ Eine `RemoteSession` bietet:
 - `diagnostics()`, `clearDiagnostics()` und `devtools()`
 - `close()`
 
-Selector können CSS oder XPath sein. Zusätzlich stehen `tag=Text`, `label=Text`, `placeholder=Text`, `testid=Wert`,
-`text=Text`, `role=Rolle|Name`, `~Aria-Label` sowie `shadow=host >>> element` für offene Shadow Roots zur Verfügung.
-Mehrdeutige Treffer lassen sich mit `first|...`, `last|...` oder `nth=2|...` eingrenzen.
+Alle Elementmethoden akzeptieren ausschließlich standardkonforme CSS-Selektoren. Verwende für robuste Tests bevorzugt
+stabile Attribute wie IDs, `name` oder `data-testid`, beispielsweise `#login`, `input[name="email"]` oder
+`[data-testid="terms"]`. Für offene Shadow Roots steht bei Bedarf `evaluate()` mit `shadowRoot.querySelector()` zur
+Verfügung.
 
 Screenshots werden vom Client im Projekt gespeichert. Für Downloads wird beim Öffnen der Session ein `downloadDir`
 auf dem Testbench-Rechner angegeben.
@@ -174,6 +175,7 @@ GET    /v1/sessions
 POST   /v1/sessions
 DELETE /v1/sessions/:id
 GET    /v1/sessions/:id/inspect
+GET    /v1/sessions/:id/source
 POST   /v1/sessions/:id/navigate
 POST   /v1/sessions/:id/click
 POST   /v1/sessions/:id/type

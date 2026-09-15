@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BrowserSession, SelectorParser } from "../../src/automation/browser-session.js";
+import { BrowserSession } from "../../src/automation/browser-session.js";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TestbenchPaths } from "../../src/infrastructure/paths.js";
 
@@ -40,10 +40,6 @@ describe("TargetRegistry", () => {
       "http://10.0.2.2:3000/path",
     );
     expect(BrowserSession.urlForTarget("https://example.com", { name: "chrome-android" })).toBe("https://example.com/");
-  });
-
-  it("quotes apostrophes safely in semantic text selectors", () => {
-    expect(SelectorParser.parse("button=Don't").toString()).toContain(`normalize-space(.)=\"Don't\"`);
   });
 
   it("selects platform-specific defaults without unsupported Apple targets on Windows", () => {

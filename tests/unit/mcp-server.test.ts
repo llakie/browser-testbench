@@ -1,12 +1,15 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { describe, expect, it } from "vitest";
+import { ApiServer } from "../../src/transports/api-server.js";
 
 describe("MCP transport", () => {
   it("exposes the agent control surface over stdio", async () => {
+    const api = new ApiServer({ host: "127.0.0.1", port: 0 });
+    const address = await api.start();
     const transport = new StdioClientTransport({
       command: process.execPath,
-      args: ["--import", "tsx", "src/cli.ts", "mcp"],
+      args: ["--import", "tsx", "src/cli.ts", "mcp", "--server", `http://${address.host}:${address.port}`],
       cwd: process.cwd(),
       stderr: "pipe",
     });
@@ -41,6 +44,7 @@ describe("MCP transport", () => {
       expect(JSON.stringify(result.content)).toContain("chrome-android");
     } finally {
       await client.close();
+      await api.stop();
     }
   });
 });

@@ -10,7 +10,7 @@ export class BrowserElement {
   ) {}
 
   private element(): Promise<WebElement> {
-    return SelectorParser.find(this.driver, this.selector);
+    return this.driver.findElement(By.css(this.selector));
   }
 
   async click(): Promise<void> {
@@ -188,12 +188,12 @@ export class BrowserHandle {
   }
 
   async elementCount(selector: string): Promise<number> {
-    return (await SelectorParser.findAll(this.driver, selector)).length;
+    return (await this.driver.findElements(By.css(selector))).length;
   }
 
   async press(keys: string[], selector?: string): Promise<void> {
     const values = keys.map((key) => KeyboardKeys.resolve(key));
-    if (selector) await (await SelectorParser.find(this.driver, selector)).sendKeys(...values);
+    if (selector) await (await this.driver.findElement(By.css(selector))).sendKeys(...values);
     else
       await this.driver
         .actions({ async: true })
@@ -202,7 +202,7 @@ export class BrowserHandle {
   }
 
   async mouse(action: "hover" | "doubleClick" | "rightClick", selector: string): Promise<void> {
-    const element = await SelectorParser.find(this.driver, selector);
+    const element = await this.driver.findElement(By.css(selector));
     const actions = this.driver.actions({ async: true });
     if (action === "hover") await actions.move({ origin: element }).perform();
     if (action === "doubleClick") await actions.doubleClick(element).perform();
@@ -210,8 +210,8 @@ export class BrowserHandle {
   }
 
   async drag(source: string, target: string): Promise<void> {
-    const from = await SelectorParser.find(this.driver, source);
-    const to = await SelectorParser.find(this.driver, target);
+    const from = await this.driver.findElement(By.css(source));
+    const to = await this.driver.findElement(By.css(target));
     await this.driver.actions({ async: true }).dragAndDrop(from, to).perform();
   }
 
@@ -258,7 +258,7 @@ export class BrowserHandle {
 
   async switchFrame(selector?: string): Promise<void> {
     if (!selector) await this.driver.switchTo().defaultContent();
-    else await this.driver.switchTo().frame(await SelectorParser.find(this.driver, selector));
+    else await this.driver.switchTo().frame(await this.driver.findElement(By.css(selector)));
   }
 
   async cookies(): Promise<unknown[]> {
@@ -383,7 +383,7 @@ export class BrowserHandle {
     timeoutMs: number,
   ): Promise<void> {
     await this.driver.wait(async () => {
-      const elements = await SelectorParser.findAll(this.driver, selector);
+      const elements = await this.driver.findElements(By.css(selector));
       if (state === "absent") return elements.length === 0;
       if (state === "present") return elements.length > 0;
       const element = elements[0];
@@ -403,28 +403,25 @@ export class BrowserHandle {
 
   async waitForValue(selector: string, value: string, timeoutMs: number): Promise<void> {
     await this.driver.wait(
-      async () => (await (await SelectorParser.find(this.driver, selector)).getAttribute("value")) === value,
+      async () => (await (await this.driver.findElement(By.css(selector))).getAttribute("value")) === value,
       timeoutMs,
     );
   }
 
   async waitForCount(selector: string, count: number, timeoutMs: number): Promise<void> {
-    await this.driver.wait(
-      async () => (await SelectorParser.findAll(this.driver, selector)).length === count,
-      timeoutMs,
-    );
+    await this.driver.wait(async () => (await this.driver.findElements(By.css(selector))).length === count, timeoutMs);
   }
 
   async waitForAttribute(selector: string, name: string, value: string | undefined, timeoutMs: number): Promise<void> {
     await this.driver.wait(async () => {
-      const attribute = await (await SelectorParser.find(this.driver, selector)).getAttribute(name);
+      const attribute = await (await this.driver.findElement(By.css(selector))).getAttribute(name);
       return value === undefined ? attribute !== null : attribute === value;
     }, timeoutMs);
   }
 
   async waitForElementText(selector: string, text: string, timeoutMs: number): Promise<void> {
     await this.driver.wait(
-      async () => (await (await SelectorParser.find(this.driver, selector)).getText()).includes(text),
+      async () => (await (await this.driver.findElement(By.css(selector))).getText()).includes(text),
       timeoutMs,
     );
   }
@@ -458,96 +455,6 @@ export class BrowserHandle {
 
   async setWindowRect(width: number, height: number): Promise<void> {
     await this.driver.manage().window().setRect({ width, height });
-  }
-}
-
-export class SelectorParser {
-  static async find(driver: WebDriver, selector: string): Promise<WebElement> {
-    const indexed = selector.match(/^(first|last|nth=(\d+))\|(.+)$/s);
-    if (indexed?.[1] && indexed[3]) {
-      const elements = await this.findAll(driver, indexed[3]);
-      const index = indexed[1] === "first" ? 0 : indexed[1] === "last" ? elements.length - 1 : Number(indexed[2]);
-      const element = elements[index];
-      if (!element) throw new Error(`Indexed selector did not match: ${selector}`);
-      return element;
-    }
-    if (!selector.startsWith("shadow=")) return driver.findElement(this.parse(selector));
-    const element = await driver.executeScript<WebElement | null>(
-      `
-        let root = document;
-        let element = null;
-        for (const selector of arguments[0]) {
-          element = root.querySelector(selector);
-          if (!element) return null;
-          root = element.shadowRoot ?? element;
-        }
-        return element;
-      `,
-      selector.slice(7).split(/\s*>>>\s*/),
-    );
-    if (!element) throw new Error(`Shadow DOM selector did not match: ${selector}`);
-    return element;
-  }
-
-  static async findAll(driver: WebDriver, selector: string): Promise<WebElement[]> {
-    if (/^(first|last|nth=\d+)\|/s.test(selector)) return [await this.find(driver, selector)];
-    if (!selector.startsWith("shadow=")) return driver.findElements(this.parse(selector));
-    return [await this.find(driver, selector)].filter(Boolean);
-  }
-
-  static parse(selector: string): By {
-    if (selector.startsWith("//") || selector.startsWith("(")) return By.xpath(selector);
-    if (selector.startsWith("~")) return By.css(`[aria-label=${JSON.stringify(selector.slice(1))}]`);
-    const semantic = selector.match(/^(label|placeholder|testid|text|role)=(.+)$/s);
-    if (semantic?.[1] && semantic[2]) return this.semantic(semantic[1], semantic[2]);
-    const textSelector = selector.match(/^([a-zA-Z][\w-]*)=(.+)$/s);
-    if (textSelector?.[1] && textSelector[2]) {
-      const tag = textSelector[1];
-      return By.xpath(`//${tag}[normalize-space(.)=${this.xpathLiteral(textSelector[2])}]`);
-    }
-    return By.css(selector);
-  }
-
-  private static semantic(strategy: string, value: string): By {
-    const literal = this.xpathLiteral(value);
-    if (strategy === "placeholder") return By.xpath(`//*[@placeholder=${literal}]`);
-    if (strategy === "testid") return By.xpath(`//*[@data-testid=${literal}]`);
-    if (strategy === "text") return By.xpath(`//*[normalize-space(.)=${literal}]`);
-    if (strategy === "role") {
-      const [role, name] = value.split("|", 2);
-      const roleLiteral = this.xpathLiteral(role ?? value);
-      const nativeRole = this.nativeRole(role ?? value);
-      const roleCondition = `@role=${roleLiteral}${nativeRole ? ` or ${nativeRole}` : ""}`;
-      if (!name) return By.xpath(`//*[${roleCondition}]`);
-      const nameLiteral = this.xpathLiteral(name);
-      return By.xpath(
-        `//*[(${roleCondition}) and (@aria-label=${nameLiteral} or normalize-space(.)=${nameLiteral} or @value=${nameLiteral} or @id=//label[normalize-space(.)=${nameLiteral}]/@for)]`,
-      );
-    }
-    return By.xpath(
-      `//*[@id=//label[normalize-space(.)=${literal}]/@for or ancestor::label[normalize-space(.)=${literal}]]`,
-    );
-  }
-
-  private static nativeRole(role: string): string | undefined {
-    return {
-      button: "self::button or (self::input and (@type='button' or @type='submit' or @type='reset'))",
-      link: "self::a and @href",
-      textbox:
-        "self::textarea or (self::input and (not(@type) or @type='text' or @type='email' or @type='password' or @type='search' or @type='tel' or @type='url'))",
-      checkbox: "self::input and @type='checkbox'",
-      radio: "self::input and @type='radio'",
-      combobox: "self::select",
-    }[role];
-  }
-
-  private static xpathLiteral(value: string): string {
-    if (!value.includes("'")) return `'${value}'`;
-    if (!value.includes('"')) return `"${value}"`;
-    return `concat(${value
-      .split("'")
-      .map((part) => `'${part}'`)
-      .join(', "\'", ')})`;
   }
 }
 

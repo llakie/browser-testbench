@@ -8,6 +8,7 @@ import {
   type ElementActionRequest,
   type GestureRequest,
   type StartSessionInput,
+  type WaitRequest,
 } from "../config/input-schemas.js";
 import type { DoctorCheck, TargetDefinition, TestTargetInfo } from "../config/types.js";
 
@@ -507,6 +508,22 @@ export class RemoteSession {
       delete window.__browserTestbenchFetch;
       delete window.__browserTestbenchMocks;
     `);
+  }
+
+  elementAction<T = unknown>(input: ElementActionRequest): Promise<T> {
+    return this.post("element", input);
+  }
+
+  browserAction<T = unknown>(input: BrowserActionRequest): Promise<T> {
+    return this.post("browser", input);
+  }
+
+  async wait(input: WaitRequest): Promise<void> {
+    await this.post("wait", input);
+  }
+
+  source(maxCharacters = 100_000): Promise<string> {
+    return this.testbench.request(`/v1/sessions/${this.id}/source?maxCharacters=${maxCharacters}`);
   }
 
   diagnostics(): Promise<DiagnosticEvent[]> {

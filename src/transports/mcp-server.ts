@@ -1,13 +1,24 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { InteractiveController } from "../automation/interactive-controller.js";
 import { InputSchemas } from "../config/input-schemas.js";
-import { DoctorService } from "../setup/doctor-service.js";
-import { TargetCatalogService } from "../setup/target-catalog-service.js";
+import { RemoteSession, RemoteTestbench, type RemoteTestbenchOptions } from "./testbench-client.js";
 
 export class McpServerHost {
-  static async start(): Promise<void> {
-    const interactive = new InteractiveController();
+  static async start(options: RemoteTestbenchOptions = {}): Promise<void> {
+    const testbench = new RemoteTestbench(options);
+    let currentSession: RemoteSession | undefined;
+    const active = (): RemoteSession => {
+      if (!currentSession) throw new Error("No interactive session is active.");
+      return currentSession;
+    };
+    const closeSession = async () => {
+      if (!currentSession) return {};
+      const session = currentSession;
+      currentSession = undefined;
+      return session.close();
+    };
     const server = new McpServer(
       { name: "browser-testbench", version: "0.1.0" },
       {
@@ -15,15 +26,13 @@ export class McpServerHost {
           "Use list_targets to obtain concrete browser and device IDs before starting a session. Use the session tools as a remote control for exploration and debugging. Project-owned tests use the same remote controls through the Node client. Safari authorization is never probed automatically. Close sessions when finished.",
       },
     );
-    const target = InputSchemas.target;
-
     server.registerTool(
       "list_targets",
       {
         description: "List concrete browser and simulator target IDs and their current readiness.",
         annotations: { readOnlyHint: true },
       },
-      async () => textResult(await TargetCatalogService.publicList()),
+      async () => textResult(await testbench.targets()),
     );
 
     server.registerTool(
@@ -33,7 +42,11 @@ export class McpServerHost {
         inputSchema: InputSchemas.targetList.shape,
         annotations: { readOnlyHint: true },
       },
-      async ({ targets }) => textResult(await DoctorService.inspect(targets)),
+      async ({ targets }) => {
+        const checks = (await testbench.capabilities()).checks;
+        const requested = targets ? new Set<string>(targets) : undefined;
+        return textResult(requested ? checks.filter((check) => requested.has(check.id)) : checks);
+      },
     );
 
     server.registerTool(
@@ -42,7 +55,15 @@ export class McpServerHost {
         description: "Start one interactive browser or simulator session using a concrete ID returned by list_targets.",
         inputSchema: InputSchemas.startSession.shape,
       },
-      async (input) => textResult(await interactive.start((await TargetCatalogService.sessionOptions(input)).options)),
+      async (input) => {
+        await closeSession();
+        currentSession = await testbench.open(input);
+        return textResult({
+          id: currentSession.id,
+          target: currentSession.target,
+          runtime: currentSession.runtime,
+        });
+      },
     );
 
     server.registerTool(
@@ -51,7 +72,7 @@ export class McpServerHost {
         description: "Navigate the active session to a URL and return a compact page inspection.",
         inputSchema: InputSchemas.navigate.shape,
       },
-      async ({ url }) => textResult(await interactive.navigate(url)),
+      async ({ url }) => textResult(await active().navigate(url)),
     );
 
     server.registerTool(
@@ -61,17 +82,17 @@ export class McpServerHost {
         inputSchema: InputSchemas.inspect.shape,
         annotations: { readOnlyHint: true },
       },
-      async ({ limit }) => textResult(await interactive.inspect(limit)),
+      async ({ limit }) => textResult(await active().inspect(limit)),
     );
 
     server.registerTool(
       "click",
       {
-        description: "Click an element in the active session using a CSS, XPath, or tag=text selector.",
+        description: "Click an element in the active session using a CSS selector.",
         inputSchema: InputSchemas.click.shape,
       },
       async ({ selector }) => {
-        await interactive.click(selector);
+        await active().click(selector);
         return textResult({ clicked: selector });
       },
     );
@@ -83,7 +104,7 @@ export class McpServerHost {
         inputSchema: InputSchemas.type.shape,
       },
       async ({ selector, value, clear }) => {
-        await interactive.type(selector, value, clear);
+        await active().type(selector, value, clear);
         return textResult({ typed: selector });
       },
     );
@@ -92,10 +113,10 @@ export class McpServerHost {
       "element_action",
       {
         description:
-          "Perform a form or element action: inspect state/count, fill, append text, clear, check, uncheck, select, upload, focus, blur, submit, press keys, hover, double/right click, drag, scroll into view, or capture an element screenshot. Selectors support CSS, XPath, tag=text, label=, placeholder=, testid=, text=, and role=role|name.",
+          "Perform a form or element action: inspect state/count, fill, append text, clear, check, uncheck, select, upload, focus, blur, submit, press keys, hover, double/right click, drag, scroll into view, or capture an element screenshot. All selectors are standard CSS selectors.",
         inputSchema: InputSchemas.elementAction,
       },
-      async (input) => textResult(await interactive.elementAction(input)),
+      async (input) => textResult(await active().elementAction(input)),
     );
 
     server.registerTool(
@@ -105,7 +126,7 @@ export class McpServerHost {
           "Control browser navigation, scrolling, tabs/windows, frames, JavaScript dialogs, cookies, web storage, or viewport size.",
         inputSchema: InputSchemas.browserAction,
       },
-      async (input) => textResult(await interactive.browserAction(input)),
+      async (input) => textResult(await active().browserAction(input)),
     );
 
     server.registerTool(
@@ -116,11 +137,14 @@ export class McpServerHost {
         annotations: { readOnlyHint: true },
       },
       async ({ path, fullPage }) => {
-        const screenshot = await interactive.screenshot(path, fullPage);
+        const screenshotPath = path ? resolve(path) : resolve("artifacts", `interactive-${Date.now()}.png`);
+        const base64 = await active().screenshotBase64(fullPage);
+        await mkdir(dirname(screenshotPath), { recursive: true });
+        await writeFile(screenshotPath, Buffer.from(base64, "base64"));
         return {
           content: [
-            { type: "text" as const, text: screenshot.path },
-            { type: "image" as const, data: screenshot.base64, mimeType: "image/png" },
+            { type: "text" as const, text: screenshotPath },
+            { type: "image" as const, data: base64, mimeType: "image/png" },
           ],
         };
       },
@@ -132,7 +156,7 @@ export class McpServerHost {
         description: "Tap absolute screen coordinates in the active iOS or Android simulator session.",
         inputSchema: InputSchemas.tapGesture.shape,
       },
-      async (input) => textResult(await interactive.gesture({ type: "tap", ...input })),
+      async (input) => textResult(await active().tap(input.x, input.y)),
     );
 
     server.registerTool(
@@ -142,7 +166,7 @@ export class McpServerHost {
           "Swipe the active mobile screen. Area and speed apply to Android; velocity applies to iOS. Android defaults to the current window area.",
         inputSchema: InputSchemas.swipeGesture.shape,
       },
-      async (input) => textResult(await interactive.gesture({ type: "swipe", ...input })),
+      async (input) => textResult(await active().swipe(input)),
     );
 
     server.registerTool(
@@ -152,7 +176,7 @@ export class McpServerHost {
           "Pinch in or out on the active mobile screen. Area and speed apply to Android; velocity applies to iOS.",
         inputSchema: InputSchemas.pinchGesture.shape,
       },
-      async (input) => textResult(await interactive.gesture({ type: "pinch", ...input })),
+      async (input) => textResult(await active().pinch(input)),
     );
 
     server.registerTool(
@@ -162,7 +186,7 @@ export class McpServerHost {
         inputSchema: InputSchemas.pageSource.shape,
         annotations: { readOnlyHint: true },
       },
-      async ({ maxCharacters }) => ({ content: [{ type: "text", text: await interactive.source(maxCharacters) }] }),
+      async ({ maxCharacters }) => ({ content: [{ type: "text", text: await active().source(maxCharacters) }] }),
     );
 
     server.registerTool(
@@ -173,7 +197,7 @@ export class McpServerHost {
         annotations: { readOnlyHint: true },
       },
       async ({ selector, timeoutMs }) => {
-        await interactive.wait({ type: "element", selector, timeoutMs });
+        await active().wait({ type: "element", selector, timeoutMs });
         return textResult({ ready: true });
       },
     );
@@ -187,7 +211,7 @@ export class McpServerHost {
         annotations: { readOnlyHint: true },
       },
       async (input) => {
-        await interactive.wait(input);
+        await active().wait(input);
         return textResult({ ready: true });
       },
     );
@@ -200,7 +224,7 @@ export class McpServerHost {
         annotations: { readOnlyHint: true },
       },
       async ({ text, timeoutMs }) => {
-        await interactive.wait({ type: "text", text, timeoutMs });
+        await active().wait({ type: "text", text, timeoutMs });
         return textResult({ ready: true });
       },
     );
@@ -213,7 +237,7 @@ export class McpServerHost {
         annotations: { readOnlyHint: true },
       },
       async ({ value, timeoutMs }) => {
-        await interactive.wait({ type: "url", value, timeoutMs });
+        await active().wait({ type: "url", value, timeoutMs });
         return textResult({ ready: true });
       },
     );
@@ -227,7 +251,7 @@ export class McpServerHost {
         annotations: { readOnlyHint: true },
       },
       async ({ selector, state, timeoutMs }) => {
-        await interactive.wait({ type: "state", selector, state, timeoutMs });
+        await active().wait({ type: "state", selector, state, timeoutMs });
         return textResult({ ready: true });
       },
     );
@@ -240,7 +264,7 @@ export class McpServerHost {
         annotations: { readOnlyHint: true },
       },
       async ({ selector, value, timeoutMs }) => {
-        await interactive.wait({ type: "value", selector, value, timeoutMs });
+        await active().wait({ type: "value", selector, value, timeoutMs });
         return textResult({ ready: true });
       },
     );
@@ -253,7 +277,7 @@ export class McpServerHost {
         annotations: { readOnlyHint: true },
       },
       async ({ selector, count, timeoutMs }) => {
-        await interactive.wait({ type: "count", selector, count, timeoutMs });
+        await active().wait({ type: "count", selector, count, timeoutMs });
         return textResult({ ready: true });
       },
     );
@@ -264,14 +288,14 @@ export class McpServerHost {
         description: "Return captured console output and HTTP request/response diagnostics for the active session.",
         annotations: { readOnlyHint: true },
       },
-      async () => textResult(await interactive.diagnostics()),
+      async () => textResult(await active().diagnostics()),
     );
 
     server.registerTool(
       "clear_diagnostics",
       { description: "Clear collected console and HTTP diagnostics for the active session." },
       async () => {
-        interactive.clearDiagnostics();
+        await active().clearDiagnostics();
         return textResult({ cleared: true });
       },
     );
@@ -282,7 +306,7 @@ export class McpServerHost {
         description: "Explain how to open the native developer tools for the active browser or simulator.",
         annotations: { readOnlyHint: true },
       },
-      async () => textResult(interactive.debugTools()),
+      async () => textResult(await active().devtools()),
     );
 
     server.registerTool(
@@ -291,12 +315,12 @@ export class McpServerHost {
         description: "Close the active interactive browser/device session and its Appium process.",
       },
       async () => {
-        return textResult({ closed: true, ...(await interactive.close()) });
+        return textResult({ closed: true, ...(await closeSession()) });
       },
     );
 
     const shutdown = async () => {
-      await interactive.close();
+      await closeSession();
       await server.close();
     };
     process.once("SIGINT", () => void shutdown());
