@@ -1,0 +1,49 @@
+{
+  "name": "browser-testbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable real-browser and simulator test bench for macOS and Windows",
+  "type": "module",
+  "bin": {
+    "btb": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "btb": "tsx src/cli.ts",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "example:server": "node examples/site/server.mjs",
+    "format": "prettier --write . \"templates/**/*.eta\"",
+    "format:check": "prettier --check . \"templates/**/*.eta\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "npm run build"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "7.3.1",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "appium": "3.7.0",
+    "commander": "15.0.0",
+    "eta": "4.6.0",
+    "express": "5.2.1",
+    "fast-glob": "3.3.3",
+    "open": "11.0.4",
+    "selenium-webdriver": "4.49.0",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "24.10.1",
+    "@types/selenium-webdriver": "4.35.7",
+    "prettier": "3.9.6",
+    "prettier-plugin-eta": "0.2.11",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2",
+    "vitest": "5.0.1"
+  },
+  "overrides": {
+    "morgan": "1.12.1"
+  }
+}
