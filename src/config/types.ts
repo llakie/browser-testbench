@@ -17,6 +17,7 @@ export interface TargetConfig {
   platformVersion?: string;
   avd?: string;
   udid?: string;
+  downloadDir?: string;
   recordVideo?: boolean;
   capabilities?: Record<string, unknown>;
 }
@@ -69,6 +70,19 @@ export interface TargetDefinition {
   supportedPlatforms: NodeJS.Platform[];
   serial: boolean;
 }
+
+export interface TestTarget {
+  id: string;
+  browser: TargetName;
+  label: string;
+  kind: TargetKind;
+  status: CheckStatus;
+  ready: boolean;
+  serial: boolean;
+  detail: string;
+  config: TargetConfig;
+}
+export type TestTargetInfo = Omit<TestTarget, "config">;
 
 export interface TestStepContext {
   browser: BrowserHandle;

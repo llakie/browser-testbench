@@ -12,7 +12,9 @@ describe("ApiServer", () => {
     const health = await fetch(`http://${address.host}:${address.port}/health`);
     const targets = await fetch(`http://${address.host}:${address.port}/v1/targets`);
     expect(await health.json()).toEqual({ status: "ok" });
-    expect((await targets.json()) as object).toHaveProperty("safari-ios");
+    expect((await targets.json()) as Array<{ id: string }>).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "chrome" })]),
+    );
   });
 
   it("serves the environment UI and project-facing capabilities", async () => {
@@ -28,6 +30,7 @@ describe("ApiServer", () => {
     const initial = (await fetch(`${baseUrl}/v1/workbench`).then((response) => response.json())) as {
       platform: string;
       targets: Array<{ name: string }>;
+      testTargets: Array<{ id: string }>;
       mcpClients: Array<{ id: string }>;
     };
     expect(initial.platform).toBe(process.platform);
@@ -39,6 +42,7 @@ describe("ApiServer", () => {
       "safari-ios",
       "chrome-android",
     ]);
+    expect(initial.testTargets.map((target) => target.id)).toContain("chrome");
     expect(initial.mcpClients.map((client) => client.id)).toEqual([
       "codex",
       "claude-code",
@@ -73,10 +77,17 @@ describe("ApiServer", () => {
     const response = await fetch(`http://${address.host}:${address.port}/v1/sessions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ target: "netscape" }),
+      body: JSON.stringify({ target: "" }),
     });
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: "Invalid request" });
+
+    const unknown = await fetch(`http://${address.host}:${address.port}/v1/sessions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ target: "netscape" }),
+    });
+    expect(unknown.status).toBe(404);
 
     const gesture = await fetch(`http://${address.host}:${address.port}/v1/sessions/missing/gesture`, {
       method: "POST",

@@ -1,27 +1,10 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../src/config/config-loader.js";
 
 describe("ConfigLoader", () => {
-  it("loads and normalizes a portable JSON config", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "browser-testbench-config-"));
-    const path = join(directory, "testbench.config.json");
-    await writeFile(
-      path,
-      JSON.stringify({
-        name: "example",
-        baseUrl: "http://127.0.0.1:3000",
-        targets: ["chrome", { name: "safari", enabled: false }],
-        specs: ["tests/*.mjs"],
-      }),
-    );
-
-    const config = await ConfigLoader.load(path);
-    expect(config.targets).toEqual([{ name: "chrome" }]);
-    expect(config.configDir).toBe(directory);
-    expect(config.artifactsDir).toBe(join(directory, "artifacts"));
+  it("normalizes built-in verification options", () => {
+    const config = ConfigLoader.fromOptions({ url: "http://127.0.0.1:3000", targets: ["chrome"] });
+    expect(config.targets).toEqual([{ name: "chrome", headless: undefined }]);
     expect(config.timeoutMs).toBe(30_000);
     expect(config.targetPolicy).toBe("strict");
   });
@@ -60,17 +43,13 @@ describe("ConfigLoader", () => {
     );
   });
 
-  it("rejects misspelled configuration options instead of silently discarding them", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "browser-testbench-config-"));
-    const path = join(directory, "testbench.config.json");
-    await writeFile(
-      path,
-      JSON.stringify({
+  it("rejects misspelled internal verification options instead of silently discarding them", () => {
+    expect(() =>
+      ConfigLoader.validate({
         name: "typo",
         baseUrl: "https://example.com",
         targets: [{ name: "chrome", hedless: true }],
       }),
-    );
-    await expect(ConfigLoader.load(path)).rejects.toThrow("Unrecognized key");
+    ).toThrow("Unrecognized key");
   });
 });

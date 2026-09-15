@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BrowserSession } from "../../src/automation/browser-session.js";
-import { InputSchemas } from "../../src/config/input-schemas.js";
 import { ApiServer } from "../../src/transports/api-server.js";
 
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
@@ -28,6 +27,8 @@ describe("setup UI browser flow", () => {
         );
         await browser.active.$("#project-client-example .copy-command").click();
         expect(await browser.active.execute<string>("return window.__copiedCommand")).toContain("RemoteTestbench");
+        expect(await browser.active.execute<string>("return window.__copiedCommand")).toContain("availableTargets");
+        expect(await browser.active.execute<string>("return window.__copiedCommand")).not.toContain("testbench.config");
         expect(
           await browser.active.execute<string>(
             'return document.querySelector("#project-client-example .copy-command").getAttribute("aria-label")',
@@ -35,7 +36,7 @@ describe("setup UI browser flow", () => {
         ).toBe("Befehl kopieren");
         await browser.active.execute(`
           const target = document.querySelector("#debug-target");
-          target.value = JSON.stringify({ name: "chrome" });
+          target.value = "chrome";
           target.dispatchEvent(new Event("change", { bubbles: true }));
           const url = document.querySelector("#debug-url");
           url.value = "http://127.0.0.1:5173/debug";
@@ -47,31 +48,16 @@ describe("setup UI browser flow", () => {
           "npx browser-testbench open --target chrome --url http://127.0.0.1:5173/debug",
         );
         expect(await browser.active.$("#debug-tools-note").getText()).toContain("Desktopbrowser");
-        await browser.active.execute('document.querySelector("#copy-config").scrollIntoView({ block: "center" })');
-        await browser.active.$("#copy-config").click();
-        const generatedConfig = JSON.parse(await browser.active.execute<string>("return window.__copiedCommand"));
-        expect(InputSchemas.remoteConfig.parse(generatedConfig)).toMatchObject({
-          server: `http://${address.host}:${address.port}`,
-          targetPolicy: "available",
-        });
-        expect(generatedConfig.targets.length).toBeGreaterThan(0);
-        expect(await browser.active.$("#config-message").getText()).toContain("Zwischenablage");
-        await browser.active.execute(`
-          window.__downloadName = "";
-          window.__downloadUrl = "";
-          URL.createObjectURL = () => "blob:generated-config";
-          URL.revokeObjectURL = () => {};
-          HTMLAnchorElement.prototype.click = function () {
-            window.__downloadName = this.download;
-            window.__downloadUrl = this.href;
-          };
-        `);
-        await browser.active.execute('document.querySelector("#download-config").scrollIntoView({ block: "center" })');
-        await browser.active.$("#download-config").click();
-        expect(await browser.active.execute<string>("return `${window.__downloadName}|${window.__downloadUrl}`")).toBe(
-          "testbench.config.json|blob:generated-config",
+        await browser.active.execute(
+          'document.querySelector("#test-target-list .copy-command").scrollIntoView({ block: "center" })',
         );
-        expect(await browser.active.$("#config-message").getText()).toContain("heruntergeladen");
+        await browser.active.$("#test-target-list .copy-command").click();
+        expect(await browser.active.execute<string>("return window.__copiedCommand")).toMatch(/^[a-z0-9-]+$/);
+        expect(
+          await browser.active.execute<string>(
+            'return document.querySelector("#test-target-list .copy-command").getAttribute("aria-label")',
+          ),
+        ).toBe("Ziel-ID kopieren");
         await browser.active.execute(`
           const client = document.querySelector("#mcp-client");
           client.value = "claude-code";
@@ -81,12 +67,11 @@ describe("setup UI browser flow", () => {
         expect(await browser.active.$(".integration-card").getText()).toContain("KI-Assistent über MCP anbinden");
         await browser.active.saveScreenshot(screenshotPath);
         expect(await browser.active.$("#host-badge").getText()).toContain("macOS");
-        expect(await browser.active.$("#connect").getText()).toContain("Projekt anbinden und Test starten");
+        expect(await browser.active.$("#connect").getText()).toContain("Testbench verwenden");
+        expect(await browser.active.execute("return document.querySelector('#configuration') === null")).toBe(true);
         expect(
-          await browser.active.execute(
-            "return Boolean(document.querySelector('#configuration').compareDocumentPosition(document.querySelector('#connect')) & Node.DOCUMENT_POSITION_FOLLOWING)",
-          ),
-        ).toBe(true);
+          await browser.active.execute("return document.querySelectorAll('#test-target-list .test-target').length"),
+        ).toBeGreaterThan(0);
         expect(await browser.active.$(".environment-group--capabilities .subsection-heading").getText()).toContain(
           "Verfügbarkeit auf diesem Rechner",
         );

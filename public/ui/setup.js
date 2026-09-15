@@ -6,10 +6,7 @@ const elements = {
   actionList: document.querySelector("#setup-action-list"),
   runSetup: document.querySelector("#run-setup"),
   notice: document.querySelector("#notice"),
-  configForm: document.querySelector("#config-form"),
-  configTargets: document.querySelector("#config-target-list"),
-  configPreview: document.querySelector("#config-preview"),
-  configMessage: document.querySelector("#config-message"),
+  testTargetList: document.querySelector("#test-target-list"),
   mcpClient: document.querySelector("#mcp-client"),
   debugUrl: document.querySelector("#debug-url"),
   debugTarget: document.querySelector("#debug-target"),
@@ -24,10 +21,6 @@ class WorkbenchUi {
     document.querySelector("#run-setup").addEventListener("click", () => this.setup());
     document.querySelector("#register-mcp").addEventListener("click", () => this.registerMcp());
     elements.mcpClient.addEventListener("change", () => this.renderMcp());
-    elements.configForm.addEventListener("input", () => this.renderConfig());
-    elements.configForm.addEventListener("change", () => this.renderConfig());
-    document.querySelector("#copy-config").addEventListener("click", () => this.copyConfig());
-    document.querySelector("#download-config").addEventListener("click", () => this.downloadConfig());
     elements.debugUrl.addEventListener("input", () => this.renderDebugCommand());
     elements.debugTarget.addEventListener("change", () => this.renderDebugCommand());
     await this.refresh();
@@ -43,9 +36,8 @@ class WorkbenchUi {
       );
       elements.checks.replaceChildren(...state.checks.map((check) => this.checkCard(check)));
       this.renderActions();
+      this.renderTestTargets();
       this.renderConnections();
-      this.renderConfigTargets();
-      this.renderConfig();
     } catch (error) {
       this.notice(this.message(error), "error");
     } finally {
@@ -157,18 +149,26 @@ class WorkbenchUi {
     elements.mcpClient.value = preferred.id;
     this.renderMcp();
     document.querySelector("#project-install-command").replaceChildren(this.command(state.clientInstallCommand));
+    const readyTargets = state.testTargets.filter((target) => target.ready);
+    const desktop = readyTargets.find((target) => target.kind === "desktop");
+    const mobile = readyTargets.find((target) => target.kind === "mobile");
+    const requested = [...new Set([desktop?.id, mobile?.id].filter(Boolean))];
+    const examples = requested.length ? requested : ["chrome"];
     const example = `import { RemoteTestbench } from "browser-testbench/client";
-import config from "./testbench.config.json" with { type: "json" };
 
-const testbench = new RemoteTestbench(config);
-const browser = await testbench.open({ target: "chrome", url: "http://127.0.0.1:3000" });
+const testbench = new RemoteTestbench();
+const targets = await testbench.availableTargets(${JSON.stringify(examples, null, 2)});
 
-try {
-  await browser.click("button=Anmelden");
-  await browser.waitForText("Willkommen");
-  await browser.screenshot("artifacts/anmeldung.png");
-} finally {
-  await browser.close();
+for (const target of targets) {
+  const browser = await testbench.open({ target, url: "http://127.0.0.1:3000", headless: true });
+
+  try {
+    await browser.click("button=Anmelden");
+    await browser.waitForText("Willkommen");
+    await browser.screenshot(\`artifacts/anmeldung-\${target}.png\`);
+  } finally {
+    await browser.close();
+  }
 }`;
     document.querySelector("#project-client-example").replaceChildren(this.command(example, true));
     this.renderDebugTargets();
@@ -176,44 +176,27 @@ try {
 
   static renderDebugTargets() {
     const previous = elements.debugTarget.value;
-    const targets = state.targets.filter((target) => target.check?.status !== "skip");
-    const options = targets.flatMap((target) => {
-      const devices = (target.check?.devices ?? []).filter((device) => device.compatible);
-      if (target.kind === "mobile" && devices.length) {
-        return devices.map((device) => ({
-          config: device.config,
-          label: `${target.label} · ${device.name}${device.platformVersion ? ` · ${device.platformVersion}` : ""}`,
-        }));
-      }
-      return [
-        {
-          config: { name: target.name },
-          label: `${target.label}${target.check?.status === "ready" ? "" : " · Einrichtung erforderlich"}`,
-        },
-      ];
-    });
+    const options = state.testTargets;
     elements.debugTarget.replaceChildren(
-      ...options.map(({ config, label }) => {
+      ...options.map((target) => {
         const option = document.createElement("option");
-        option.value = JSON.stringify(config);
-        option.textContent = label;
+        option.value = target.id;
+        option.textContent = `${target.label}${target.ready ? "" : " · Einrichtung erforderlich"}`;
         return option;
       }),
     );
-    const preferred = options.find(({ config }) => JSON.stringify(config) === previous) ?? options[0];
-    if (preferred) elements.debugTarget.value = JSON.stringify(preferred.config);
+    const preferred =
+      options.find((target) => target.id === previous) ?? options.find((target) => target.ready) ?? options[0];
+    if (preferred) elements.debugTarget.value = preferred.id;
     this.renderDebugCommand();
   }
 
   static renderDebugCommand() {
     if (!elements.debugTarget.value) return;
-    const target = JSON.parse(elements.debugTarget.value);
+    const target = state.testTargets.find((candidate) => candidate.id === elements.debugTarget.value);
+    if (!target) return;
     const url = elements.debugUrl.value.trim() || "http://127.0.0.1:3000";
-    const argumentsList = ["npx", "browser-testbench", "open", "--target", target.name, "--url", url];
-    if (target.deviceName) argumentsList.push("--device-name", target.deviceName);
-    if (target.platformVersion) argumentsList.push("--platform-version", target.platformVersion);
-    if (target.avd) argumentsList.push("--avd", target.avd);
-    if (target.udid) argumentsList.push("--udid", target.udid);
+    const argumentsList = ["npx", "browser-testbench", "open", "--target", target.id, "--url", url];
     document.querySelector("#debug-open-command").replaceChildren(this.command(this.shellCommand(argumentsList)));
 
     const notes = {
@@ -222,7 +205,7 @@ try {
       "chrome-android": "DevTools: Öffne chrome://inspect/#devices in Chrome auf deinem Rechner.",
     };
     document.querySelector("#debug-tools-note").textContent =
-      notes[target.name] ?? "DevTools kannst du wie gewohnt direkt im geöffneten Desktopbrowser aufrufen.";
+      notes[target.browser] ?? "DevTools kannst du wie gewohnt direkt im geöffneten Desktopbrowser aufrufen.";
   }
 
   static shellCommand(parts) {
@@ -240,102 +223,27 @@ try {
     document.querySelector("#mcp-command").replaceChildren(this.command(client.command, client.format === "json"));
   }
 
-  static renderConfigTargets() {
-    elements.configTargets.replaceChildren(
-      ...state.targets.map((target) => {
-        const option = this.element("div", "config-target");
-        const label = this.element("label", "config-target__choice");
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.name = "configTarget";
-        checkbox.value = target.name;
-        checkbox.checked = target.check?.status === "ready";
-        const copy = this.element("span");
+  static renderTestTargets() {
+    elements.testTargetList.replaceChildren(
+      ...state.testTargets.map((target) => {
+        const item = this.element("article", `test-target is-${target.status}`);
+        const content = this.element("div", "test-target__content");
+        const heading = this.element("div", "test-target__heading");
         const name = this.element("strong");
         name.textContent = target.label;
-        const availability = this.element("small", `is-${target.check?.status ?? "blocked"}`);
-        availability.textContent = this.targetAvailability(target.check?.status);
-        copy.append(name, availability);
-        label.append(checkbox, copy);
-        option.append(label);
-
-        const devices = (target.check?.devices ?? []).filter((device) => device.compatible);
-        if (target.kind === "mobile" && devices.length > 0) {
-          const deviceLabel = this.element("label", "config-target__device");
-          const caption = this.element("span");
-          caption.textContent = "Gerät";
-          const select = document.createElement("select");
-          select.name = `device-${target.name}`;
-          for (const device of devices) {
-            const entry = document.createElement("option");
-            entry.value = JSON.stringify(device.config);
-            entry.textContent = `${device.name}${device.platformVersion ? ` · ${device.platformVersion}` : ""}`;
-            select.append(entry);
-          }
-          deviceLabel.append(caption, select);
-          option.append(deviceLabel);
-        }
-        return option;
+        const status = this.element("span", `test-target__status is-${target.status}`);
+        status.append(
+          this.icon(this.statusIcon(target.status)),
+          document.createTextNode(` ${this.targetAvailability(target.status)}`),
+        );
+        heading.append(name, status);
+        const detail = this.element("small");
+        detail.textContent = target.detail;
+        content.append(heading, detail);
+        item.append(content, this.command(target.id, false, "Ziel-ID"));
+        return item;
       }),
     );
-  }
-
-  static renderConfig() {
-    const config = this.configValue();
-    elements.configPreview.textContent = JSON.stringify(config, null, 2);
-    elements.configMessage.textContent = config.targets.length
-      ? ""
-      : "Wähle mindestens ein Testziel aus, bevor du die Datei speicherst.";
-  }
-
-  static configValue() {
-    const selectedTargets = [...elements.configForm.querySelectorAll('input[name="configTarget"]:checked')];
-    const headless = document.querySelector("#config-headless").checked;
-    const targets = selectedTargets.map((input) => {
-      const target = state.targets.find((candidate) => candidate.name === input.value);
-      const deviceSelect = elements.configForm.querySelector(`[name="device-${input.value}"]`);
-      if (deviceSelect?.value) return JSON.parse(deviceSelect.value);
-      if (headless && target?.kind === "desktop" && target.name !== "safari") {
-        return { name: target.name, headless: true };
-      }
-      return target.name;
-    });
-    return {
-      server: window.location.origin,
-      targetPolicy: document.querySelector("#config-available").checked ? "available" : "strict",
-      targets,
-    };
-  }
-
-  static validConfig() {
-    const config = this.configValue();
-    if (!elements.configForm.reportValidity()) return;
-    if (config.targets.length === 0) {
-      elements.configMessage.textContent = "Wähle mindestens ein Testziel aus.";
-      return;
-    }
-    elements.configMessage.textContent = "";
-    return config;
-  }
-
-  static async copyConfig() {
-    const config = this.validConfig();
-    if (!config) return;
-    await navigator.clipboard.writeText(`${JSON.stringify(config, null, 2)}\n`);
-    elements.configMessage.textContent = "JSON wurde in die Zwischenablage kopiert.";
-  }
-
-  static downloadConfig() {
-    const config = this.validConfig();
-    if (!config) return;
-    const blob = new Blob([`${JSON.stringify(config, null, 2)}\n`], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "testbench.config.json";
-    link.click();
-    URL.revokeObjectURL(url);
-    elements.configMessage.textContent = "testbench.config.json wurde heruntergeladen.";
   }
 
   static async setup() {
@@ -385,14 +293,14 @@ try {
     }
   }
 
-  static command(value, multiline = false) {
+  static command(value, multiline = false, copyLabel = "Befehl") {
     const container = this.element("div", `command-block${multiline ? " command-block--multiline" : ""}`);
     const code = this.element("code");
     code.textContent = value;
     const button = this.element("button", "copy-command");
     button.type = "button";
-    button.title = "Befehl kopieren";
-    button.setAttribute("aria-label", "Befehl kopieren");
+    button.title = `${copyLabel} kopieren`;
+    button.setAttribute("aria-label", `${copyLabel} kopieren`);
     button.append(this.icon("fa-copy"));
     button.addEventListener("click", async () => {
       await navigator.clipboard.writeText(value);

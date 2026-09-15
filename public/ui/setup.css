@@ -669,142 +669,55 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgb(79 70 229 / 13%);
 }
 
-.config-options,
-.config-targets {
-  margin: var(--space-5) 0 0;
-  padding: 0;
-  border: 0;
-}
-
-.config-options {
+.test-target-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 
-.config-options legend,
-.config-targets legend {
-  margin-bottom: var(--space-2);
+.test-target {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-medium);
+  background: var(--color-surface-muted);
+}
+
+.test-target__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.test-target__status {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
   font-weight: 750;
 }
 
-.config-options legend {
-  grid-column: 1 / -1;
-}
-
-.config-toggle,
-.config-target {
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-medium);
-  background: var(--color-surface-muted);
-}
-
-.config-toggle {
-  display: flex;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  cursor: pointer;
-}
-
-.config-toggle input,
-.config-target__choice input {
-  flex: 0 0 auto;
-  width: 1rem;
-  min-height: auto;
-  margin: 0.25rem 0 0;
-  accent-color: var(--color-primary);
-}
-
-.config-toggle strong,
-.config-toggle small,
-.config-target__choice strong,
-.config-target__choice small {
-  display: block;
-}
-
-.config-toggle small,
-.config-targets > p,
-.config-target__choice small,
-.config-output p {
-  margin: var(--space-1) 0 0;
-  color: var(--color-ink-muted);
-  font-size: 0.78rem;
-}
-
-.config-target-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-}
-
-.config-target {
-  min-width: 0;
-  padding: var(--space-3);
-}
-
-.config-target__choice {
-  display: flex;
-  gap: var(--space-2);
-  cursor: pointer;
-}
-
-.config-target__choice small.is-ready {
+.test-target__status.is-ready {
   color: var(--color-success);
 }
 
-.config-target__choice small.is-action,
-.config-target__choice small.is-blocked {
+.test-target__status.is-action {
   color: var(--color-warning);
 }
 
-.config-target__device {
+.test-target__status.is-blocked,
+.test-target__status.is-skip {
+  color: var(--color-danger);
+}
+
+.test-target__content small {
   display: block;
-  margin-top: var(--space-3);
-}
-
-.config-target__device span {
-  margin-bottom: var(--space-1);
-}
-
-.config-output {
-  margin-top: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-line);
-}
-
-.config-output__heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.config-output__actions {
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-.config-preview {
-  max-height: 30rem;
-  margin: var(--space-3) 0 0;
-  padding: var(--space-3);
-  overflow: auto;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-medium);
-  color: var(--color-ink);
-  background: var(--color-surface-muted);
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 0.8rem;
-  line-height: 1.55;
-}
-
-.config-output .config-message {
-  min-height: 1.25rem;
-  color: var(--color-success);
+  margin-top: var(--space-1);
+  color: var(--color-ink-muted);
+  font-size: 0.78rem;
 }
 
 .input-with-icon {
@@ -977,15 +890,6 @@ footer {
   .policy-selector {
     grid-template-columns: 1fr 1fr;
   }
-
-  .config-output__heading {
-    display: block;
-  }
-
-  .config-output__actions {
-    justify-content: flex-start;
-    margin-top: var(--space-3);
-  }
 }
 
 @media (max-width: 38rem) {
@@ -1020,8 +924,7 @@ footer {
   .check-grid,
   .result-grid,
   .form-grid,
-  .config-options,
-  .config-target-list,
+  .test-target-list,
   .debug-controls {
     grid-template-columns: 1fr;
   }
@@ -1047,7 +950,6 @@ footer {
   .section-heading,
   .guided-actions,
   .integration-card__heading,
-  .config-output__actions,
   .run-panel,
   .run-actions,
   footer {
@@ -1067,7 +969,6 @@ footer {
 
   .section-heading > .button,
   .guided-actions > .button,
-  .config-output__actions .button,
   .run-actions .button {
     width: 100%;
   }

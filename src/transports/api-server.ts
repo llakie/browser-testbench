@@ -6,7 +6,6 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { ZodError } from "zod";
 import { SessionManager, SessionNotFoundError } from "../automation/session-manager.js";
 import { InputSchemas } from "../config/input-schemas.js";
-import { TargetRegistry } from "../config/target-registry.js";
 import type { TestbenchEvent } from "../config/types.js";
 import { eventBus } from "../orchestration/event-bus.js";
 import { DoctorService } from "../setup/doctor-service.js";
@@ -15,6 +14,7 @@ import { McpIntegrationService } from "../setup/mcp-integration-service.js";
 import { WorkbenchService } from "../setup/workbench-service.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { UiRenderer } from "../ui/ui-renderer.js";
+import { TargetCatalogService, UnknownTargetError } from "../setup/target-catalog-service.js";
 
 export interface ApiServerOptions {
   host: string;
@@ -42,6 +42,10 @@ export class ApiServer {
         return;
       }
       if (error instanceof SessionNotFoundError) {
+        response.status(404).json({ error: error.message });
+        return;
+      }
+      if (error instanceof UnknownTargetError) {
         response.status(404).json({ error: error.message });
         return;
       }
@@ -79,7 +83,7 @@ export class ApiServer {
 
   private registerRoutes(): void {
     this.app.get("/health", (_request, response) => response.json({ status: "ok" }));
-    this.app.get("/v1/targets", (_request, response) => response.json(TargetRegistry.definitions));
+    this.app.get("/v1/targets", async (_request, response) => response.json(await TargetCatalogService.publicList()));
     this.app.get("/v1/doctor", async (_request, response) => response.json(await DoctorService.inspect()));
     this.app.get("/v1/capabilities", async (_request, response) => response.json(await this.workbench.capabilities()));
     this.app.get("/v1/workbench", async (_request, response) => response.json(await this.workbench.state()));
@@ -106,8 +110,8 @@ export class ApiServer {
       response.status(201).json(await this.sessions.start(InputSchemas.startSession.parse(request.body)));
     });
     this.app.delete("/v1/sessions/:id", async (request, response) => {
-      await this.sessions.close(request.params.id);
-      response.json({ closed: true });
+      const result = await this.sessions.close(request.params.id);
+      response.json({ closed: true, ...result });
     });
     this.app.get("/v1/sessions/:id/inspect", async (request, response) => {
       const { limit } = InputSchemas.inspect.parse(request.query);
@@ -127,9 +131,17 @@ export class ApiServer {
       await this.sessions.get(request.params.id).type(selector, value, clear);
       response.json({ typed: selector });
     });
+    this.app.post("/v1/sessions/:id/element", async (request, response) => {
+      const input = InputSchemas.elementAction.parse(request.body);
+      response.json(await this.sessions.get(request.params.id).elementAction(input));
+    });
+    this.app.post("/v1/sessions/:id/browser", async (request, response) => {
+      const input = InputSchemas.browserAction.parse(request.body);
+      response.json(await this.sessions.get(request.params.id).browserAction(input));
+    });
     this.app.post("/v1/sessions/:id/screenshot", async (request, response) => {
-      InputSchemas.screenshot.parse(request.body);
-      response.json({ base64: await this.sessions.get(request.params.id).captureScreenshot() });
+      const { fullPage } = InputSchemas.screenshot.parse(request.body);
+      response.json({ base64: await this.sessions.get(request.params.id).captureScreenshot(fullPage) });
     });
     this.app.post("/v1/sessions/:id/gesture", async (request, response) => {
       const input = InputSchemas.gesture.parse(request.body);
@@ -141,6 +153,10 @@ export class ApiServer {
     });
     this.app.get("/v1/sessions/:id/diagnostics", async (request, response) => {
       response.json(await this.sessions.get(request.params.id).diagnostics());
+    });
+    this.app.delete("/v1/sessions/:id/diagnostics", (request, response) => {
+      this.sessions.get(request.params.id).clearDiagnostics();
+      response.json({ cleared: true });
     });
     this.app.get("/v1/sessions/:id/devtools", (request, response) => {
       response.json(this.sessions.get(request.params.id).debugTools());

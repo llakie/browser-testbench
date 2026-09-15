@@ -1,5 +1,3 @@
-import { access, readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { InputSchemas } from "./input-schemas.js";
 import { TargetRegistry } from "./target-registry.js";
@@ -8,27 +6,6 @@ import { TARGET_NAMES, type NormalizedConfig, type TargetConfig, type TestbenchC
 export class ConfigLoader {
   static validate(value: unknown): TestbenchConfig {
     return InputSchemas.config.parse(value) as TestbenchConfig;
-  }
-
-  static async find(startDirectory = process.cwd()): Promise<string | undefined> {
-    const names = ["testbench.config.json"];
-    for (const name of names) {
-      const candidate = resolve(startDirectory, name);
-      try {
-        await access(candidate);
-        return candidate;
-      } catch {
-        // Try the next conventional name.
-      }
-    }
-    return undefined;
-  }
-
-  static async load(filePath: string): Promise<NormalizedConfig> {
-    const absolutePath = resolve(filePath);
-    const configDir = dirname(absolutePath);
-    const raw: unknown = JSON.parse(await readFile(absolutePath, "utf8"));
-    return this.normalize(this.validate(raw), configDir);
   }
 
   static fromOptions(options: {

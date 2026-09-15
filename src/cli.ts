@@ -13,6 +13,7 @@ import { DoctorService } from "./setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "./setup/mcp-integration-service.js";
 import { SetupService } from "./setup/setup-service.js";
 import { VerificationStore } from "./setup/verification-store.js";
+import { TargetCatalogService } from "./setup/target-catalog-service.js";
 import { FixtureServer } from "./support/fixture-server.js";
 import { ApiServer } from "./transports/api-server.js";
 import { McpServerHost } from "./transports/mcp-server.js";
@@ -28,8 +29,17 @@ program
   .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
   .option("--json", "Output JSON")
   .action(async (options) => {
-    const capabilities = await new RemoteTestbench({ server: options.server, token: options.token }).capabilities();
-    console.log(options.json ? JSON.stringify(capabilities, null, 2) : OutputFormatter.doctor(capabilities.checks));
+    const targets = await new RemoteTestbench({ server: options.server, token: options.token }).targets();
+    console.log(
+      options.json
+        ? JSON.stringify(targets, null, 2)
+        : targets
+            .map(
+              (target) =>
+                `${(target.ready ? "READY" : target.status.toUpperCase()).padEnd(8)} ${target.id} — ${target.label}`,
+            )
+            .join("\n"),
+    );
   });
 
 program
@@ -101,24 +111,21 @@ program
 program
   .command("open")
   .description("Open an interactive browser/device session until Ctrl+C")
-  .requiredOption("-t, --target <name>", "Target name")
+  .requiredOption("-t, --target <id>", "Test target ID")
   .requiredOption("-u, --url <url>", "URL")
-  .option("--device-name <name>")
-  .option("--platform-version <version>")
-  .option("--avd <name>")
-  .option("--udid <id>")
+  .option("--download-dir <path>")
+  .option("--video <path>", "Record a mobile simulator session to MP4")
   .option("--headless")
   .action(async (options) => {
     const controller = new InteractiveController();
-    const result = await controller.start({
-      target: requireTarget(options.target),
+    const { options: sessionOptions } = await TargetCatalogService.sessionOptions({
+      target: options.target,
       url: options.url,
       headless: options.headless,
-      deviceName: options.deviceName,
-      platformVersion: options.platformVersion,
-      avd: options.avd,
-      udid: options.udid,
+      downloadDir: options.downloadDir ? resolve(options.downloadDir) : undefined,
+      videoPath: options.video ? resolve(options.video) : undefined,
     });
+    const result = await controller.start(sessionOptions);
     console.log(JSON.stringify(result, null, 2));
     console.log("Session is open. Press Ctrl+C to close it.");
     await untilSignal();
@@ -128,14 +135,22 @@ program
 program
   .command("screenshot")
   .description("Capture a URL in a target browser")
-  .requiredOption("-t, --target <name>", "Target name")
+  .requiredOption("-t, --target <id>", "Test target ID")
   .requiredOption("-u, --url <url>", "URL")
   .option("-o, --output <path>", "PNG output path")
   .option("--headless")
   .action(async (options) => {
     const controller = new InteractiveController();
     try {
-      await controller.start({ target: requireTarget(options.target), url: options.url, headless: options.headless });
+      await controller.start(
+        (
+          await TargetCatalogService.sessionOptions({
+            target: options.target,
+            url: options.url,
+            headless: options.headless,
+          })
+        ).options,
+      );
       const screenshot = await controller.screenshot(options.output ? resolve(options.output) : undefined);
       console.log(screenshot.path);
     } finally {

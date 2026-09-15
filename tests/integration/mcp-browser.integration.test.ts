@@ -27,7 +27,15 @@ describe("MCP browser control", () => {
       try {
         await client.connect(transport);
         await client.callTool({ name: "start_session", arguments: { target: "chrome", url, headless: true } });
-        await client.callTool({ name: "type", arguments: { selector: "#name", value: "MCP" } });
+        await client.callTool({
+          name: "element_action",
+          arguments: { action: "fill", selector: "placeholder=Your name", value: "MCP" },
+        });
+        await client.callTool({ name: "element_action", arguments: { action: "check", selector: "#terms" } });
+        await client.callTool({
+          name: "wait_for_state",
+          arguments: { selector: "#terms", state: "checked", timeoutMs: 5_000 },
+        });
         await client.callTool({ name: "click", arguments: { selector: "#submit" } });
         await client.callTool({ name: "wait_for_text", arguments: { text: "Hello MCP", timeoutMs: 5_000 } });
         const inspection = await client.callTool({ name: "inspect_page", arguments: { limit: 20 } });

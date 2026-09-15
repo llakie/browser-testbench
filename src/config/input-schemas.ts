@@ -14,6 +14,7 @@ export class InputSchemas {
       platformVersion: z.string().min(1).optional(),
       avd: z.string().min(1).optional(),
       udid: z.string().min(1).optional(),
+      downloadDir: z.string().min(1).optional(),
       recordVideo: z.boolean().optional(),
       capabilities: z.record(z.string(), z.unknown()).optional(),
     }),
@@ -35,21 +36,12 @@ export class InputSchemas {
     failFast: z.boolean().optional(),
   });
 
-  static readonly remoteConfig = z.strictObject({
-    server: z.url(),
-    token: z.string().min(1).optional(),
-    targetPolicy: z.enum(["available", "strict"]).default("available"),
-    targets: z.array(this.targetConfig).min(1),
-  });
-
   static readonly startSession = z.strictObject({
-    target: this.target,
+    target: z.string().min(1),
     url: z.url().optional(),
     headless: z.boolean().optional(),
-    deviceName: z.string().min(1).optional(),
-    platformVersion: z.string().min(1).optional(),
-    avd: z.string().min(1).optional(),
-    udid: z.string().min(1).optional(),
+    downloadDir: z.string().min(1).optional(),
+    videoPath: z.string().min(1).optional(),
     capabilities: z.record(z.string(), z.unknown()).optional(),
   });
 
@@ -72,7 +64,128 @@ export class InputSchemas {
     value: z.string(),
     clear: z.boolean().default(true),
   });
-  static readonly screenshot = z.strictObject({ path: z.string().min(1).optional() });
+  static readonly elementAction = z.discriminatedUnion("action", [
+    z.strictObject({ action: z.literal("state"), selector: z.string().min(1) }),
+    z.strictObject({ action: z.literal("count"), selector: z.string().min(1) }),
+    z.strictObject({ action: z.literal("fill"), selector: z.string().min(1), value: z.string() }),
+    z.strictObject({ action: z.literal("type"), selector: z.string().min(1), value: z.string() }),
+    z.strictObject({ action: z.literal("clear"), selector: z.string().min(1) }),
+    z.strictObject({
+      action: z.enum(["check", "uncheck", "focus", "blur", "submit", "scrollIntoView", "screenshot"]),
+      selector: z.string().min(1),
+    }),
+    z.strictObject({ action: z.enum(["hover", "doubleClick", "rightClick"]), selector: z.string().min(1) }),
+    z.strictObject({
+      action: z.literal("select"),
+      selector: z.string().min(1),
+      values: z.array(z.string()).min(1),
+      by: z.enum(["value", "text", "index"]).default("value"),
+    }),
+    z.strictObject({
+      action: z.literal("upload"),
+      selector: z.string().min(1),
+      paths: z.array(z.string().min(1)).min(1),
+    }),
+    z.strictObject({
+      action: z.literal("press"),
+      selector: z.string().min(1).optional(),
+      keys: z.array(z.string().min(1)).min(1),
+    }),
+    z.strictObject({ action: z.literal("drag"), selector: z.string().min(1), target: z.string().min(1) }),
+  ]);
+  static readonly browserAction = z.discriminatedUnion("action", [
+    z.strictObject({
+      action: z.enum([
+        "back",
+        "forward",
+        "refresh",
+        "windows",
+        "closeWindow",
+        "cookies",
+        "accessibility",
+        "printPdf",
+        "mobileBack",
+        "hideKeyboard",
+      ]),
+    }),
+    z.strictObject({ action: z.literal("scroll"), x: z.number().default(0), y: z.number().default(0) }),
+    z.strictObject({ action: z.literal("newWindow"), type: z.enum(["tab", "window"]).default("tab") }),
+    z.strictObject({ action: z.literal("switchWindow"), handle: z.string().min(1) }),
+    z.strictObject({ action: z.literal("frame"), selector: z.string().min(1).optional() }),
+    z.strictObject({
+      action: z.literal("alert"),
+      behavior: z.enum(["get", "accept", "dismiss"]),
+      text: z.string().optional(),
+    }),
+    z.strictObject({
+      action: z.literal("setCookie"),
+      cookie: z.strictObject({
+        name: z.string().min(1),
+        value: z.string(),
+        path: z.string().optional(),
+        domain: z.string().optional(),
+        secure: z.boolean().optional(),
+        httpOnly: z.boolean().optional(),
+        sameSite: z.enum(["Strict", "Lax", "None"]).optional(),
+        expiry: z.number().positive().optional(),
+      }),
+    }),
+    z.strictObject({ action: z.literal("deleteCookie"), name: z.string().min(1).optional() }),
+    z.strictObject({ action: z.literal("storage"), area: z.enum(["local", "session"]) }),
+    z.strictObject({
+      action: z.literal("setStorage"),
+      area: z.enum(["local", "session"]),
+      key: z.string(),
+      value: z.string(),
+    }),
+    z.strictObject({
+      action: z.literal("deleteStorage"),
+      area: z.enum(["local", "session"]),
+      key: z.string().optional(),
+    }),
+    z.strictObject({
+      action: z.literal("viewport"),
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+    }),
+    z.strictObject({
+      action: z.literal("waitDownload"),
+      filename: z.string().min(1),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      action: z.literal("evaluate"),
+      script: z.string().min(1),
+      arguments: z.array(z.unknown()).default([]),
+    }),
+    z.strictObject({
+      action: z.literal("network"),
+      offline: z.boolean().default(false),
+      latencyMs: z.number().nonnegative().default(0),
+      downloadBytesPerSecond: z.number().min(-1).default(-1),
+      uploadBytesPerSecond: z.number().min(-1).default(-1),
+    }),
+    z.strictObject({
+      action: z.literal("geolocation"),
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+      accuracy: z.number().nonnegative().default(1),
+    }),
+    z.strictObject({
+      action: z.literal("permission"),
+      name: z.string().min(1),
+      state: z.enum(["granted", "denied", "prompt"]),
+      origin: z.url().optional(),
+    }),
+    z.strictObject({ action: z.literal("orientation"), orientation: z.enum(["PORTRAIT", "LANDSCAPE"]) }),
+    z.strictObject({ action: z.literal("blockUrls"), patterns: z.array(z.string().min(1)) }),
+    z.strictObject({ action: z.literal("clipboardWrite"), text: z.string() }),
+    z.strictObject({ action: z.literal("clipboardRead") }),
+  ]);
+  static readonly screenshot = z.strictObject({
+    path: z.string().min(1).optional(),
+    fullPage: z.boolean().default(false),
+  });
   static readonly wait = z.discriminatedUnion("type", [
     z.strictObject({
       type: z.literal("element"),
@@ -87,6 +200,53 @@ export class InputSchemas {
     z.strictObject({
       type: z.literal("url"),
       value: z.string().min(1),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("state"),
+      selector: z.string().min(1),
+      state: z.enum(["visible", "hidden", "present", "absent", "enabled", "disabled", "checked", "unchecked"]),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("value"),
+      selector: z.string().min(1),
+      value: z.string(),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("count"),
+      selector: z.string().min(1),
+      count: z.number().int().nonnegative(),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("attribute"),
+      selector: z.string().min(1),
+      name: z.string().min(1),
+      value: z.string().optional(),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("elementText"),
+      selector: z.string().min(1),
+      text: z.string(),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("windowCount"),
+      count: z.number().int().positive(),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("networkIdle"),
+      quietMs: z.number().positive().default(500),
+      timeoutMs: z.number().positive().default(15_000),
+    }),
+    z.strictObject({
+      type: z.literal("script"),
+      script: z.string().min(1),
+      arguments: z.array(z.unknown()).default([]),
       timeoutMs: z.number().positive().default(15_000),
     }),
   ]);
@@ -141,4 +301,5 @@ export type StartSessionInput = z.infer<typeof InputSchemas.startSession>;
 export type GestureInput = z.infer<typeof InputSchemas.gesture>;
 export type GestureRequest = z.input<typeof InputSchemas.gesture>;
 export type WaitRequest = z.input<typeof InputSchemas.wait>;
-export type RemoteConfigInput = z.input<typeof InputSchemas.remoteConfig>;
+export type ElementActionRequest = z.input<typeof InputSchemas.elementAction>;
+export type BrowserActionRequest = z.input<typeof InputSchemas.browserAction>;

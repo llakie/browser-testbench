@@ -64,64 +64,83 @@ Für native Browser-DevTools liefert `get_devtools_instructions` die passende Ve
 
 ### Automatisierte Projekttests
 
-Die Weboberfläche erzeugt eine kleine Verbindungsdatei:
-
-```json
-{
-  "server": "http://127.0.0.1:55808",
-  "targetPolicy": "available",
-  "targets": [
-    { "name": "chrome", "headless": true },
-    { "name": "safari-ios", "deviceName": "iPhone 17 Pro", "platformVersion": "25.5" }
-  ]
-}
-```
-
-Diese Datei enthält absichtlich keine Anwendungsadresse, Testdateien oder Ergebnisordner. Solche Angaben gehören in das Projekt.
+Die Testbench erzeugt für jeden erkannten Browser und jedes kompatible simulierte Gerät eine stabile ID. Beispielsweise
+heißen Ziele `chrome` oder `safari-ios-iphone-17-pro-26-5`. Die Weboberfläche zeigt alle IDs mit Kopierfunktion an.
+Eine Projekt-Konfigurationsdatei ist nicht erforderlich.
 
 Installiere den Client aus dem lokalen Testbench-Verzeichnis; der genaue Befehl wird in der Weboberfläche angezeigt. Danach kann jeder Node-basierte Test-Runner dieselbe Fernsteuerung verwenden:
 
 ```js
 import assert from "node:assert/strict";
 import { RemoteTestbench } from "browser-testbench/client";
-import config from "./testbench.config.json" with { type: "json" };
 
-const testbench = new RemoteTestbench(config);
-const browser = await testbench.open({
-  target: "chrome",
-  url: "http://127.0.0.1:5173/login",
-});
+const testbench = new RemoteTestbench();
+const targets = await testbench.availableTargets(["chrome", "safari-ios-iphone-17-pro-26-5"]);
 
-try {
-  await browser.type("#email", "test@example.com");
-  await browser.click("button=Anmelden");
-  await browser.waitForText("Willkommen");
-  assert.match((await browser.inspect()).url, /dashboard/);
-  await browser.screenshot("artifacts/login.png");
-} finally {
-  await browser.close();
+for (const target of targets) {
+  const browser = await testbench.open({
+    target,
+    url: "http://127.0.0.1:5173/login",
+    headless: true,
+  });
+
+  try {
+    await browser.fill("label=E-Mail-Adresse", "test@example.com");
+    await browser.check("testid=terms");
+    await browser.click("button=Anmelden");
+    await browser.waitForText("Willkommen");
+    assert.match((await browser.inspect()).url, /dashboard/);
+    await browser.screenshot(`artifacts/login-${target}.png`);
+  } finally {
+    await browser.close();
+  }
 }
 ```
 
-Bei einem konfigurierten mobilen Ziel übernimmt `open()` automatisch dessen `deviceName`, `platformVersion`, `udid` oder `avd`, solange der Aufruf nur das Ziel überschreibt.
+`availableTargets()` behält die angefragte Reihenfolge bei und überspringt Ziele, die auf dem aktuellen Rechner nicht
+einsatzbereit sind. Ist kein einziges angefragtes Ziel bereit, wird das Promise rejected. Die Testbench löst eine mobile
+ID intern zu `deviceName`, Plattformversion und UDID beziehungsweise AVD auf. `headless` wird für mobile Ziele ignoriert.
+
+Für parallele Ausführung steht außerdem `forEachTarget()` bereit. Verschiedene Geräte können parallel laufen; Zugriffe
+auf dasselbe serielle Ziel werden serverseitig nacheinander ausgeführt.
 
 ## Node-Client
 
-`RemoteTestbench` bietet:
+`RemoteTestbench` verbindet sich ohne Argumente mit `http://127.0.0.1:55808`. Eine andere Adresse kann über
+`BROWSER_TESTBENCH_URL` oder den Konstruktor gesetzt werden. Der Client bietet:
 
-- `capabilities()` und `availableTargets()`
+- `targets()`, `capabilities()` und `availableTargets([...])`
 - `open({ target, url, ... })`
+- `forEachTarget(targets, options, callback)`
 
 Eine `RemoteSession` bietet:
 
-- `navigate()`, `inspect()`, `click()` und `type()`
-- `waitForElement()`, `waitForText()` und `waitForUrl()`
+- Formulare: `fill()`, `append()`, `clear()`, `check()`, `uncheck()`, `select()`, `upload()` und `submit()`
+- Zustand: `state()`, `count()`, `inspect()`, `cookies()` und `storage()`
+- Eingabe: `click()`, `press()`, `focus()`, `blur()`, `hover()`, `doubleClick()`, `rightClick()` und `drag()`
+- Navigation: `navigate()`, `back()`, `forward()`, `refresh()`, Tabs/Fenster und Frames
+- Warten: Element, Text, URL, Wert, Anzahl und Zustände wie sichtbar, entfernt, aktiviert oder ausgewählt
+- Browserzustand: Cookies, Local/Session Storage, Dialoge und Viewport
+- Dateien: Upload, projektseitige Screenshots und Downloads mit konfiguriertem `downloadDir`
+- Debugging: Vollseiten-/Element-Screenshots, PDF, Accessibility-Baum, Zwischenablage und JavaScript-Auswertung
+- Umgebung: Netzwerkbedingungen, blockierte URLs, Fetch-Mocks, Geolocation und Berechtigungen auf Chromium-Zielen
 - `tap()`, `swipe()` und `pinch()` für mobile Ziele
-- `screenshot()` und `screenshotBase64()`
-- `diagnostics()` und `devtools()`
+- Mobil: Orientierung, Zurück-Taste, Tastatur schließen und optionale MP4-Aufzeichnung
+- `diagnostics()`, `clearDiagnostics()` und `devtools()`
 - `close()`
 
-Screenshots werden vom Client im Projekt gespeichert. Der Server benötigt deshalb keinen Pfad in das Projekt.
+Selector können CSS oder XPath sein. Zusätzlich stehen `tag=Text`, `label=Text`, `placeholder=Text`, `testid=Wert`,
+`text=Text`, `role=Rolle|Name`, `~Aria-Label` sowie `shadow=host >>> element` für offene Shadow Roots zur Verfügung.
+Mehrdeutige Treffer lassen sich mit `first|...`, `last|...` oder `nth=2|...` eingrenzen.
+
+Screenshots werden vom Client im Projekt gespeichert. Für Downloads wird beim Öffnen der Session ein `downloadDir`
+auf dem Testbench-Rechner angegeben.
+
+`mockFetch()` ersetzt Fetch-Antworten in der aktuell geladenen Seite. `blockUrls()`, Netzwerkbedingungen,
+Geolocation, Berechtigungen, PDF und der native Accessibility-Baum verwenden Chromium DevTools und sind daher für
+Chrome und Edge gedacht. Auf anderen Zielen bleiben die WebDriver-basierten Formular-, Navigations- und
+Zustandsfunktionen verfügbar. Für mobile Videos wird `videoPath` beim Öffnen der Session gesetzt; die Aufzeichnung
+wird beim Schließen der Session abgeschlossen.
 
 ## MCP
 
@@ -135,14 +154,15 @@ Wichtige Werkzeuge:
 
 - Umgebung: `list_targets`, `doctor`
 - Session: `start_session`, `navigate`, `inspect_page`, `close_session`
-- Bedienung: `click`, `type`, `tap`, `swipe`, `pinch`
-- Synchronisierung: `wait_for_element`, `wait_for_text`, `wait_for_url`
-- Debugging: `get_page_source`, `take_screenshot`, `get_diagnostics`, `get_devtools_instructions`
+- Bedienung: `click`, `type`, `element_action`, `browser_action`, `tap`, `swipe`, `pinch`
+- Synchronisierung: `wait_for_element`, `wait_for_text`, `wait_for_url`, `wait_for_state`, `wait_for_value`, `wait_for_count`
+- Debugging: `get_page_source`, `take_screenshot`, `get_diagnostics`, `clear_diagnostics`, `get_devtools_instructions`
 
 ## REST-API
 
 ```text
 GET    /health
+GET    /v1/targets
 GET    /v1/capabilities
 GET    /v1/doctor
 GET    /v1/workbench
@@ -157,10 +177,13 @@ GET    /v1/sessions/:id/inspect
 POST   /v1/sessions/:id/navigate
 POST   /v1/sessions/:id/click
 POST   /v1/sessions/:id/type
+POST   /v1/sessions/:id/element
+POST   /v1/sessions/:id/browser
 POST   /v1/sessions/:id/wait
 POST   /v1/sessions/:id/gesture
 POST   /v1/sessions/:id/screenshot
 GET    /v1/sessions/:id/diagnostics
+DELETE /v1/sessions/:id/diagnostics
 GET    /v1/sessions/:id/devtools
 ```
 

@@ -4,6 +4,7 @@ import { DoctorService } from "./doctor-service.js";
 import { McpIntegrationService } from "./mcp-integration-service.js";
 import { SetupService } from "./setup-service.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
+import { TargetCatalogService } from "./target-catalog-service.js";
 
 export class WorkbenchService {
   async state(): Promise<Record<string, unknown>> {
@@ -13,6 +14,7 @@ export class WorkbenchService {
       SetupService.plan(targets),
       McpIntegrationService.statuses(),
     ]);
+    const testTargets = TargetCatalogService.toPublic(TargetCatalogService.update(checks));
 
     return {
       platform: process.platform,
@@ -25,6 +27,7 @@ export class WorkbenchService {
       })),
       checks,
       actions,
+      testTargets,
       clientInstallCommand: `npm install --save-dev ${JSON.stringify(`file:${TestbenchPaths.projectRoot}`)}`,
     };
   }
@@ -32,6 +35,7 @@ export class WorkbenchService {
   async capabilities(): Promise<Record<string, unknown>> {
     const targets = [...TARGET_NAMES];
     const checks = await DoctorService.inspect(targets);
+    const testTargets = TargetCatalogService.toPublic(TargetCatalogService.update(checks));
     return {
       platform: process.platform,
       architecture: process.arch,
@@ -40,6 +44,7 @@ export class WorkbenchService {
         check: checks.find((check) => check.id === name),
       })),
       checks,
+      testTargets,
     };
   }
 

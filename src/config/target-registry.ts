@@ -72,19 +72,46 @@ export class TargetRegistry {
         return {
           browserName: "chrome",
           "goog:loggingPrefs": { browser: "ALL", performance: "ALL" },
-          ...(target.headless ? { "goog:chromeOptions": { args: ["--headless=new"] } } : {}),
+          ...((target.headless || target.downloadDir) && {
+            "goog:chromeOptions": {
+              ...(target.headless ? { args: ["--headless=new"] } : {}),
+              ...(target.downloadDir
+                ? { prefs: { "download.default_directory": target.downloadDir, "download.prompt_for_download": false } }
+                : {}),
+            },
+          }),
           ...common,
         };
       case "firefox":
         return {
           browserName: "firefox",
-          ...(target.headless ? { "moz:firefoxOptions": { args: ["-headless"] } } : {}),
+          ...((target.headless || target.downloadDir) && {
+            "moz:firefoxOptions": {
+              ...(target.headless ? { args: ["-headless"] } : {}),
+              ...(target.downloadDir
+                ? {
+                    prefs: {
+                      "browser.download.dir": target.downloadDir,
+                      "browser.download.folderList": 2,
+                      "browser.helperApps.neverAsk.saveToDisk": "application/octet-stream,application/pdf,text/csv",
+                    },
+                  }
+                : {}),
+            },
+          }),
           ...common,
         };
       case "edge":
         return {
           browserName: "MicrosoftEdge",
-          ...(target.headless ? { "ms:edgeOptions": { args: ["--headless=new"] } } : {}),
+          ...((target.headless || target.downloadDir) && {
+            "ms:edgeOptions": {
+              ...(target.headless ? { args: ["--headless=new"] } : {}),
+              ...(target.downloadDir
+                ? { prefs: { "download.default_directory": target.downloadDir, "download.prompt_for_download": false } }
+                : {}),
+            },
+          }),
           ...common,
         };
       case "safari":

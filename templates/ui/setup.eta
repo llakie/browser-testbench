@@ -88,72 +88,28 @@
         </div>
       </section>
 
-      <section class="panel" id="configuration">
+      <section class="panel" id="test-targets">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Projektkonfiguration</p>
-            <h2>Projektkonfiguration erstellen</h2>
+            <p class="eyebrow">Convention over Configuration</p>
+            <h2>Testziele für deine Tests</h2>
             <p>
-              Stelle die Konfiguration für dein Projekt zusammen und speichere sie dort als
-              <code>testbench.config.json</code>.
+              Verwende diese eindeutigen IDs direkt in deinen Tests. Die Testbench ordnet sie automatisch dem richtigen
+              Browser, Simulator oder Emulator zu.
             </p>
           </div>
         </div>
-
-        <form id="config-form">
-          <fieldset class="config-options">
-            <legend>Verhalten</legend>
-            <label class="config-toggle">
-              <input id="config-available" type="checkbox" checked />
-              <span>
-                <strong>Nicht verfügbare Testziele überspringen</strong>
-                <small>So kann dieselbe Datei auf macOS und Windows verwendet werden.</small>
-              </span>
-            </label>
-            <label class="config-toggle">
-              <input id="config-headless" type="checkbox" checked />
-              <span>
-                <strong>Desktopbrowser im Hintergrund ausführen</strong>
-                <small>Safari sowie Simulatoren und Emulatoren sind davon nicht betroffen.</small>
-              </span>
-            </label>
-          </fieldset>
-
-          <fieldset class="config-targets">
-            <legend>Testziele</legend>
-            <p>Wähle die Browser und Geräte, auf denen dein Projekt getestet werden soll.</p>
-            <div class="config-target-list" id="config-target-list"></div>
-          </fieldset>
-
-          <div class="config-output">
-            <div class="config-output__heading">
-              <div>
-                <h3>Vorschau der <code>testbench.config.json</code></h3>
-                <p>Die Vorschau wird bei jeder Änderung sofort aktualisiert.</p>
-              </div>
-              <div class="config-output__actions">
-                <button class="button button--secondary" id="copy-config" type="button">
-                  <i class="fa-solid fa-copy" aria-hidden="true"></i> JSON kopieren
-                </button>
-                <button class="button button--primary" id="download-config" type="button">
-                  <i class="fa-solid fa-download" aria-hidden="true"></i> Datei herunterladen
-                </button>
-              </div>
-            </div>
-            <pre class="config-preview"><code id="config-preview"></code></pre>
-            <p class="config-message" id="config-message" role="status" aria-live="polite"></p>
-          </div>
-        </form>
+        <div class="test-target-list" id="test-target-list" aria-live="polite"></div>
       </section>
 
       <section class="panel" id="connect">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Zum Abschluss</p>
-            <h2>Projekt anbinden und Test starten</h2>
+            <p class="eyebrow">Im eigenen Projekt</p>
+            <h2>Testbench verwenden</h2>
             <p>
-              Lege die erzeugte <code>testbench.config.json</code> in deinem Projekt ab. Dein Test-Runner steuert damit
-              Browser und Geräte über die Testbench. URLs, Assertions und Ergebnisordner bleiben vollständig im Projekt.
+              Dein Test-Runner verbindet sich direkt mit der lokalen Testbench. Eine Konfigurationsdatei ist nicht
+              nötig; URLs, Assertions und Ergebnisordner bleiben vollständig in deinem Projekt.
             </p>
           </div>
         </div>

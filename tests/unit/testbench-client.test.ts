@@ -1,0 +1,41 @@
+import { describe, expect, it, vi } from "vitest";
+import type { TestTargetInfo } from "../../src/config/types.js";
+import { RemoteTestbench } from "../../src/transports/testbench-client.js";
+
+describe("RemoteTestbench.availableTargets", () => {
+  it("returns ready requested IDs in the requested order", async () => {
+    const testbench = new RemoteTestbench();
+    vi.spyOn(testbench, "targets").mockResolvedValue([
+      target("chrome", true),
+      target("firefox", false),
+      target("safari-ios-iphone-17-pro-26-5", true),
+    ]);
+
+    await expect(testbench.availableTargets(["firefox", "safari-ios-iphone-17-pro-26-5", "chrome"])).resolves.toEqual([
+      "safari-ios-iphone-17-pro-26-5",
+      "chrome",
+    ]);
+  });
+
+  it("rejects when no requested target is ready", async () => {
+    const testbench = new RemoteTestbench();
+    vi.spyOn(testbench, "targets").mockResolvedValue([target("chrome", false)]);
+
+    await expect(testbench.availableTargets(["chrome", "missing"])).rejects.toThrow(
+      "None of the requested Browser Testbench targets are ready",
+    );
+  });
+});
+
+function target(id: string, ready: boolean): TestTargetInfo {
+  return {
+    id,
+    browser: "chrome",
+    label: id,
+    kind: "desktop",
+    status: ready ? "ready" : "blocked",
+    ready,
+    serial: false,
+    detail: id,
+  };
+}
