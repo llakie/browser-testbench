@@ -14,6 +14,7 @@ import { TargetRegistry } from "../config/target-registry.js";
 import type { TargetConfig, TargetName } from "../config/types.js";
 import { ServiceManager, type ManagedProcess } from "../infrastructure/process-manager.js";
 import { BrowserSession } from "./browser-session.js";
+import { IosSimulatorCleanup } from "./ios-simulator-cleanup.js";
 import { MobileGestures, type GestureExecution } from "./mobile-gestures.js";
 import { VideoRecorder } from "./video-recorder.js";
 
@@ -536,6 +537,7 @@ export class InteractiveController {
   }
 
   async close(): Promise<{ videoPath?: string }> {
+    const target = this.target;
     await this.session.close().catch(() => undefined);
     let videoPath: string | undefined;
     if (this.video) {
@@ -546,6 +548,7 @@ export class InteractiveController {
       }
     }
     await this.appium?.process.stop().catch(() => undefined);
+    await IosSimulatorCleanup.run(target);
     this.video = undefined;
     this.appium = undefined;
     this.target = undefined;

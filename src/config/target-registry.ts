@@ -133,7 +133,7 @@ export class TargetRegistry {
           browserName: "Chrome",
           "appium:automationName": "UiAutomator2",
           "appium:deviceName": target.deviceName ?? "Android Emulator",
-          "appium:chromedriverExecutableDir": TestbenchPaths.cache("chromedrivers"),
+          "appium:chromedriverExecutableDir": TestbenchPaths.data("chromedrivers"),
           ...(target.platformVersion ? { "appium:platformVersion": target.platformVersion } : {}),
           ...(target.avd ? { "appium:avd": target.avd } : {}),
           ...(target.udid ? { "appium:udid": target.udid } : {}),

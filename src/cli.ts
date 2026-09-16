@@ -90,7 +90,8 @@ program
     const testbench = new RemoteTestbench({ server: options.server, token: options.token });
     const target = (await testbench.targets()).find((candidate) => candidate.id === targetId);
     if (!target) throw new Error(`Unknown target '${targetId}'. Run 'browser-testbench targets' to list valid IDs.`);
-    if (!target.ready) throw new Error(`Target '${targetId}' is not ready: ${target.detail}`);
+    if (target.status === "blocked" || target.status === "skip")
+      throw new Error(`Target '${targetId}' is not ready: ${target.detail}`);
     const result = await testbench.verify(target.id, { headless: options.headless });
     console.log(options.json ? JSON.stringify(result, null, 2) : `PASS ${target.id} (${result.durationMs} ms)`);
   });

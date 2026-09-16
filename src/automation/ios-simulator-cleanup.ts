@@ -1,13 +1,13 @@
-import type { TestTarget } from "../config/types.js";
+import type { TargetConfig } from "../config/types.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 
 const PROCESS_TIMEOUT_MS = 10_000;
 const SIMULATOR_SHUTDOWN_TIMEOUT_MS = 30_000;
 
-export class IosVerificationCleanup {
-  static async run(target: TestTarget): Promise<void> {
-    const udid = target.config.udid;
-    if (process.platform !== "darwin" || target.browser !== "safari-ios" || !udid) return;
+export class IosSimulatorCleanup {
+  static async run(target?: TargetConfig): Promise<void> {
+    const udid = target?.udid;
+    if (process.platform !== "darwin" || target?.name !== "safari-ios" || !udid) return;
 
     await CommandRunner.run("xcrun", ["simctl", "terminate", udid, "com.facebook.WebDriverAgentRunner.xctrunner"], {
       timeoutMs: PROCESS_TIMEOUT_MS,
