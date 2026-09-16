@@ -1,0 +1,79 @@
+<section class="hero hero--compact">
+  <div>
+    <p class="eyebrow">Remote control and verification</p>
+    <h1>Test targets</h1>
+    <p class="hero__copy">Use stable IDs in your projects or verify all available browsers and devices right here.</p>
+  </div>
+</section>
+
+<div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+<section class="panel" id="test-targets">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Convention over Configuration</p>
+      <h2>Targets for your tests</h2>
+      <p>
+        Use these unique IDs directly in your tests. “Ready” confirms the environment; a successful test run also
+        displays its date.
+      </p>
+    </div>
+    <button class="button button--secondary" id="verify-all-targets" type="button">
+      <i class="fa-solid fa-list-check" aria-hidden="true"></i> Run all tests
+    </button>
+  </div>
+  <div class="test-target-list" id="test-target-list" aria-live="polite"></div>
+</section>
+
+<section class="panel" id="connect">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">In your project</p>
+      <h2>Use Browser Testbench</h2>
+      <p>URLs, assertions, and result directories remain entirely in your project.</p>
+    </div>
+  </div>
+  <div class="project-command">
+    <span class="integration-card__icon"><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i></span>
+    <div>
+      <h3>Install the client in your project</h3>
+      <p>Install Browser Testbench as a development dependency in your project.</p>
+      <div id="project-install-command"></div>
+    </div>
+  </div>
+  <div class="project-command">
+    <span class="integration-card__icon"><i class="fa-solid fa-play" aria-hidden="true"></i></span>
+    <div>
+      <h3>Use it in your own test</h3>
+      <p>Your test opens the session. The flow and assertions remain with your test runner.</p>
+      <div id="project-client-example"></div>
+    </div>
+  </div>
+  <div class="project-command">
+    <span class="integration-card__icon"><i class="fa-solid fa-bug" aria-hidden="true"></i></span>
+    <div>
+      <h3>Open a browser for debugging</h3>
+      <p>
+        Open a URL directly. The session stays active until you press <kbd>Ctrl</kbd> + <kbd>C</kbd> in the terminal.
+      </p>
+      <div class="debug-controls">
+        <label>
+          <span>Application URL</span>
+          <div class="input-with-icon">
+            <i class="fa-solid fa-link" aria-hidden="true"></i>
+            <input id="debug-url" type="url" value="http://127.0.0.1:3000" />
+          </div>
+        </label>
+        <label>
+          <span>Browser or device</span>
+          <span class="select-control">
+            <select id="debug-target"></select>
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+          </span>
+        </label>
+      </div>
+      <div id="debug-open-command"></div>
+      <p class="debug-tools-note" id="debug-tools-note"></p>
+    </div>
+  </div>
+</section>

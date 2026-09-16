@@ -1,9 +1,9 @@
 import { TargetRegistry } from "../config/target-registry.js";
+import { PackageMetadata } from "../config/package-metadata.js";
 import { TARGET_NAMES } from "../config/types.js";
 import { DoctorService } from "./doctor-service.js";
 import { McpIntegrationService } from "./mcp-integration-service.js";
 import { SetupService } from "./setup-service.js";
-import { TestbenchPaths } from "../infrastructure/paths.js";
 import { TargetCatalogService } from "./target-catalog-service.js";
 
 export class WorkbenchService {
@@ -28,7 +28,8 @@ export class WorkbenchService {
       checks,
       actions,
       testTargets,
-      clientInstallCommand: `npm install --save-dev ${JSON.stringify(`file:${TestbenchPaths.projectRoot}`)}`,
+      clientInstallCommand: `npm install --save-dev ${PackageMetadata.NAME}`,
+      packageName: PackageMetadata.NAME,
     };
   }
 

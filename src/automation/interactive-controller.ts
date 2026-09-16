@@ -1,6 +1,7 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { stat } from "node:fs/promises";
+import { TestbenchDefaults } from "../config/defaults.js";
 import {
   InputSchemas,
   type BrowserActionRequest,
@@ -107,55 +108,61 @@ export class InteractiveController {
     return this.inspect();
   }
 
-  async inspect(limit = 100): Promise<PageInspection> {
+  async inspect(limit = TestbenchDefaults.INSPECTION_LIMIT): Promise<PageInspection> {
     const browser = this.session.active;
-    const elements = await browser.execute((maxItems: number) => {
-      const selector = "a,button,input,textarea,select,[role],[contenteditable='true'],h1,h2,h3";
-      const cssSelector = (element: HTMLElement): string => {
-        if (element.id) return `#${CSS.escape(element.id)}`;
-        if (element.dataset.testid) return `[data-testid=${JSON.stringify(element.dataset.testid)}]`;
-        const ariaLabel = element.getAttribute("aria-label");
-        if (ariaLabel) return `[aria-label=${JSON.stringify(ariaLabel)}]`;
-        const placeholder = element.getAttribute("placeholder");
-        if (placeholder) return `[placeholder=${JSON.stringify(placeholder)}]`;
-        const name = element.getAttribute("name");
-        if (name) return `${element.tagName.toLowerCase()}[name=${JSON.stringify(name)}]`;
+    const elements = await browser.execute(
+      (maxItems: number, maxTextLength: number) => {
+        const selector = "a,button,input,textarea,select,[role],[contenteditable='true'],h1,h2,h3";
+        const cssSelector = (element: HTMLElement): string => {
+          if (element.id) return `#${CSS.escape(element.id)}`;
+          if (element.dataset.testid) return `[data-testid=${JSON.stringify(element.dataset.testid)}]`;
+          const ariaLabel = element.getAttribute("aria-label");
+          if (ariaLabel) return `[aria-label=${JSON.stringify(ariaLabel)}]`;
+          const placeholder = element.getAttribute("placeholder");
+          if (placeholder) return `[placeholder=${JSON.stringify(placeholder)}]`;
+          const name = element.getAttribute("name");
+          if (name) return `${element.tagName.toLowerCase()}[name=${JSON.stringify(name)}]`;
 
-        const path: string[] = [];
-        let current: HTMLElement | null = element;
-        while (current) {
-          let segment = current.tagName.toLowerCase();
-          const parent: HTMLElement | null = current.parentElement;
-          if (parent) {
-            const siblings = Array.from(parent.children).filter((child) => child.tagName === current?.tagName);
-            if (siblings.length > 1) segment += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+          const path: string[] = [];
+          let current: HTMLElement | null = element;
+          while (current) {
+            let segment = current.tagName.toLowerCase();
+            const parent: HTMLElement | null = current.parentElement;
+            if (parent) {
+              const siblings = Array.from(parent.children).filter((child) => child.tagName === current?.tagName);
+              if (siblings.length > 1) segment += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+            }
+            path.unshift(segment);
+            if (!parent || current === document.body) break;
+            current = parent;
           }
-          path.unshift(segment);
-          if (!parent || current === document.body) break;
-          current = parent;
-        }
-        return path.join(" > ");
-      };
-      return Array.from(document.querySelectorAll<HTMLElement>(selector))
-        .slice(0, maxItems)
-        .map((element) => ({
-          tag: element.tagName.toLowerCase(),
-          role: element.getAttribute("role") ?? undefined,
-          type: element.getAttribute("type") ?? undefined,
-          text: (element.innerText || element.textContent || "").trim().replace(/\s+/g, " ").slice(0, 200) || undefined,
-          label:
-            element.getAttribute("aria-label") ??
-            (element.id
-              ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`)?.textContent?.trim()
-              : undefined) ??
-            element.getAttribute("name") ??
-            undefined,
-          value: "value" in element ? String((element as HTMLInputElement).value) : undefined,
-          selector: cssSelector(element),
-          disabled: "disabled" in element ? Boolean((element as HTMLInputElement).disabled) : false,
-          checked: "checked" in element ? Boolean((element as HTMLInputElement).checked) : undefined,
-        }));
-    }, limit);
+          return path.join(" > ");
+        };
+        return Array.from(document.querySelectorAll<HTMLElement>(selector))
+          .slice(0, maxItems)
+          .map((element) => ({
+            tag: element.tagName.toLowerCase(),
+            role: element.getAttribute("role") ?? undefined,
+            type: element.getAttribute("type") ?? undefined,
+            text:
+              (element.innerText || element.textContent || "").trim().replace(/\s+/g, " ").slice(0, maxTextLength) ||
+              undefined,
+            label:
+              element.getAttribute("aria-label") ??
+              (element.id
+                ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`)?.textContent?.trim()
+                : undefined) ??
+              element.getAttribute("name") ??
+              undefined,
+            value: "value" in element ? String((element as HTMLInputElement).value) : undefined,
+            selector: cssSelector(element),
+            disabled: "disabled" in element ? Boolean((element as HTMLInputElement).disabled) : false,
+            checked: "checked" in element ? Boolean((element as HTMLInputElement).checked) : undefined,
+          }));
+      },
+      limit,
+      TestbenchDefaults.INSPECTED_TEXT_MAX_LENGTH,
+    );
     return {
       url: await browser.getUrl(),
       title: await browser.getTitle(),
@@ -165,13 +172,13 @@ export class InteractiveController {
 
   async click(selector: string): Promise<void> {
     const element = await this.session.active.$(selector);
-    await element.waitForClickable({ timeout: 15_000 });
+    await element.waitForClickable({ timeout: TestbenchDefaults.WAIT_TIMEOUT_MS });
     await element.click();
   }
 
   async type(selector: string, value: string, clear = true): Promise<void> {
     const element = await this.session.active.$(selector);
-    await element.waitForDisplayed({ timeout: 15_000 });
+    await element.waitForDisplayed({ timeout: TestbenchDefaults.WAIT_TIMEOUT_MS });
     if (clear) await element.clearValue();
     await element.setValue(value);
   }
@@ -274,7 +281,7 @@ export class InteractiveController {
         try {
           return await browser.devtools("Accessibility.getFullAXTree", {});
         } catch {
-          return this.inspect(500);
+          return this.inspect(TestbenchDefaults.INSPECTION_MAX);
         }
       case "printPdf":
         return browser.devtools("Page.printToPDF", { printBackground: true });
@@ -304,7 +311,7 @@ export class InteractiveController {
           if (file?.isFile()) return { path, size: file.size };
           if (Date.now() - startedAt >= action.timeoutMs)
             throw new Error(`Download did not finish: ${action.filename}`);
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, TestbenchDefaults.DOWNLOAD_POLL_INTERVAL_MS));
         }
       }
       case "evaluate":
@@ -353,7 +360,7 @@ export class InteractiveController {
     return fullPage ? this.session.active.takeFullPageScreenshot() : this.session.active.takeScreenshot();
   }
 
-  async source(maxCharacters = 100_000): Promise<string> {
+  async source(maxCharacters = TestbenchDefaults.PAGE_SOURCE_LIMIT): Promise<string> {
     return (await this.session.active.getPageSource()).slice(0, maxCharacters);
   }
 
@@ -499,7 +506,7 @@ export class InteractiveController {
       };
       if (!result.body) return undefined;
       const body = result.base64Encoded ? Buffer.from(result.body, "base64").toString("utf8") : result.body;
-      return body.slice(0, 100_000);
+      return body.slice(0, TestbenchDefaults.PAGE_SOURCE_LIMIT);
     } catch {
       return undefined;
     }
@@ -508,7 +515,7 @@ export class InteractiveController {
   private async appiumCommand(path: string, body: Record<string, unknown>): Promise<void> {
     if (!this.appium) throw new Error("This command requires an active mobile session.");
     const response = await fetch(
-      `http://127.0.0.1:${this.appium.port}/session/${this.session.active.sessionId}/${path}`,
+      `http://${TestbenchDefaults.LOOPBACK_HOST}:${this.appium.port}/session/${this.session.active.sessionId}/${path}`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -523,7 +530,9 @@ export class InteractiveController {
 
   private pushDiagnostic(event: DiagnosticEvent): void {
     this.diagnosticEvents.push(event);
-    if (this.diagnosticEvents.length > 500) this.diagnosticEvents.splice(0, this.diagnosticEvents.length - 500);
+    if (this.diagnosticEvents.length > TestbenchDefaults.DIAGNOSTIC_EVENT_LIMIT) {
+      this.diagnosticEvents.splice(0, this.diagnosticEvents.length - TestbenchDefaults.DIAGNOSTIC_EVENT_LIMIT);
+    }
   }
 
   async close(): Promise<{ videoPath?: string }> {

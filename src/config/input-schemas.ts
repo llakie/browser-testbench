@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { TestbenchDefaults } from "./defaults.js";
+import { BrowserOrientation, PinchDirection, SwipeDirection } from "./interaction-values.js";
 import { TARGET_NAMES } from "./types.js";
 
 export class InputSchemas {
@@ -24,10 +26,6 @@ export class InputSchemas {
 
   static readonly setup = z.strictObject({
     targets: z.array(this.target).min(1),
-    androidAvdName: z
-      .string()
-      .regex(/^[A-Za-z0-9_.-]+$/)
-      .optional(),
   });
 
   static readonly mcpIntegration = z.strictObject({
@@ -128,7 +126,7 @@ export class InputSchemas {
     z.strictObject({
       action: z.literal("waitDownload"),
       filename: z.string().min(1),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       action: z.literal("evaluate"),
@@ -154,7 +152,7 @@ export class InputSchemas {
       state: z.enum(["granted", "denied", "prompt"]),
       origin: z.url().optional(),
     }),
-    z.strictObject({ action: z.literal("orientation"), orientation: z.enum(["PORTRAIT", "LANDSCAPE"]) }),
+    z.strictObject({ action: z.literal("orientation"), orientation: z.enum(BrowserOrientation) }),
     z.strictObject({ action: z.literal("blockUrls"), patterns: z.array(z.string().min(1)) }),
     z.strictObject({ action: z.literal("clipboardWrite"), text: z.string() }),
     z.strictObject({ action: z.literal("clipboardRead") }),
@@ -167,71 +165,81 @@ export class InputSchemas {
     z.strictObject({
       type: z.literal("element"),
       selector: z.string().min(1),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("text"),
       text: z.string().min(1),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("url"),
       value: z.string().min(1),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("state"),
       selector: z.string().min(1),
       state: z.enum(["visible", "hidden", "present", "absent", "enabled", "disabled", "checked", "unchecked"]),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("value"),
       selector: z.string().min(1),
       value: z.string(),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("count"),
       selector: z.string().min(1),
       count: z.number().int().nonnegative(),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("attribute"),
       selector: z.string().min(1),
       name: z.string().min(1),
       value: z.string().optional(),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("elementText"),
       selector: z.string().min(1),
       text: z.string(),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("windowCount"),
       count: z.number().int().positive(),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("networkIdle"),
-      quietMs: z.number().positive().default(500),
-      timeoutMs: z.number().positive().default(15_000),
+      quietMs: z.number().positive().default(TestbenchDefaults.NETWORK_IDLE_QUIET_MS),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({
       type: z.literal("script"),
       script: z.string().min(1),
       arguments: z.array(z.unknown()).default([]),
-      timeoutMs: z.number().positive().default(15_000),
+      timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
   ]);
   static readonly inspect = z.strictObject({
-    limit: z.coerce.number().int().min(1).max(500).default(100),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(TestbenchDefaults.INSPECTION_MAX)
+      .default(TestbenchDefaults.INSPECTION_LIMIT),
   });
   static readonly pageSource = z.strictObject({
-    maxCharacters: z.coerce.number().int().min(1_000).max(500_000).default(100_000),
+    maxCharacters: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(TestbenchDefaults.PAGE_SOURCE_MAX)
+      .default(TestbenchDefaults.PAGE_SOURCE_LIMIT),
   });
   static readonly gestureArea = z.strictObject({
     left: z.number().nonnegative(),
@@ -246,16 +254,16 @@ export class InputSchemas {
   });
 
   static readonly swipeGesture = z.strictObject({
-    direction: z.enum(["up", "down", "left", "right"]),
-    percent: z.number().positive().max(0.99).default(0.75),
+    direction: z.enum(SwipeDirection),
+    percent: z.number().positive().max(TestbenchDefaults.GESTURE_MAX_PERCENT).default(TestbenchDefaults.SWIPE_PERCENT),
     area: this.gestureArea.optional(),
     speed: z.number().positive().optional(),
     velocity: z.number().positive().optional(),
   });
 
   static readonly pinchGesture = z.strictObject({
-    direction: z.enum(["in", "out"]),
-    percent: z.number().positive().max(0.99).default(0.5),
+    direction: z.enum(PinchDirection),
+    percent: z.number().positive().max(TestbenchDefaults.GESTURE_MAX_PERCENT).default(TestbenchDefaults.PINCH_PERCENT),
     area: this.gestureArea.optional(),
     speed: z.number().positive().optional(),
     velocity: z.number().positive().default(1),

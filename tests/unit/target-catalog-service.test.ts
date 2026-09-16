@@ -30,6 +30,8 @@ describe("TargetCatalogService", () => {
       "safari-ios-iphone-17-pro-26-5",
       "chrome-android-browser-testbench-api-36",
     ]);
+    expect(targets.find((target) => target.browser === "safari-ios")?.detail).toBe("safari-ios detail");
+    expect(targets.find((target) => target.browser === "safari-ios")?.detail).not.toContain("Shutdown");
   });
 
   it("uses deterministic alphabetic suffixes when readable IDs collide", () => {

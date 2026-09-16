@@ -2,8 +2,16 @@ import { once } from "node:events";
 import { createServer } from "node:net";
 import { mkdir } from "node:fs/promises";
 import type { ChildProcess } from "node:child_process";
+import { TestbenchDefaults } from "../config/defaults.js";
+import { AndroidSdk } from "./android-sdk.js";
 import { CommandRunner } from "./command-runner.js";
 import { TestbenchPaths } from "./paths.js";
+
+const PROCESS_STOP_TIMEOUT_MS = 5_000;
+const APPIUM_START_TIMEOUT_MS = 30_000;
+const HEALTH_REQUEST_TIMEOUT_MS = 2_000;
+const HEALTH_POLL_INTERVAL_MS = 250;
+const RECENT_OUTPUT_MAX_LENGTH = 8_000;
 
 export class ManagedProcess {
   readonly child: ChildProcess;
@@ -16,13 +24,15 @@ export class ManagedProcess {
   }
 
   get recentOutput(): string {
-    return this.output.slice(-8_000);
+    return this.output.slice(-RECENT_OUTPUT_MAX_LENGTH);
   }
 
   async stop(): Promise<void> {
     if (this.child.exitCode !== null || this.child.killed) return;
     if (process.platform === "win32") {
-      await CommandRunner.run("taskkill", ["/PID", String(this.child.pid), "/T"], { timeoutMs: 5_000 });
+      await CommandRunner.run("taskkill", ["/PID", String(this.child.pid), "/T"], {
+        timeoutMs: PROCESS_STOP_TIMEOUT_MS,
+      });
     } else if (this.child.pid) {
       try {
         process.kill(-this.child.pid, "SIGTERM");
@@ -30,7 +40,10 @@ export class ManagedProcess {
         this.child.kill("SIGTERM");
       }
     }
-    await Promise.race([once(this.child, "close"), new Promise((resolve) => setTimeout(resolve, 5_000))]);
+    await Promise.race([
+      once(this.child, "close"),
+      new Promise((resolve) => setTimeout(resolve, PROCESS_STOP_TIMEOUT_MS)),
+    ]);
     if (this.child.exitCode === null) {
       if (process.platform !== "win32" && this.child.pid) {
         try {
@@ -39,7 +52,9 @@ export class ManagedProcess {
           this.child.kill("SIGKILL");
         }
       } else {
-        await CommandRunner.run("taskkill", ["/PID", String(this.child.pid), "/T", "/F"], { timeoutMs: 5_000 });
+        await CommandRunner.run("taskkill", ["/PID", String(this.child.pid), "/T", "/F"], {
+          timeoutMs: PROCESS_STOP_TIMEOUT_MS,
+        });
       }
     }
   }
@@ -52,13 +67,21 @@ export class ServiceManager {
     await mkdir(appiumHome, { recursive: true });
     await mkdir(TestbenchPaths.cache("chromedrivers"), { recursive: true });
     const executable = TestbenchPaths.localBinary("appium");
+    const androidSdkRoot = await AndroidSdk.root();
     const process = new ManagedProcess(
-      `\"${executable}\" --address 127.0.0.1 --port ${port} --log-level warn --allow-insecure uiautomator2:chromedriver_autodownload`,
+      `\"${executable}\" --address ${TestbenchDefaults.LOOPBACK_HOST} --port ${port} --log-level warn --allow-insecure uiautomator2:chromedriver_autodownload`,
       TestbenchPaths.projectRoot,
-      { APPIUM_HOME: appiumHome },
+      {
+        APPIUM_HOME: appiumHome,
+        ...(androidSdkRoot ? AndroidSdk.environment(androidSdkRoot) : {}),
+      },
     );
     try {
-      await this.waitForUrl(`http://127.0.0.1:${port}/status`, 30_000, process);
+      await this.waitForUrl(
+        `http://${TestbenchDefaults.LOOPBACK_HOST}:${port}/status`,
+        APPIUM_START_TIMEOUT_MS,
+        process,
+      );
       return { process, port };
     } catch (error) {
       await process.stop();
@@ -73,12 +96,12 @@ export class ServiceManager {
         throw new Error(`Process exited before ${url} became ready.\n${managedProcess.recentOutput}`);
       }
       try {
-        const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+        const response = await fetch(url, { signal: AbortSignal.timeout(HEALTH_REQUEST_TIMEOUT_MS) });
         if (response.ok) return;
       } catch {
         // Service is still starting.
       }
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, HEALTH_POLL_INTERVAL_MS));
     }
     throw new Error(`Timed out after ${timeoutMs}ms waiting for ${url}.\n${managedProcess?.recentOutput ?? ""}`);
   }
@@ -87,7 +110,7 @@ export class ServiceManager {
     return new Promise((resolve, reject) => {
       const server = createServer();
       server.once("error", reject);
-      server.listen(0, "127.0.0.1", () => {
+      server.listen(0, TestbenchDefaults.LOOPBACK_HOST, () => {
         const address = server.address();
         if (!address || typeof address === "string") {
           server.close();

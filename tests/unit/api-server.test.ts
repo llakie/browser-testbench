@@ -23,7 +23,18 @@ describe("ApiServer", () => {
 
     const page = await fetch(`${baseUrl}/setup`);
     expect(page.headers.get("content-type")).toContain("text/html");
-    expect(await page.text()).toContain("Browser und Geräte für deine Projekte");
+    expect(await page.text()).toContain("Browsers and devices for your projects");
+    expect(await fetch(`${baseUrl}/targets`).then((response) => response.text())).toContain("Run all tests");
+    const documentation = await fetch(`${baseUrl}/docs`).then((response) => response.text());
+    expect(documentation).toContain("Documentation");
+    expect(documentation).toContain("browser-testbench start");
+    expect(documentation).toContain("npm install --save-dev browser-testbench");
+    expect(documentation).not.toContain("browser-testbench serve");
+    expect(await fetch(`${baseUrl}/LICENSE.txt`).then((response) => response.text())).toContain("MIT License");
+    expect(await fetch(`${baseUrl}/THIRD_PARTY_LICENSES.txt`).then((response) => response.text())).toContain(
+      "express@5.2.1",
+    );
+    expect((await fetch(`${baseUrl}/licenses`)).status).toBe(404);
     expect((await fetch(`${baseUrl}/ui-assets/setup.css`)).status).toBe(200);
 
     const initial = (await fetch(`${baseUrl}/v1/workbench`).then((response) => response.json())) as {
@@ -31,6 +42,8 @@ describe("ApiServer", () => {
       targets: Array<{ name: string }>;
       testTargets: Array<{ id: string }>;
       mcpClients: Array<{ id: string }>;
+      clientInstallCommand: string;
+      packageName: string;
     };
     expect(initial.platform).toBe(process.platform);
     expect(initial.targets.map((target) => target.name)).toEqual([
@@ -49,6 +62,8 @@ describe("ApiServer", () => {
       "copilot-vscode",
       "other",
     ]);
+    expect(initial.clientInstallCommand).toBe("npm install --save-dev browser-testbench");
+    expect(initial.packageName).toBe("browser-testbench");
 
     const capabilities = (await fetch(`${baseUrl}/v1/capabilities`).then((response) => response.json())) as {
       platform: string;

@@ -2,6 +2,8 @@ import { SessionManager } from "../automation/session-manager.js";
 import type { StartSessionInput } from "../config/input-schemas.js";
 import type { VerificationResult } from "../config/types.js";
 import { FixtureServer } from "../support/fixture-server.js";
+import { IosVerificationCleanup } from "./ios-verification-cleanup.js";
+import { TargetCatalogService } from "./target-catalog-service.js";
 import { VerificationStore } from "./verification-store.js";
 
 export class TargetVerificationService {
@@ -9,6 +11,7 @@ export class TargetVerificationService {
     sessions: SessionManager,
     input: Pick<StartSessionInput, "target" | "headless">,
   ): Promise<VerificationResult> {
+    const target = await TargetCatalogService.resolve(input.target);
     const fixture = new FixtureServer();
     const url = await fixture.start();
     const startedAt = Date.now();
@@ -29,6 +32,7 @@ export class TargetVerificationService {
       };
     } finally {
       if (sessionId) await sessions.close(sessionId).catch(() => undefined);
+      await IosVerificationCleanup.run(target);
       await fixture.stop();
     }
   }

@@ -7,21 +7,58 @@ import { ApiServer } from "../../src/transports/api-server.js";
 
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
 
-describe("setup UI browser flow", () => {
+describe("workbench UI browser flow", () => {
   browserTest(
-    "shows environment setup and project-to-Testbench commands",
+    "navigates the responsive app shell and operates the workbench pages",
     async () => {
       const directory = await mkdtemp(join(tmpdir(), "browser-testbench-ui-flow-"));
-      const screenshotPath = join(directory, "setup-ui.png");
+      const screenshotPath = join(directory, "targets-ui.png");
       const api = new ApiServer({ host: "127.0.0.1", port: 0 });
       const address = await api.start();
+      const baseUrl = `http://${address.host}:${address.port}`;
       const browser = new BrowserSession();
 
       try {
         await browser.start({ name: "chrome", headless: true });
         await browser.active.setWindowRect(500, 812);
-        await browser.navigate(`http://${address.host}:${address.port}/setup`);
+        await browser.navigate(`${baseUrl}/setup`);
+        await browser.active.waitForText("Google Chrome", 15_000);
+
+        expect(await browser.active.$("#host-badge").getText()).toContain("macOS");
+        expect(await browser.active.$(".environment-group--capabilities .subsection-heading").getText()).toContain(
+          "Availability on this machine",
+        );
+        expect(await browser.active.$(".integration-card").getText()).toContain("Connect an AI assistant through MCP");
+        expect(
+          await browser.active.execute(
+            "const select = document.querySelector('#mcp-client'); const status = document.querySelector('#mcp-status'); const content = document.querySelector('.integration-card__content'); const selectRect = select.getBoundingClientRect(); const statusRect = status.getBoundingClientRect(); return { appearance: getComputedStyle(select).appearance, hasCaretSpace: parseFloat(getComputedStyle(select).paddingRight) >= 44, consistentGap: statusRect.top - selectRect.bottom === parseFloat(getComputedStyle(content).rowGap), caret: Boolean(document.querySelector('.select-control > .fa-chevron-down')) }",
+          ),
+        ).toEqual({ appearance: "none", hasCaretSpace: true, consistentGap: true, caret: true });
+        await browser.active.execute(`
+          const client = document.querySelector("#mcp-client");
+          client.value = "claude-code";
+          client.dispatchEvent(new Event("change", { bubbles: true }));
+        `);
+        expect(await browser.active.$("#mcp-command").getText()).toContain("claude mcp add");
+
+        await browser.active.$("#menu-toggle").click();
+        expect(await browser.active.execute("return document.documentElement.classList.contains('is-menu-open')")).toBe(
+          true,
+        );
+        await browser.active.$("#sidebar-backdrop").click();
+        expect(await browser.active.execute("return document.documentElement.classList.contains('is-menu-open')")).toBe(
+          false,
+        );
+
+        await browser.navigate(`${baseUrl}/targets`);
+        expect(
+          await browser.active.execute("return Boolean(document.querySelector('#debug-target + .fa-chevron-down'))"),
+        ).toBe(true);
         await browser.active.$("#project-client-example .copy-command").waitForClickable();
+        expect(await browser.active.$("#project-install-command").getText()).toContain(
+          "npm install --save-dev browser-testbench",
+        );
+        expect(await browser.active.$("#project-install-command").getText()).not.toContain("file:");
         await browser.active.execute(
           `Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (value) => { window.__copiedCommand = value; } } });`,
         );
@@ -29,11 +66,7 @@ describe("setup UI browser flow", () => {
         expect(await browser.active.execute<string>("return window.__copiedCommand")).toContain("RemoteTestbench");
         expect(await browser.active.execute<string>("return window.__copiedCommand")).toContain("availableTargets");
         expect(await browser.active.execute<string>("return window.__copiedCommand")).not.toContain("testbench.config");
-        expect(
-          await browser.active.execute<string>(
-            'return document.querySelector("#project-client-example .copy-command").getAttribute("aria-label")',
-          ),
-        ).toBe("Befehl kopieren");
+
         await browser.active.execute(`
           const target = document.querySelector("#debug-target");
           target.value = "chrome";
@@ -41,13 +74,13 @@ describe("setup UI browser flow", () => {
           const url = document.querySelector("#debug-url");
           url.value = "http://127.0.0.1:5173/debug";
           url.dispatchEvent(new Event("input", { bubbles: true }));
-          document.querySelector("#debug-open-command .copy-command").scrollIntoView({ block: "center" });
         `);
         await browser.active.$("#debug-open-command .copy-command").click();
         expect(await browser.active.execute<string>("return window.__copiedCommand")).toBe(
           "npx browser-testbench open --target chrome --url http://127.0.0.1:5173/debug",
         );
-        expect(await browser.active.$("#debug-tools-note").getText()).toContain("Desktopbrowser");
+        expect(await browser.active.$("#debug-tools-note").getText()).toContain("desktop browser");
+
         await browser.active.execute(
           'document.querySelector("#test-target-list .copy-command").scrollIntoView({ block: "center" })',
         );
@@ -57,47 +90,139 @@ describe("setup UI browser flow", () => {
           await browser.active.execute<string>(
             'return document.querySelector("#test-target-list .copy-command").getAttribute("aria-label")',
           ),
-        ).toBe("Ziel-ID kopieren");
-        expect(await browser.active.$("#test-target-list .test-target__actions .button").getText()).toBe(
-          "Testlauf starten",
-        );
+        ).toBe("Copy target ID");
+
         await browser.active.execute(`
-          const client = document.querySelector("#mcp-client");
-          client.value = "claude-code";
-          client.dispatchEvent(new Event("change", { bubbles: true }));
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (...argumentsList) => String(argumentsList[0]) === "/v1/verify"
+            ? new Promise((resolve, reject) => setTimeout(() => originalFetch(...argumentsList).then(resolve, reject), 500))
+            : originalFetch(...argumentsList);
         `);
-        expect(await browser.active.$("#mcp-command").getText()).toContain("claude mcp add");
-        expect(await browser.active.$(".integration-card").getText()).toContain("KI-Assistent über MCP anbinden");
-        await browser.active.saveScreenshot(screenshotPath);
-        expect(await browser.active.$("#host-badge").getText()).toContain("macOS");
-        expect(await browser.active.$("#connect").getText()).toContain("Testbench verwenden");
-        expect(await browser.active.execute("return document.querySelector('#configuration') === null")).toBe(true);
-        expect(
-          await browser.active.execute("return document.querySelectorAll('#test-target-list .test-target').length"),
-        ).toBeGreaterThan(0);
-        expect(await browser.active.$(".environment-group--capabilities .subsection-heading").getText()).toContain(
-          "Verfügbarkeit auf diesem Rechner",
+        await browser.active.$("#test-target-list .test-target__actions .button").click();
+        expect(await browser.active.$("#test-target-list .test-target__actions .button").getText()).toBe(
+          "Test running …",
         );
-        expect(await browser.active.execute("return document.querySelectorAll('#target-list').length")).toBe(0);
+        await browser.active.waitForText("was tested successfully", 15_000);
+        await browser.active.$("#verify-all-targets").waitForClickable({ timeout: 15_000 });
+
+        await browser.active.execute(`
+          const previousFetch = window.fetch.bind(window);
+          window.__verifiedTargets = [];
+          window.__activeVerifications = 0;
+          window.__maxActiveVerifications = 0;
+          window.fetch = async (...argumentsList) => {
+            if (String(argumentsList[0]) !== "/v1/verify") return previousFetch(...argumentsList);
+            const target = JSON.parse(argumentsList[1].body).target;
+            window.__verifiedTargets.push(target);
+            window.__activeVerifications += 1;
+            window.__maxActiveVerifications = Math.max(window.__maxActiveVerifications, window.__activeVerifications);
+            await new Promise(resolve => setTimeout(resolve, 20));
+            window.__activeVerifications -= 1;
+            return new Response(JSON.stringify({ target, status: "passed", durationMs: 20, runtime: {} }), {
+              status: 200,
+              headers: { "content-type": "application/json" }
+            });
+          };
+        `);
+        const readyTargetCount = await browser.active.execute<number>(
+          "return document.querySelectorAll('#test-target-list .test-target__actions .button').length",
+        );
+        await browser.active.$("#verify-all-targets").click();
+        await browser.active.waitForText("tests completed successfully", 15_000);
+        expect(await browser.active.execute<number>("return window.__verifiedTargets.length")).toBe(readyTargetCount);
+        expect(await browser.active.execute<number>("return window.__maxActiveVerifications")).toBe(1);
+        expect(await browser.active.$("#test-target-list").getText()).not.toContain("Shutdown");
+        await browser.active.saveScreenshot(screenshotPath);
+
+        await browser.navigate(`${baseUrl}/docs`);
+        expect(await browser.active.$(".docs-content").getText()).toContain("Automated tests");
+        expect(await browser.active.execute("return document.querySelector('.docs-toc')")).toBeNull();
+        expect(
+          await browser.active.execute("return document.querySelectorAll('.sidebar__subnav .sidebar__sublink').length"),
+        ).toBe(5);
         expect(
           await browser.active.execute(
-            "return document.documentElement.scrollWidth === document.documentElement.clientWidth",
+            "return document.querySelector('.sidebar__subnav .sidebar__sublink').getAttribute('href')",
           ),
-        ).toBe(true);
-        expect(await browser.active.execute("return document.querySelectorAll('.steps').length")).toBe(0);
-        expect(await browser.active.execute("return document.querySelectorAll('.use-case-grid').length")).toBe(0);
+        ).toBe("#start");
+        await browser.active.$("#menu-toggle").click();
+        expect(await browser.active.execute("return document.documentElement.classList.contains('is-menu-open')")).toBe(
+          true,
+        );
+        expect(
+          await browser.active.execute<string>(
+            "return document.querySelector('.sidebar__link[aria-current=\"page\"]').textContent.trim()",
+          ),
+        ).toBe("Documentation");
+
+        await browser.navigate(`${baseUrl}/setup`);
+        expect(await browser.active.execute("return document.querySelector('.sidebar__subnav')")).toBeNull();
+        expect(
+          await browser.active.execute(
+            "return [...document.querySelectorAll('.sidebar__link')].some(link => link.textContent.includes('Licenses'))",
+          ),
+        ).toBe(false);
+        expect(
+          await browser.active.execute("return document.querySelector('.sidebar__collapse').textContent.trim()"),
+        ).toBe("");
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('.sidebar__collapse').getAttribute('aria-label')",
+          ),
+        ).toBe("Collapse menu");
+        expect(await browser.active.execute("return document.querySelector('.app-content > footer')")).toBeNull();
+        expect(await browser.active.execute("return document.querySelectorAll('.sidebar__footer-link').length")).toBe(
+          3,
+        );
 
         await browser.active.setWindowRect(1000, 812);
+        await browser.navigate(`${baseUrl}/setup`);
+        await browser.active.waitForText("Google Chrome", 15_000);
+        expect(
+          await browser.active.execute(
+            "const button = document.querySelector('#sidebar-collapse').getBoundingClientRect(); const icon = document.querySelector('#sidebar-collapse i').getBoundingClientRect(); return button.right - icon.right < icon.left - button.left",
+          ),
+        ).toBe(true);
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('#sidebar-collapse').getBoundingClientRect().bottom <= document.querySelector('.sidebar__footer').getBoundingClientRect().top",
+          ),
+        ).toBe(true);
+        await browser.active.$("#sidebar-collapse").click();
+        expect(
+          await browser.active.execute("return document.documentElement.classList.contains('is-sidebar-collapsed')"),
+        ).toBe(true);
+        expect(
+          await browser.active.execute(
+            "const mark = document.querySelector('.sidebar__brand .brand__mark').getBoundingClientRect(); return { width: mark.width, height: mark.height }",
+          ),
+        ).toEqual({ width: 40, height: 40 });
+        expect(
+          await browser.active.execute(
+            "return [...document.querySelectorAll('.sidebar__footer-link')].filter((item) => getComputedStyle(item).display !== 'none').map((item) => item.getAttribute('href'))",
+          ),
+        ).toEqual(["/health"]);
         expect(
           await browser.active.execute(
             "return [...document.querySelectorAll('.check-card--device')].every((card) => getComputedStyle(card).gridColumnStart === 'span 2')",
           ),
         ).toBe(true);
+        expect(
+          await browser.active.execute(
+            "return document.documentElement.scrollWidth === document.documentElement.clientWidth",
+          ),
+        ).toBe(true);
+        await browser.active.setWindowRect(500, 812);
+        expect(
+          await browser.active.execute(
+            "return [...document.querySelectorAll('.sidebar__footer-link')].filter((item) => getComputedStyle(item).display !== 'none').length",
+          ),
+        ).toBe(3);
       } finally {
         await browser.close();
         await api.stop();
       }
     },
-    45_000,
+    60_000,
   );
 });

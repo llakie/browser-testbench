@@ -1,0 +1,69 @@
+<section class="hero hero--compact">
+  <div>
+    <p class="eyebrow">Reference</p>
+    <h1>Documentation</h1>
+    <p class="hero__copy">From your first target to parallel project tests and interactive debugging.</p>
+  </div>
+</section>
+
+<article class="docs-content panel">
+  <section id="start">
+    <p class="eyebrow">In five minutes</p>
+    <h2>Quick start</h2>
+    <ol>
+      <li>Install and start Browser Testbench once on your machine.</li>
+      <li>Check and complete the environment on the <a href="/setup">Overview</a> page.</li>
+      <li>Install the client as a development dependency in your project.</li>
+      <li>Copy a concrete ID from the <a href="/targets">Test targets</a> page.</li>
+      <li>Start your application and use its URL in your test.</li>
+    </ol>
+    <pre><code>npm install --global browser-testbench
+browser-testbench start</code></pre>
+    <p>Run this command in each project that contains automated tests:</p>
+    <pre><code>npm install --save-dev browser-testbench</code></pre>
+  </section>
+
+  <section id="targets">
+    <p class="eyebrow">Convention over Configuration</p>
+    <h2>Target-IDs</h2>
+    <p>
+      Desktop browsers use short IDs such as <code>chrome</code>. Mobile targets include the device and version, for
+      example <code>safari-ios-iphone-17-pro-26-5</code>. IDs are generated from the detected environment.
+    </p>
+  </section>
+
+  <section id="automation">
+    <p class="eyebrow">Project-controlled</p>
+    <h2>Automated tests</h2>
+    <p>Install the Node client in your project:</p>
+    <pre><code>npm install --save-dev browser-testbench</code></pre>
+    <pre><code>import { RemoteTestbench } from "browser-testbench/client";
+
+const testbench = new RemoteTestbench();
+const targets = await testbench.availableTargets(["chrome"]);
+
+await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async browser => {
+  await browser.fill("#email", "test@example.com");
+  await browser.click('button[type="submit"]');
+  await browser.waitForText("Welcome");
+});</code></pre>
+  </section>
+
+  <section id="debugging">
+    <p class="eyebrow">Remote control</p>
+    <h2>Interactive debugging</h2>
+    <p>Open a long-lived session from the command line or control it through a connected MCP client.</p>
+    <pre><code>browser-testbench open --target chrome --url http://127.0.0.1:3000</code></pre>
+  </section>
+
+  <section id="mobile">
+    <p class="eyebrow">Simulators and emulators</p>
+    <h2>Mobile devices</h2>
+    <p>Tap, swipe, pinch, portrait, and landscape are available through the Node client and MCP.</p>
+    <pre><code>import { BrowserOrientation, PinchDirection, SwipeDirection } from "browser-testbench/client";
+
+await browser.setOrientation(BrowserOrientation.Landscape);
+await browser.swipe({ direction: SwipeDirection.Up });
+await browser.pinch({ direction: PinchDirection.Out });</code></pre>
+  </section>
+</article>

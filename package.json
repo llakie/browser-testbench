@@ -1,11 +1,32 @@
 {
   "name": "browser-testbench",
   "version": "0.1.0",
-  "private": true,
-  "description": "Portable real-browser and simulator test bench for macOS and Windows",
+  "description": "Cross-platform browser testbench for controlling, debugging, and automating desktop browsers, iOS simulators, and Android emulators",
+  "author": "Lars-Erich Kiefer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/llakie/browser-testbench.git"
+  },
+  "bugs": {
+    "url": "https://github.com/llakie/browser-testbench/issues"
+  },
+  "homepage": "https://github.com/llakie/browser-testbench#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "browser-testing",
+    "browser-automation",
+    "appium",
+    "selenium",
+    "ios-simulator",
+    "android-emulator",
+    "mcp"
+  ],
   "type": "module",
   "bin": {
-    "browser-testbench": "./dist/cli.js"
+    "browser-testbench": "dist/cli.js"
   },
   "exports": {
     "./client": {
@@ -16,16 +37,19 @@
   "files": [
     "dist",
     "public",
-    "templates"
+    "templates",
+    "LICENSE.txt",
+    "THIRD_PARTY_LICENSES.txt"
   ],
   "scripts": {
-    "build": "npm run clean && tsc -p tsconfig.json && node scripts/prepare-cli.mjs",
+    "build": "npm run licenses && npm run clean && tsc -p tsconfig.json && node scripts/prepare-cli.mjs",
     "dev": "tsx src/cli.ts",
     "check": "tsc -p tsconfig.json --noEmit",
     "clean": "rimraf dist",
-    "example:server": "node examples/site/server.mjs",
+    "fixture:server": "node tests/fixtures/site-server.mjs",
     "format": "prettier --write . \"templates/**/*.eta\"",
     "format:check": "prettier --check . \"templates/**/*.eta\"",
+    "licenses": "generate-license-file --input package.json --output THIRD_PARTY_LICENSES.txt --overwrite --eol lf --ci --no-spinner",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "npm run build"
@@ -48,6 +72,7 @@
     "@types/express": "5.0.6",
     "@types/node": "24.10.1",
     "@types/selenium-webdriver": "4.35.7",
+    "generate-license-file": "4.1.1",
     "prettier": "3.9.6",
     "prettier-plugin-eta": "0.2.11",
     "rimraf": "6.1.3",

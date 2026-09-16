@@ -1,5 +1,6 @@
 import { Builder, By, Key, type WebDriver, type WebElement } from "selenium-webdriver";
 import { writeFile } from "node:fs/promises";
+import { TestbenchDefaults } from "../config/defaults.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import type { TargetConfig } from "../config/types.js";
 
@@ -102,12 +103,12 @@ export class BrowserElement {
   }
 
   async waitForDisplayed(options: { timeout?: number } = {}): Promise<void> {
-    const timeout = options.timeout ?? 15_000;
+    const timeout = options.timeout ?? TestbenchDefaults.WAIT_TIMEOUT_MS;
     await this.driver.wait(async () => (await this.element()).isDisplayed().catch(() => false), timeout);
   }
 
   async waitForClickable(options: { timeout?: number } = {}): Promise<void> {
-    const timeout = options.timeout ?? 15_000;
+    const timeout = options.timeout ?? TestbenchDefaults.WAIT_TIMEOUT_MS;
     await this.driver.wait(async () => {
       const element = await this.element().catch(() => undefined);
       return Boolean(element && (await element.isDisplayed()) && (await element.isEnabled()));
@@ -480,7 +481,7 @@ export class BrowserSession {
   ): Promise<BrowserHandle> {
     if (this.browser) await this.close();
     const isMobile = TargetRegistry.definitions[target.name].kind === "mobile";
-    const serverUrl = isMobile ? `http://127.0.0.1:${options.appiumPort}` : undefined;
+    const serverUrl = isMobile ? `http://${TestbenchDefaults.LOOPBACK_HOST}:${options.appiumPort}` : undefined;
     this.browser = await BrowserHandle.create(TargetRegistry.capabilities(target), serverUrl);
     return this.browser;
   }
@@ -498,7 +499,9 @@ export class BrowserSession {
   static urlForTarget(url: string, target: TargetConfig): string {
     if (target.name !== "chrome-android") return url;
     const parsed = new URL(url);
-    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") parsed.hostname = "10.0.2.2";
+    if (parsed.hostname === "localhost" || parsed.hostname === TestbenchDefaults.LOOPBACK_HOST) {
+      parsed.hostname = TestbenchDefaults.ANDROID_EMULATOR_LOOPBACK_HOST;
+    }
     return parsed.toString();
   }
 }

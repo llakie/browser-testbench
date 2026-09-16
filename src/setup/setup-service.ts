@@ -1,18 +1,15 @@
-import { access, mkdir, readdir } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { mkdir } from "node:fs/promises";
 import type { TargetName } from "../config/types.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
+import { AndroidAvdService } from "./android-avd-service.js";
 import { DoctorService } from "./doctor-service.js";
+import type { SetupAction } from "./setup-types.js";
 
-export interface SetupAction {
-  label: string;
-  command?: string;
-  automatic: boolean;
-  status: "planned" | "completed" | "failed" | "manual";
-  detail?: string;
-}
+const DRIVER_INSTALL_TIMEOUT_MS = 10 * 60_000;
+const DRIVER_STATUS_TIMEOUT_MS = 20_000;
+export type { SetupAction } from "./setup-types.js";
 
 export interface AppiumDriverStatus {
   name: "xcuitest" | "uiautomator2";
@@ -36,13 +33,16 @@ export class SetupService {
           automatic: true,
           status: driver.installed ? "completed" : "planned",
           detail: driver.installed
-            ? `Version ${driver.version ?? "unbekannt"} ist lokal installiert.`
-            : "Treiber ist noch nicht installiert.",
+            ? `Version ${driver.version ?? "unknown"} is installed locally.`
+            : "The driver is not installed yet.",
         });
       }
     }
+    const androidAction = targets.includes("chrome-android") ? await AndroidAvdService.plan() : undefined;
+    if (androidAction) actions.push(androidAction);
     const checks = await DoctorService.inspect(targets);
     for (const check of checks.filter((entry) => entry.status === "blocked" || entry.status === "action")) {
+      if (check.id === "chrome-android" && androidAction) continue;
       if (check.action && !actions.some((action) => action.label === check.label)) {
         actions.push({
           label: check.label,
@@ -58,7 +58,7 @@ export class SetupService {
 
   static async install(
     targets: TargetName[],
-    options: { androidAvdName?: string; onOutput?: (line: string) => void } = {},
+    options: { onOutput?: (line: string) => void } = {},
   ): Promise<SetupAction[]> {
     targets = targets.filter((target) => TargetRegistry.isSupported(target));
     const results: SetupAction[] = [];
@@ -77,17 +77,17 @@ export class SetupService {
             label: `Appium ${this.driverLabel(driver)}`,
             automatic: true,
             status: "completed",
-            detail: `Version ${existing.version ?? "unbekannt"} ist bereits lokal installiert.`,
+            detail: `Version ${existing.version ?? "unknown"} is already installed locally.`,
           });
           continue;
         }
-        options.onOutput?.(`Appium-Treiber ${driver} wird installiert …`);
+        options.onOutput?.(`Installing Appium driver ${driver} …`);
         const installation = await CommandRunner.run(
           TestbenchPaths.localBinary("appium"),
           ["driver", "install", driver],
           {
             env: { ...process.env, APPIUM_HOME: appiumHome },
-            timeoutMs: 600_000,
+            timeoutMs: DRIVER_INSTALL_TIMEOUT_MS,
           },
         );
         results.push({
@@ -99,8 +99,8 @@ export class SetupService {
       }
     }
     let androidAvdAction: SetupAction | undefined;
-    if (targets.includes("chrome-android") && options.androidAvdName) {
-      androidAvdAction = await this.createAndroidAvd(options.androidAvdName, options.onOutput);
+    if (targets.includes("chrome-android")) {
+      androidAvdAction = await AndroidAvdService.ensure(options.onOutput);
       results.push(androidAvdAction);
     }
     results.push(
@@ -123,7 +123,7 @@ export class SetupService {
       ["driver", "list", "--installed", "--json"],
       {
         env: { ...process.env, APPIUM_HOME: TestbenchPaths.cache("appium") },
-        timeoutMs: 20_000,
+        timeoutMs: DRIVER_STATUS_TIMEOUT_MS,
       },
     );
     let installed: Record<string, { version?: string; installed?: boolean }> = {};
@@ -143,92 +143,5 @@ export class SetupService {
 
   private static driverLabel(name: "xcuitest" | "uiautomator2"): string {
     return name === "xcuitest" ? "XCUITest" : "UiAutomator2";
-  }
-
-  private static async createAndroidAvd(name: string, onOutput?: (line: string) => void): Promise<SetupAction> {
-    const sdkRoot = await DoctorService.androidSdkRoot();
-    if (!sdkRoot)
-      return {
-        label: `Android-AVD ${name}`,
-        automatic: false,
-        status: "manual",
-        detail: "Android SDK nicht gefunden.",
-      };
-    const emulator = join(sdkRoot, "emulator", process.platform === "win32" ? "emulator.exe" : "emulator");
-    const listed = await CommandRunner.run(emulator, ["-list-avds"], { timeoutMs: 8_000 });
-    if (listed.stdout.split(/\r?\n/).includes(name))
-      return {
-        label: `Android-AVD ${name}`,
-        automatic: true,
-        status: "completed",
-        detail: "Bereits vorhanden.",
-      };
-
-    const avdManager = await this.findSdkTool(sdkRoot, "avdmanager");
-    if (!avdManager) {
-      return {
-        label: `Android-AVD ${name}`,
-        automatic: false,
-        status: "manual",
-        detail: "Installiere die Android SDK Command-line Tools und starte die Einrichtung danach erneut.",
-      };
-    }
-    const architecture = process.platform === "darwin" && process.arch === "arm64" ? "arm64-v8a" : "x86_64";
-    const image = `system-images;android-36;google_apis_playstore;${architecture}`;
-    const imagePath = join(sdkRoot, "system-images", "android-36", "google_apis_playstore", architecture);
-    if (!(await this.exists(imagePath))) {
-      const sdkManager = await this.findSdkTool(sdkRoot, "sdkmanager");
-      if (!sdkManager)
-        return {
-          label: `Android-AVD ${name}`,
-          automatic: false,
-          status: "manual",
-          detail: `Installiere ${image} über den SDK Manager in Android Studio.`,
-        };
-      onOutput?.(`Android-Systemabbild ${image} wird installiert …`);
-      const installed = await CommandRunner.run(sdkManager, [image], { timeoutMs: 1_800_000 });
-      if (installed.code !== 0)
-        return {
-          label: `Android-AVD ${name}`,
-          automatic: true,
-          status: "failed",
-          detail:
-            `${installed.stderr.trim()}\nAkzeptiere die SDK-Lizenzen in Android Studio und versuche es erneut.`.trim(),
-        };
-    }
-    onOutput?.(`Android-AVD ${name} wird angelegt …`);
-    const created = await CommandRunner.run(
-      avdManager,
-      ["create", "avd", "--name", name, "--package", image, "--device", "pixel_6", "--force"],
-      { input: "no\n", timeoutMs: 60_000 },
-    );
-    return {
-      label: `Android-AVD ${name}`,
-      automatic: true,
-      status: created.code === 0 ? "completed" : "failed",
-      detail:
-        created.code === 0 ? `Mit dem Systemabbild ${image} angelegt.` : (created.stderr || created.stdout).trim(),
-    };
-  }
-
-  private static async findSdkTool(sdkRoot: string, name: string): Promise<string | undefined> {
-    const commandLineTools = join(sdkRoot, "cmdline-tools");
-    try {
-      const entries = await readdir(commandLineTools, { recursive: true });
-      const executable = process.platform === "win32" ? `${name}.bat` : name;
-      const relative = entries.find((entry) => basename(entry) === executable && entry.includes("bin"));
-      return relative ? join(commandLineTools, relative) : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  private static async exists(path: string): Promise<boolean> {
-    try {
-      await access(path);
-      return true;
-    } catch {
-      return false;
-    }
   }
 }

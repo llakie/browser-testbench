@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandRunner } from "../../src/infrastructure/command-runner.js";
-import { TestbenchPaths } from "../../src/infrastructure/paths.js";
 import { McpIntegrationService } from "../../src/setup/mcp-integration-service.js";
 
 describe("McpIntegrationService", () => {
@@ -9,7 +8,9 @@ describe("McpIntegrationService", () => {
   it("provides client-specific setup commands", async () => {
     vi.spyOn(CommandRunner, "run").mockResolvedValue({ code: -1, stdout: "", stderr: "not found" });
 
-    expect((await McpIntegrationService.status("codex")).command).toContain("codex mcp add browser-testbench");
+    expect((await McpIntegrationService.status("codex")).command).toBe(
+      "codex mcp add browser-testbench -- browser-testbench mcp",
+    );
     expect((await McpIntegrationService.status("claude-code")).command).toContain(
       "claude mcp add --transport stdio --scope user browser-testbench",
     );
@@ -17,6 +18,7 @@ describe("McpIntegrationService", () => {
       "gemini mcp add --scope user browser-testbench",
     );
     expect((await McpIntegrationService.status("copilot-vscode")).command).toContain("code --add-mcp");
+    expect((await McpIntegrationService.status("codex")).command).not.toContain("dist/cli.js");
   });
 
   it("provides a portable configuration for other MCP clients", async () => {
@@ -25,8 +27,8 @@ describe("McpIntegrationService", () => {
 
     expect(status.format).toBe("json");
     expect(config.mcpServers["browser-testbench"]).toMatchObject({
-      command: "node",
-      args: [expect.stringContaining("dist/cli.js"), "mcp"],
+      command: "browser-testbench",
+      args: ["mcp"],
     });
   });
 
@@ -35,7 +37,7 @@ describe("McpIntegrationService", () => {
       .mockResolvedValueOnce({ code: 0, stdout: "2.1.0", stderr: "" })
       .mockResolvedValueOnce({
         code: 0,
-        stdout: `browser-testbench: node ${TestbenchPaths.projectRoot}/dist/cli.js mcp`,
+        stdout: "browser-testbench: browser-testbench mcp",
         stderr: "",
       });
 
@@ -44,5 +46,17 @@ describe("McpIntegrationService", () => {
       automatic: true,
       current: true,
     });
+  });
+
+  it("recognizes a portable Codex JSON connection", async () => {
+    vi.spyOn(CommandRunner, "run")
+      .mockResolvedValueOnce({ code: 0, stdout: "1.0.0", stderr: "" })
+      .mockResolvedValueOnce({
+        code: 0,
+        stdout: JSON.stringify({ transport: { command: "browser-testbench", args: ["mcp"] } }),
+        stderr: "",
+      });
+
+    await expect(McpIntegrationService.status("codex")).resolves.toMatchObject({ current: true });
   });
 });

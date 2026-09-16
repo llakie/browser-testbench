@@ -1,6 +1,7 @@
 # Development Instructions
 
 ## Core Debugging Policy (Mandatory)
+
 - Never ship speculative fixes.
 - For every bug, first identify and validate the root cause in code no matter the token costs
 - State the root cause explicitly before applying a fix.
@@ -17,6 +18,7 @@
   say so explicitly and explain the remaining risk.
 
 ## Engineering Execution Rules (Mandatory)
+
 - Keep changes scoped to the requested behavior; avoid unrelated refactors.
 - Reuse existing patterns, services, and component conventions in the codebase.
 - Before introducing UI markup or styling, first check whether an existing atom or molecule can be reused
@@ -30,14 +32,3 @@
 - I will give suggestions to refactor files, which violate the principles above.
 - I will prefer exported classes and static methods over exported functions
 - If I'm given a task, I will look for the best solution for a problem, which is not necessarily the first one I come up with. I rank my solutions based on their elegance. The most elegant solutions are always the easiest solutions which solve a given problem.
-
-## Multi-Agent Feature Workflow
-
-For larger feature work, use the versioned team setup in `docs/agents/agent-team-playbook.md`.
-The reusable role prompts live in `docs/agents/prompts/` and cover:
-
-- Product Owner / Supervisor
-- Software Architect
-- Senior Software Engineer
-- UX Specialist
-- End-User Tester

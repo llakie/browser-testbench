@@ -1,6 +1,10 @@
-import { join } from "node:path";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
+import { PackageMetadata } from "../config/package-metadata.js";
+
+const CLIENT_DETECTION_TIMEOUT_MS = 5_000;
+const REGISTRATION_STATUS_TIMEOUT_MS = 8_000;
+const REGISTRATION_UPDATE_TIMEOUT_MS = 15_000;
 
 export type McpClientId = "codex" | "claude-code" | "gemini-cli" | "copilot-vscode" | "other";
 export type AutomaticMcpClientId = Extract<McpClientId, "codex" | "claude-code" | "gemini-cli">;
@@ -49,13 +53,13 @@ export class McpIntegrationService {
         current: false,
         command,
         format: definition.format ?? "command",
-        detail: "Konfiguration zum Kopieren bereit.",
+        detail: "Configuration ready to copy.",
         instruction: definition.instruction,
       };
     }
 
     const version = await CommandRunner.run(definition.binary, definition.versionArgs ?? ["--version"], {
-      timeoutMs: 5_000,
+      timeoutMs: CLIENT_DETECTION_TIMEOUT_MS,
     });
     if (version.code !== 0) {
       return {
@@ -67,15 +71,17 @@ export class McpIntegrationService {
         current: false,
         command,
         format: "command",
-        detail: `${definition.label} wurde auf diesem Rechner nicht gefunden.`,
+        detail: `${definition.label} was not found on this machine.`,
         instruction: definition.instruction,
       };
     }
 
-    const registration = await CommandRunner.run(definition.binary, definition.statusArgs ?? [], { timeoutMs: 8_000 });
+    const registration = await CommandRunner.run(definition.binary, definition.statusArgs ?? [], {
+      timeoutMs: REGISTRATION_STATUS_TIMEOUT_MS,
+    });
     const output = `${registration.stdout}\n${registration.stderr}`;
-    const registered = output.includes("browser-testbench");
-    const current = registration.code === 0 && registered && output.includes(this.cliPath());
+    const registered = output.includes(PackageMetadata.NAME);
+    const current = registration.code === 0 && registered && this.usesPortableCommand(registration.stdout, output);
     return {
       id,
       label: definition.label,
@@ -86,10 +92,10 @@ export class McpIntegrationService {
       command,
       format: "command",
       detail: current
-        ? "Verbunden und einsatzbereit."
+        ? "Connected and ready."
         : registered
-          ? "Verbunden, aber mit einer anderen Testbench-Installation."
-          : "Noch nicht mit der Testbench verbunden.",
+          ? "Connected, but to a different Browser Testbench installation."
+          : "Not connected to Browser Testbench yet.",
       instruction: definition.instruction,
     };
   }
@@ -97,84 +103,76 @@ export class McpIntegrationService {
   static async register(id: AutomaticMcpClientId): Promise<McpIntegrationStatus> {
     const definition = this.definition(id);
     const existing = await this.status(id);
-    if (!existing.installed) throw new Error(`${definition.label} wurde auf diesem Rechner nicht gefunden.`);
+    if (!existing.installed) throw new Error(`${definition.label} was not found on this machine.`);
     if (existing.current) return existing;
     if (existing.registered) {
-      const removed = await CommandRunner.run(definition.binary!, definition.removeArgs!, { timeoutMs: 8_000 });
+      const removed = await CommandRunner.run(definition.binary!, definition.removeArgs!, {
+        timeoutMs: REGISTRATION_STATUS_TIMEOUT_MS,
+      });
       if (removed.code !== 0) {
         throw new Error(
-          removed.stderr.trim() || `Die vorhandene Verbindung zu ${definition.label} konnte nicht entfernt werden.`,
+          removed.stderr.trim() || `The existing connection to ${definition.label} could not be removed.`,
         );
       }
     }
-    const added = await CommandRunner.run(definition.binary!, definition.addArgs!, { timeoutMs: 15_000 });
+    const added = await CommandRunner.run(definition.binary!, definition.addArgs!, {
+      timeoutMs: REGISTRATION_UPDATE_TIMEOUT_MS,
+    });
     if (added.code !== 0) {
-      throw new Error(added.stderr.trim() || `Die Verbindung zu ${definition.label} konnte nicht eingerichtet werden.`);
+      throw new Error(added.stderr.trim() || `The connection to ${definition.label} could not be set up.`);
     }
     return this.status(id);
   }
 
   private static definitions(): McpClientDefinition[] {
-    const cli = this.cliPath();
-    const stdioArgs = [cli, "mcp"];
-    const vscodeConfig = JSON.stringify({ name: "browser-testbench", command: "node", args: stdioArgs });
+    const stdioCommand = [PackageMetadata.NAME, "mcp"];
+    const vscodeConfig = JSON.stringify({ name: PackageMetadata.NAME, command: stdioCommand[0], args: ["mcp"] });
     return [
       {
         id: "codex",
         label: "Codex",
         binary: "codex",
-        statusArgs: ["mcp", "get", "browser-testbench", "--json"],
-        addArgs: ["mcp", "add", "browser-testbench", "--", "node", ...stdioArgs],
-        removeArgs: ["mcp", "remove", "browser-testbench"],
-        instruction: "Die Verbindung gilt benutzerweit und steht dadurch in allen Projekten zur Verfügung.",
+        statusArgs: ["mcp", "get", PackageMetadata.NAME, "--json"],
+        addArgs: ["mcp", "add", PackageMetadata.NAME, "--", ...stdioCommand],
+        removeArgs: ["mcp", "remove", PackageMetadata.NAME],
+        instruction: "The connection is user-wide and therefore available in every project.",
       },
       {
         id: "claude-code",
         label: "Claude Code",
         binary: "claude",
-        statusArgs: ["mcp", "get", "browser-testbench"],
-        addArgs: [
-          "mcp",
-          "add",
-          "--transport",
-          "stdio",
-          "--scope",
-          "user",
-          "browser-testbench",
-          "--",
-          "node",
-          ...stdioArgs,
-        ],
-        removeArgs: ["mcp", "remove", "browser-testbench", "--scope", "user"],
-        instruction: "Die Verbindung wird im benutzerweiten Claude-Code-Profil eingerichtet.",
+        statusArgs: ["mcp", "get", PackageMetadata.NAME],
+        addArgs: ["mcp", "add", "--transport", "stdio", "--scope", "user", PackageMetadata.NAME, "--", ...stdioCommand],
+        removeArgs: ["mcp", "remove", PackageMetadata.NAME, "--scope", "user"],
+        instruction: "The connection is added to the user-wide Claude Code profile.",
       },
       {
         id: "gemini-cli",
         label: "Gemini CLI",
         binary: "gemini",
         statusArgs: ["mcp", "list"],
-        addArgs: ["mcp", "add", "--scope", "user", "browser-testbench", "node", ...stdioArgs],
-        removeArgs: ["mcp", "remove", "--scope", "user", "browser-testbench"],
-        instruction: "Die Verbindung wird im benutzerweiten Gemini-CLI-Profil eingerichtet.",
+        addArgs: ["mcp", "add", "--scope", "user", PackageMetadata.NAME, ...stdioCommand],
+        removeArgs: ["mcp", "remove", "--scope", "user", PackageMetadata.NAME],
+        instruction: "The connection is added to the user-wide Gemini CLI profile.",
       },
       {
         id: "copilot-vscode",
         label: "GitHub Copilot in VS Code",
         command: TestbenchPaths.shellCommand(["code", "--add-mcp", vscodeConfig]),
-        instruction: "Führe den Befehl aus und bestätige den neuen MCP-Server anschließend in VS Code.",
+        instruction: "Run the command, then confirm the new MCP server in VS Code.",
       },
       {
         id: "other",
-        label: "Anderer MCP-Client",
+        label: "Other MCP client",
         format: "json",
-        instruction: "Übernimm diesen lokalen Standard-MCP-Eintrag in die Konfiguration deines Clients.",
+        instruction: "Add this standard local MCP entry to your client's configuration.",
       },
     ];
   }
 
   private static definition(id: McpClientId): McpClientDefinition {
     const definition = this.definitions().find((candidate) => candidate.id === id);
-    if (!definition) throw new Error(`Unbekannter MCP-Client: ${id}`);
+    if (!definition) throw new Error(`Unknown MCP client: ${id}`);
     return definition;
   }
 
@@ -184,9 +182,9 @@ export class McpIntegrationService {
       return JSON.stringify(
         {
           mcpServers: {
-            "browser-testbench": {
-              command: "node",
-              args: [this.cliPath(), "mcp"],
+            [PackageMetadata.NAME]: {
+              command: PackageMetadata.NAME,
+              args: ["mcp"],
             },
           },
         },
@@ -197,7 +195,22 @@ export class McpIntegrationService {
     return TestbenchPaths.shellCommand([definition.binary, ...(definition.addArgs ?? [])]);
   }
 
-  private static cliPath(): string {
-    return join(TestbenchPaths.projectRoot, "dist", "cli.js");
+  private static usesPortableCommand(stdout: string, output: string): boolean {
+    try {
+      if (this.containsPortableCommand(JSON.parse(stdout))) return true;
+    } catch {
+      // Some MCP clients return human-readable status output instead of JSON.
+    }
+    return output.includes(`${PackageMetadata.NAME} mcp`);
+  }
+
+  private static containsPortableCommand(value: unknown): boolean {
+    if (!value || typeof value !== "object") return false;
+    if (!Array.isArray(value)) {
+      const record = value as Record<string, unknown>;
+      if (record.command === PackageMetadata.NAME && Array.isArray(record.args) && record.args[0] === "mcp")
+        return true;
+    }
+    return Object.values(value).some((entry) => this.containsPortableCommand(entry));
   }
 }

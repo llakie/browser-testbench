@@ -3,8 +3,14 @@ import { once } from "node:events";
 import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { TargetConfig } from "../config/types.js";
+import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { DoctorService } from "../setup/doctor-service.js";
+
+const ADB_COMMAND_TIMEOUT_MS = 5_000;
+const RECORDER_STOP_TIMEOUT_MS = 10_000;
+const VIDEO_PULL_TIMEOUT_MS = 60_000;
+const RECORDER_START_GRACE_PERIOD_MS = 300;
 
 export class VideoRecorder {
   private constructor(
@@ -31,7 +37,7 @@ export class VideoRecorder {
     if (target.name === "chrome-android") {
       const sdkRoot = await DoctorService.androidSdkRoot();
       if (!sdkRoot) throw new Error("Android SDK not found for video recording.");
-      const adb = join(sdkRoot, "platform-tools", process.platform === "win32" ? "adb.exe" : "adb");
+      const adb = join(sdkRoot, "platform-tools", AndroidSdk.executableName("adb"));
       const serial = await this.androidSerial(adb, target, capabilities);
       const remotePath = `/sdcard/browser-testbench-${Date.now()}.mp4`;
       const child = spawn(adb, ["-s", serial, "shell", "screenrecord", remotePath], {
@@ -47,21 +53,24 @@ export class VideoRecorder {
   async stop(): Promise<string> {
     if (this.android) {
       await CommandRunner.run(this.android.adb, ["-s", this.android.serial, "shell", "pkill", "-2", "screenrecord"], {
-        timeoutMs: 5_000,
+        timeoutMs: ADB_COMMAND_TIMEOUT_MS,
       });
     } else {
       this.child.kill("SIGINT");
     }
-    await Promise.race([once(this.child, "close"), new Promise((resolve) => setTimeout(resolve, 10_000))]);
+    await Promise.race([
+      once(this.child, "close"),
+      new Promise((resolve) => setTimeout(resolve, RECORDER_STOP_TIMEOUT_MS)),
+    ]);
     if (this.child.exitCode === null) this.child.kill("SIGTERM");
     if (this.android) {
       const pulled = await CommandRunner.run(
         this.android.adb,
         ["-s", this.android.serial, "pull", this.android.remotePath, this.outputPath],
-        { timeoutMs: 60_000 },
+        { timeoutMs: VIDEO_PULL_TIMEOUT_MS },
       );
       await CommandRunner.run(this.android.adb, ["-s", this.android.serial, "shell", "rm", this.android.remotePath], {
-        timeoutMs: 5_000,
+        timeoutMs: ADB_COMMAND_TIMEOUT_MS,
       });
       if (pulled.code !== 0) throw new Error(`Could not retrieve Android video: ${pulled.stderr || pulled.stdout}`);
     }
@@ -77,7 +86,7 @@ export class VideoRecorder {
   ): Promise<string> {
     const configured = target.capabilities?.["appium:udid"] ?? capabilities.deviceUDID ?? capabilities.udid;
     if (typeof configured === "string" && configured) return configured;
-    const devices = await CommandRunner.run(adb, ["devices"], { timeoutMs: 5_000 });
+    const devices = await CommandRunner.run(adb, ["devices"], { timeoutMs: ADB_COMMAND_TIMEOUT_MS });
     const serial = devices.stdout
       .split(/\r?\n/)
       .map((line) => line.match(/^(emulator-\d+)\s+device$/)?.[1])
@@ -88,7 +97,7 @@ export class VideoRecorder {
 
   private static async ensureStarted(child: ChildProcess, label: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(resolve, 300);
+      const timer = setTimeout(resolve, RECORDER_START_GRACE_PERIOD_MS);
       child.once("error", (error) => {
         clearTimeout(timer);
         reject(error);

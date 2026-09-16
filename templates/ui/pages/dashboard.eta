@@ -1,0 +1,66 @@
+<section class="hero">
+  <div>
+    <p class="eyebrow">Central test environment</p>
+    <h1>Browsers and devices for your projects</h1>
+    <p class="hero__copy">
+      Set up browsers, simulators, and emulators once in one place. Your application and test cases remain in their
+      respective projects.
+    </p>
+  </div>
+</section>
+
+<div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+<section class="panel" id="environment">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Local test environment</p>
+      <h2>Browsers and devices</h2>
+      <p>See what is ready and what still needs to be set up.</p>
+    </div>
+    <button class="button button--secondary" id="refresh-environment" type="button">
+      <i class="fa-solid fa-rotate" aria-hidden="true"></i> Check again
+    </button>
+  </div>
+  <div class="environment-group environment-group--capabilities">
+    <div class="subsection-heading">
+      <h3>Availability on this machine</h3>
+      <p>Browser Testbench detects these capabilities directly on your machine.</p>
+    </div>
+    <div class="check-grid" id="checks" aria-live="polite"></div>
+  </div>
+  <div class="guided-actions" id="guided-actions" hidden>
+    <div class="guided-actions__content">
+      <h3>Mobile device setup</h3>
+      <p id="setup-summary"></p>
+      <div class="setup-action-list" id="setup-action-list"></div>
+    </div>
+    <button class="button button--secondary" id="run-setup" type="button" hidden>
+      <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Set up missing components
+    </button>
+  </div>
+  <div class="integration-card">
+    <span class="integration-card__icon"><i class="fa-solid fa-plug" aria-hidden="true"></i></span>
+    <div class="integration-card__content">
+      <div class="integration-card__heading">
+        <div>
+          <h3>Connect an AI assistant through MCP</h3>
+          <p>Browser Testbench uses the open MCP standard and is not tied to a provider.</p>
+        </div>
+        <button class="button button--secondary" id="register-mcp" type="button" hidden>
+          <i class="fa-solid fa-link" aria-hidden="true"></i> Set up automatically
+        </button>
+      </div>
+      <label class="integration-client">
+        <span>AI assistant</span>
+        <span class="select-control">
+          <select id="mcp-client" aria-label="Select AI assistant"></select>
+          <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+        </span>
+      </label>
+      <p class="integration-status" id="mcp-status">Checking connection …</p>
+      <p id="mcp-instruction"></p>
+      <div id="mcp-command"></div>
+    </div>
+  </div>
+</section>

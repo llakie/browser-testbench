@@ -1,4 +1,5 @@
 import { TargetRegistry } from "../config/target-registry.js";
+import { TestbenchDefaults } from "../config/defaults.js";
 import {
   TARGET_NAMES,
   type DoctorCheck,
@@ -35,7 +36,7 @@ export class TargetCatalogService {
 
   static update(checks: DoctorCheck[]): TestTarget[] {
     const targets = this.build(checks);
-    this.cached = { expiresAt: Date.now() + 30_000, targets };
+    this.cached = { expiresAt: Date.now() + TestbenchDefaults.TARGET_CACHE_TTL_MS, targets };
     return targets;
   }
 
@@ -112,7 +113,7 @@ export class TargetCatalogService {
         status: check.status,
         ready: check.status === "ready",
         serial: true,
-        detail: [device.state, check.detail].filter(Boolean).join(" · "),
+        detail: check.detail,
         config: { ...device.config },
       };
     });

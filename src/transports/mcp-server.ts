@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { PackageMetadata } from "../config/package-metadata.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { InputSchemas } from "../config/input-schemas.js";
@@ -20,7 +21,7 @@ export class McpServerHost {
       return session.close();
     };
     const server = new McpServer(
-      { name: "browser-testbench", version: "0.1.0" },
+      { name: PackageMetadata.NAME, version: PackageMetadata.VERSION },
       {
         instructions:
           "Use list_targets to obtain concrete browser and device IDs before starting a session. Use the session tools as a remote control for exploration and debugging. Project-owned tests use the same remote controls through the Node client. Safari authorization is never probed automatically. Close sessions when finished.",

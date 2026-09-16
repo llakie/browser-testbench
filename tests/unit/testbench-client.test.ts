@@ -1,8 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TestTargetInfo } from "../../src/config/types.js";
-import { RemoteTestbench } from "../../src/transports/testbench-client.js";
+import {
+  BrowserOrientation,
+  PinchDirection,
+  RemoteTestbench,
+  SwipeDirection,
+} from "../../src/transports/testbench-client.js";
 
 describe("RemoteTestbench.availableTargets", () => {
+  it("exports type-safe interaction values for project tests", () => {
+    expect(BrowserOrientation.Landscape).toBe("LANDSCAPE");
+    expect(SwipeDirection.Up).toBe("up");
+    expect(PinchDirection.Out).toBe("out");
+  });
+
   it("returns ready requested IDs in the requested order", async () => {
     const testbench = new RemoteTestbench();
     vi.spyOn(testbench, "targets").mockResolvedValue([

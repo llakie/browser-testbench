@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { Command } from "commander";
 import open from "open";
 import { OutputFormatter } from "./cli/output-formatter.js";
+import { TestbenchDefaults } from "./config/defaults.js";
+import { PackageMetadata } from "./config/package-metadata.js";
 import { TargetRegistry } from "./config/target-registry.js";
 import { TARGET_NAMES, type TargetName } from "./config/types.js";
 import { DoctorService } from "./setup/doctor-service.js";
@@ -13,7 +15,10 @@ import { McpServerHost } from "./transports/mcp-server.js";
 import { RemoteTestbench } from "./transports/testbench-client.js";
 
 const program = new Command();
-program.name("browser-testbench").description("Portable browser and simulator test bench").version("0.1.0");
+program
+  .name(PackageMetadata.NAME)
+  .description("Portable browser and simulator test bench")
+  .version(PackageMetadata.VERSION);
 
 program
   .command("targets")
@@ -51,14 +56,12 @@ program
   .command("setup")
   .description("Prepare local Appium drivers and print guided system steps")
   .option("-t, --targets <names>", "Comma-separated targets")
-  .option("--android-avd <name>", "Create a Google Play Android 36 AVD when command-line tools are available")
   .option("--yes", "Perform automatic downloads and installations")
   .option("--json", "Output JSON")
   .action(async (options) => {
     const targets = parseTargets(options.targets) ?? defaultTargets();
     const actions = options.yes
       ? await SetupService.install(targets, {
-          androidAvdName: options.androidAvd,
           onOutput: (line) => !options.json && console.error(line),
         })
       : await SetupService.plan(targets);
@@ -143,14 +146,14 @@ program
   });
 
 program
-  .command("serve")
+  .command("start")
   .description("Start the browser Testbench service and setup UI")
-  .option("--host <host>", "Bind host", "127.0.0.1")
-  .option("--port <port>", "Bind port", "55808")
+  .option("--host <host>", "Bind host", TestbenchDefaults.LOOPBACK_HOST)
+  .option("--port <port>", "Bind port", String(TestbenchDefaults.PORT))
   .option("--token <token>", "Bearer token (recommended outside loopback)")
   .option("--no-open", "Do not open the setup UI in the default browser")
   .action(async (options) => {
-    if (options.host !== "127.0.0.1" && options.host !== "localhost" && !options.token)
+    if (options.host !== TestbenchDefaults.LOOPBACK_HOST && options.host !== "localhost" && !options.token)
       throw new Error("A bearer token is required when binding outside loopback.");
     const server = new ApiServer({
       host: options.host,
@@ -210,7 +213,7 @@ function defaultTargets(): TargetName[] {
 }
 
 function defaultServerUrl(): string {
-  return process.env.BROWSER_TESTBENCH_URL ?? "http://127.0.0.1:55808";
+  return process.env.BROWSER_TESTBENCH_URL ?? TestbenchDefaults.SERVER_URL;
 }
 
 function untilSignal(): Promise<void> {

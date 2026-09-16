@@ -54,6 +54,14 @@ export class ApiServer {
   private registerPublicRoutes(): void {
     this.app.get("/", (_request, response) => response.redirect("/setup"));
     this.app.get("/setup", (_request, response) => response.type("html").send(UiRenderer.setup()));
+    this.app.get("/targets", (_request, response) => response.type("html").send(UiRenderer.targets()));
+    this.app.get("/docs", (_request, response) => response.type("html").send(UiRenderer.documentation()));
+    this.app.get("/LICENSE.txt", (_request, response) =>
+      response.sendFile(join(TestbenchPaths.projectRoot, "LICENSE.txt")),
+    );
+    this.app.get("/THIRD_PARTY_LICENSES.txt", (_request, response) =>
+      response.sendFile(join(TestbenchPaths.projectRoot, "THIRD_PARTY_LICENSES.txt")),
+    );
     this.app.use("/ui-assets", express.static(join(TestbenchPaths.projectRoot, "public", "ui")));
     this.app.use(
       "/fontawesome",
@@ -86,7 +94,7 @@ export class ApiServer {
     this.app.get("/v1/workbench", async (_request, response) => response.json(await this.workbench.state()));
     this.app.post("/v1/workbench/setup", async (request, response) => {
       const input = InputSchemas.setup.parse(request.body);
-      response.json(await SetupService.install(input.targets, { androidAvdName: input.androidAvdName }));
+      response.json(await SetupService.install(input.targets));
     });
     this.app.post("/v1/workbench/mcp", async (request, response) => {
       const input = InputSchemas.mcpIntegration.parse(request.body);

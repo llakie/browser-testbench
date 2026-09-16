@@ -1,0 +1,7 @@
+{
+  "replace": {
+    "through": "./node_modules/through/LICENSE.MIT",
+    "type-fest": "./node_modules/type-fest/license-mit",
+    "utf8-byte-length": "./node_modules/utf8-byte-length/LICENSE.MIT.txt"
+  }
+}

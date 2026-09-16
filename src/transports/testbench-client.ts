@@ -1,5 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { TestbenchDefaults } from "../config/defaults.js";
+import {
+  BrowserOrientation,
+  PinchDirection,
+  SwipeDirection,
+  type BrowserOrientationValue,
+} from "../config/interaction-values.js";
 import type { DiagnosticEvent, PageInspection } from "../automation/interactive-controller.js";
 import type { GestureExecution } from "../automation/mobile-gestures.js";
 import {
@@ -11,6 +18,13 @@ import {
   type WaitRequest,
 } from "../config/input-schemas.js";
 import type { DoctorCheck, TargetDefinition, TestTargetInfo, VerificationResult } from "../config/types.js";
+
+export { BrowserOrientation, PinchDirection, SwipeDirection };
+export type {
+  BrowserOrientationValue,
+  PinchDirectionValue,
+  SwipeDirectionValue,
+} from "../config/interaction-values.js";
 
 export interface RemoteTestbenchOptions {
   server?: string;
@@ -63,7 +77,10 @@ export class RemoteTestbench {
   private readonly server: string;
 
   constructor(private readonly options: RemoteTestbenchOptions = {}) {
-    this.server = (options.server ?? process.env.BROWSER_TESTBENCH_URL ?? "http://127.0.0.1:55808").replace(/\/$/, "");
+    this.server = (options.server ?? process.env.BROWSER_TESTBENCH_URL ?? TestbenchDefaults.SERVER_URL).replace(
+      /\/$/,
+      "",
+    );
   }
 
   async capabilities(): Promise<TestbenchCapabilities> {
@@ -159,7 +176,7 @@ export class RemoteSession {
     return this.post("navigate", { url });
   }
 
-  inspect(limit = 100): Promise<PageInspection> {
+  inspect(limit = TestbenchDefaults.INSPECTION_LIMIT): Promise<PageInspection> {
     return this.testbench.request(`/v1/sessions/${this.id}/inspect?limit=${limit}`);
   }
 
@@ -274,51 +291,67 @@ export class RemoteSession {
     return this.gesture({ type: "pinch", ...input });
   }
 
-  async waitForElement(selector: string, timeoutMs = 15_000): Promise<void> {
+  async waitForElement(selector: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
     await this.post("wait", { type: "element", selector, timeoutMs });
   }
 
-  async waitForText(text: string, timeoutMs = 15_000): Promise<void> {
+  async waitForText(text: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
     await this.post("wait", { type: "text", text, timeoutMs });
   }
 
-  async waitForUrl(value: string, timeoutMs = 15_000): Promise<void> {
+  async waitForUrl(value: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
     await this.post("wait", { type: "url", value, timeoutMs });
   }
 
   async waitForState(
     selector: string,
     state: "visible" | "hidden" | "present" | "absent" | "enabled" | "disabled" | "checked" | "unchecked",
-    timeoutMs = 15_000,
+    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
     await this.post("wait", { type: "state", selector, state, timeoutMs });
   }
 
-  async waitForValue(selector: string, value: string, timeoutMs = 15_000): Promise<void> {
+  async waitForValue(selector: string, value: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
     await this.post("wait", { type: "value", selector, value, timeoutMs });
   }
 
-  async waitForCount(selector: string, count: number, timeoutMs = 15_000): Promise<void> {
+  async waitForCount(selector: string, count: number, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
     await this.post("wait", { type: "count", selector, count, timeoutMs });
   }
 
-  async waitForAttribute(selector: string, name: string, value?: string, timeoutMs = 15_000): Promise<void> {
+  async waitForAttribute(
+    selector: string,
+    name: string,
+    value?: string,
+    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+  ): Promise<void> {
     await this.post("wait", { type: "attribute", selector, name, value, timeoutMs });
   }
 
-  async waitForElementText(selector: string, text: string, timeoutMs = 15_000): Promise<void> {
+  async waitForElementText(
+    selector: string,
+    text: string,
+    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+  ): Promise<void> {
     await this.post("wait", { type: "elementText", selector, text, timeoutMs });
   }
 
-  async waitForWindowCount(count: number, timeoutMs = 15_000): Promise<void> {
+  async waitForWindowCount(count: number, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
     await this.post("wait", { type: "windowCount", count, timeoutMs });
   }
 
-  async waitForNetworkIdle(quietMs = 500, timeoutMs = 15_000): Promise<void> {
+  async waitForNetworkIdle(
+    quietMs = TestbenchDefaults.NETWORK_IDLE_QUIET_MS,
+    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+  ): Promise<void> {
     await this.post("wait", { type: "networkIdle", quietMs, timeoutMs });
   }
 
-  async waitForScript(script: string, arguments_: unknown[] = [], timeoutMs = 15_000): Promise<void> {
+  async waitForScript(
+    script: string,
+    arguments_: unknown[] = [],
+    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+  ): Promise<void> {
     await this.post("wait", { type: "script", script, arguments: arguments_, timeoutMs });
   }
 
@@ -434,7 +467,10 @@ export class RemoteSession {
     await this.browser({ action: "viewport", width, height });
   }
 
-  waitForDownload(filename: string, timeoutMs = 15_000): Promise<{ path: string; size: number }> {
+  waitForDownload(
+    filename: string,
+    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+  ): Promise<{ path: string; size: number }> {
     return this.browser({ action: "waitDownload", filename, timeoutMs });
   }
 
@@ -465,7 +501,7 @@ export class RemoteSession {
     await this.browser({ action: "permission", name, state, origin });
   }
 
-  async setOrientation(orientation: "PORTRAIT" | "LANDSCAPE"): Promise<void> {
+  async setOrientation(orientation: BrowserOrientationValue): Promise<void> {
     await this.browser({ action: "orientation", orientation });
   }
 
@@ -529,7 +565,7 @@ export class RemoteSession {
     await this.post("wait", input);
   }
 
-  source(maxCharacters = 100_000): Promise<string> {
+  source(maxCharacters = TestbenchDefaults.PAGE_SOURCE_LIMIT): Promise<string> {
     return this.testbench.request(`/v1/sessions/${this.id}/source?maxCharacters=${maxCharacters}`);
   }
 

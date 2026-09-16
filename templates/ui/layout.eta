@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title><%= it.pageTitle %> · <%= it.title %></title>
+    <link rel="stylesheet" href="/fontawesome/css/fontawesome.min.css" />
+    <link rel="stylesheet" href="/fontawesome/css/solid.min.css" />
+    <link rel="stylesheet" href="/ui-assets/setup.css" />
+    <script type="module" src="/ui-assets/app-shell.js"></script>
+    <% for (const script of it.scripts) { %>
+    <script type="module" src="<%= script %>"></script>
+    <% } %>
+  </head>
+  <body>
+    <div class="app-layout">
+      <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+        <a class="sidebar__brand" href="/setup" aria-label="Browser Testbench home">
+          <span class="brand__mark"><i class="fa-solid fa-flask-vial" aria-hidden="true"></i></span>
+          <span class="sidebar__label"><strong>Browser Testbench</strong><small>Local test environment</small></span>
+        </a>
+        <nav class="sidebar__nav">
+          <% for (const item of it.navigation) { %>
+          <a
+            class="sidebar__link<%= item.id === it.activePage ? " is-active" : "" %>"
+            href="<%= item.href %>"
+            <% if (item.id === it.activePage) { %>
+            aria-current="page"
+            <% } %>
+          >
+            <i class="fa-solid <%= item.icon %>" aria-hidden="true"></i>
+            <span class="sidebar__label"><%= item.label %></span>
+          </a>
+          <% if (item.id === it.activePage && it.subnavigation.length > 0) { %>
+          <div class="sidebar__subnav" aria-label="Documentation sections">
+            <% for (const subitem of it.subnavigation) { %>
+            <a class="sidebar__sublink" href="<%= subitem.href %>">
+              <span class="sidebar__label"><%= subitem.label %></span>
+            </a>
+            <% } %>
+          </div>
+          <% } %>
+          <% } %>
+        </nav>
+        <div class="sidebar__bottom">
+          <button
+            class="sidebar__collapse"
+            id="sidebar-collapse"
+            type="button"
+            data-shell-control
+            aria-expanded="true"
+            aria-label="Collapse menu"
+            title="Collapse menu"
+          >
+            <i class="fa-solid fa-angles-left" aria-hidden="true"></i>
+          </button>
+          <footer class="sidebar__footer">
+            <nav class="sidebar__footer-links" aria-label="Status and legal">
+              <a class="sidebar__footer-link sidebar__footer-link--health" href="/health" title="Server status">
+                <i class="fa-solid fa-heart-pulse" aria-hidden="true"></i>
+                <span class="sidebar__label">Server status</span>
+              </a>
+              <a class="sidebar__footer-link" href="/LICENSE.txt" title="License">
+                <i class="fa-solid fa-scale-balanced" aria-hidden="true"></i>
+                <span class="sidebar__label">License</span>
+              </a>
+              <a class="sidebar__footer-link" href="/THIRD_PARTY_LICENSES.txt" title="Third-party licenses">
+                <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
+                <span class="sidebar__label">Third-party licenses</span>
+              </a>
+            </nav>
+          </footer>
+        </div>
+      </aside>
+
+      <button
+        class="sidebar-backdrop"
+        id="sidebar-backdrop"
+        type="button"
+        data-shell-control
+        aria-label="Close menu"
+        hidden
+      ></button>
+
+      <div class="app-content">
+        <header class="topbar">
+          <button
+            class="menu-toggle"
+            id="menu-toggle"
+            type="button"
+            data-shell-control
+            aria-controls="sidebar"
+            aria-expanded="false"
+          >
+            <i class="fa-solid fa-bars" aria-hidden="true"></i><span class="visually-hidden">Open menu</span>
+          </button>
+          <a class="mobile-brand" href="/setup">Browser Testbench</a>
+          <div class="host-badge" id="host-badge" aria-live="polite">
+            <i class="fa-solid <%= it.badgeIcon %>" aria-hidden="true"></i> <%= it.badgeLabel %>
+          </div>
+        </header>
+
+        <main class="shell page-content"><%~ it.content %></main>
+      </div>
+    </div>
+  </body>
+</html>

@@ -7,22 +7,29 @@ const elements = {
   runSetup: document.querySelector("#run-setup"),
   notice: document.querySelector("#notice"),
   testTargetList: document.querySelector("#test-target-list"),
+  verifyAllTargets: document.querySelector("#verify-all-targets"),
   mcpClient: document.querySelector("#mcp-client"),
   debugUrl: document.querySelector("#debug-url"),
   debugTarget: document.querySelector("#debug-target"),
 };
 
+const defaultApplicationUrl = "http://127.0.0.1:3000";
+
 let state;
-let authorization = sessionStorage.getItem("browser-testbench-token") ?? "";
+const authorizationStorageKey = "browser-testbench-token";
+let authorization = sessionStorage.getItem(authorizationStorageKey) ?? "";
+const verificationStates = new Map();
+let interfaceBusy = false;
 
 class WorkbenchUi {
   static async initialize() {
-    document.querySelector("#refresh-environment").addEventListener("click", () => this.refresh());
-    document.querySelector("#run-setup").addEventListener("click", () => this.setup());
-    document.querySelector("#register-mcp").addEventListener("click", () => this.registerMcp());
-    elements.mcpClient.addEventListener("change", () => this.renderMcp());
-    elements.debugUrl.addEventListener("input", () => this.renderDebugCommand());
-    elements.debugTarget.addEventListener("change", () => this.renderDebugCommand());
+    document.querySelector("#refresh-environment")?.addEventListener("click", () => this.refresh());
+    document.querySelector("#run-setup")?.addEventListener("click", () => this.setup());
+    document.querySelector("#register-mcp")?.addEventListener("click", () => this.registerMcp());
+    elements.verifyAllTargets?.addEventListener("click", () => this.verifyAllTargets());
+    elements.mcpClient?.addEventListener("change", () => this.renderMcp());
+    elements.debugUrl?.addEventListener("input", () => this.renderDebugCommand());
+    elements.debugTarget?.addEventListener("change", () => this.renderDebugCommand());
     await this.refresh();
   }
 
@@ -30,11 +37,11 @@ class WorkbenchUi {
     this.busy(true);
     try {
       state = await this.request("/v1/workbench");
-      elements.hostBadge.replaceChildren(
+      elements.hostBadge?.replaceChildren(
         this.icon(this.platformIcon(state.platform)),
         document.createTextNode(`${state.platformLabel} · ${state.architecture}`),
       );
-      elements.checks.replaceChildren(...state.checks.map((check) => this.checkCard(check)));
+      elements.checks?.replaceChildren(...state.checks.map((check) => this.checkCard(check)));
       this.renderActions();
       this.renderTestTargets();
       this.renderConnections();
@@ -70,7 +77,7 @@ class WorkbenchUi {
     const summary = this.element("summary");
     summary.append(
       this.icon("fa-mobile-screen-button"),
-      ` ${devices.length} ${devices.length === 1 ? "Gerät" : "Geräte"} anzeigen`,
+      ` Show ${devices.length} ${devices.length === 1 ? "device" : "devices"}`,
     );
     const list = this.element("div", "device-options__list");
     list.append(
@@ -80,7 +87,7 @@ class WorkbenchUi {
         const name = this.element("strong");
         name.textContent = device.name;
         const status = this.element("span");
-        status.textContent = device.compatible ? "Einsatzbereit" : "Nicht Chrome-fähig";
+        status.textContent = device.compatible ? "Ready" : "Not Chrome-compatible";
         heading.append(name, status);
         const meta = this.element("small");
         meta.textContent = [
@@ -99,6 +106,7 @@ class WorkbenchUi {
   }
 
   static renderActions() {
+    if (!elements.actions) return;
     const actions = state.actions ?? [];
     elements.actions.hidden = actions.length === 0;
     elements.runSetup.hidden = !actions.some((action) => action.automatic && action.status === "planned");
@@ -106,8 +114,8 @@ class WorkbenchUi {
     const completed = actions.filter((action) => action.status === "completed").length;
     const pending = actions.length - completed;
     elements.actionSummary.textContent = pending
-      ? `${completed} installiert · ${pending} ${pending === 1 ? "Schritt ist" : "Schritte sind"} noch offen`
-      : "Alle benötigten Erweiterungen sind installiert.";
+      ? `${completed} installed · ${pending} ${pending === 1 ? "step" : "steps"} remaining`
+      : "All required extensions are installed.";
     elements.actionList.replaceChildren(
       ...actions.map((action) => {
         const item = this.element("div", "setup-action");
@@ -122,7 +130,7 @@ class WorkbenchUi {
         );
         heading.append(label, status);
         const detail = this.element("small");
-        detail.textContent = action.detail ?? "Dieser Schritt muss manuell ausgeführt werden.";
+        detail.textContent = action.detail ?? "This step must be completed manually.";
         copy.append(heading, detail);
         item.append(copy);
         if (action.command) item.append(this.command(action.command));
@@ -132,40 +140,44 @@ class WorkbenchUi {
   }
 
   static renderConnections() {
-    const previous = elements.mcpClient.value;
-    elements.mcpClient.replaceChildren(
-      ...state.mcpClients.map((client) => {
-        const option = document.createElement("option");
-        option.value = client.id;
-        option.textContent = client.label;
-        return option;
-      }),
-    );
-    const preferred =
-      state.mcpClients.find((client) => client.id === previous) ??
-      state.mcpClients.find((client) => client.current) ??
-      state.mcpClients.find((client) => client.installed && client.automatic) ??
-      state.mcpClients[0];
-    elements.mcpClient.value = preferred.id;
-    this.renderMcp();
-    document.querySelector("#project-install-command").replaceChildren(this.command(state.clientInstallCommand));
+    if (elements.mcpClient) {
+      const previous = elements.mcpClient.value;
+      elements.mcpClient.replaceChildren(
+        ...state.mcpClients.map((client) => {
+          const option = document.createElement("option");
+          option.value = client.id;
+          option.textContent = client.label;
+          return option;
+        }),
+      );
+      const preferred =
+        state.mcpClients.find((client) => client.id === previous) ??
+        state.mcpClients.find((client) => client.current) ??
+        state.mcpClients.find((client) => client.installed && client.automatic) ??
+        state.mcpClients[0];
+      elements.mcpClient.value = preferred.id;
+      this.renderMcp();
+    }
+    const installCommand = document.querySelector("#project-install-command");
+    if (!installCommand) return;
+    installCommand.replaceChildren(this.command(state.clientInstallCommand));
     const readyTargets = state.testTargets.filter((target) => target.ready);
     const desktop = readyTargets.find((target) => target.kind === "desktop");
     const mobile = readyTargets.find((target) => target.kind === "mobile");
     const requested = [...new Set([desktop?.id, mobile?.id].filter(Boolean))];
     const examples = requested.length ? requested : ["chrome"];
-    const example = `import { RemoteTestbench } from "browser-testbench/client";
+    const example = `import { RemoteTestbench } from "${state.packageName}/client";
 
 const testbench = new RemoteTestbench();
 const targets = await testbench.availableTargets(${JSON.stringify(examples, null, 2)});
 
 for (const target of targets) {
-  const browser = await testbench.open({ target, url: "http://127.0.0.1:3000", headless: true });
+  const browser = await testbench.open({ target, url: "${defaultApplicationUrl}", headless: true });
 
   try {
     await browser.click('button[type="submit"]');
-    await browser.waitForText("Willkommen");
-    await browser.screenshot(\`artifacts/anmeldung-\${target}.png\`);
+    await browser.waitForText("Welcome");
+    await browser.screenshot(\`artifacts/login-\${target}.png\`);
   } finally {
     await browser.close();
   }
@@ -175,13 +187,14 @@ for (const target of targets) {
   }
 
   static renderDebugTargets() {
+    if (!elements.debugTarget) return;
     const previous = elements.debugTarget.value;
     const options = state.testTargets;
     elements.debugTarget.replaceChildren(
       ...options.map((target) => {
         const option = document.createElement("option");
         option.value = target.id;
-        option.textContent = `${target.label}${target.ready ? "" : " · Einrichtung erforderlich"}`;
+        option.textContent = `${target.label}${target.ready ? "" : " · Setup required"}`;
         return option;
       }),
     );
@@ -192,20 +205,19 @@ for (const target of targets) {
   }
 
   static renderDebugCommand() {
-    if (!elements.debugTarget.value) return;
+    if (!elements.debugTarget?.value || !elements.debugUrl) return;
     const target = state.testTargets.find((candidate) => candidate.id === elements.debugTarget.value);
     if (!target) return;
-    const url = elements.debugUrl.value.trim() || "http://127.0.0.1:3000";
-    const argumentsList = ["npx", "browser-testbench", "open", "--target", target.id, "--url", url];
+    const url = elements.debugUrl.value.trim() || defaultApplicationUrl;
+    const argumentsList = ["npx", state.packageName, "open", "--target", target.id, "--url", url];
     document.querySelector("#debug-open-command").replaceChildren(this.command(this.shellCommand(argumentsList)));
 
     const notes = {
-      "safari-ios":
-        "DevTools: Öffne in Safari das Menü „Entwickeln“ und wähle dort den Simulator und die geöffnete Seite aus.",
-      "chrome-android": "DevTools: Öffne chrome://inspect/#devices in Chrome auf deinem Rechner.",
+      "safari-ios": "DevTools: Open Safari's Develop menu and select the simulator and open page.",
+      "chrome-android": "DevTools: Open chrome://inspect/#devices in Chrome on your machine.",
     };
     document.querySelector("#debug-tools-note").textContent =
-      notes[target.browser] ?? "DevTools kannst du wie gewohnt direkt im geöffneten Desktopbrowser aufrufen.";
+      notes[target.browser] ?? "You can open DevTools as usual directly in the desktop browser.";
   }
 
   static shellCommand(parts) {
@@ -213,6 +225,7 @@ for (const target of targets) {
   }
 
   static renderMcp() {
+    if (!elements.mcpClient) return;
     const client = state.mcpClients.find((candidate) => candidate.id === elements.mcpClient.value);
     const mcpStatus = document.querySelector("#mcp-status");
     const register = document.querySelector("#register-mcp");
@@ -224,8 +237,13 @@ for (const target of targets) {
   }
 
   static renderTestTargets() {
+    if (!elements.testTargetList || !elements.verifyAllTargets) return;
+    const readyTargets = state.testTargets.filter((target) => target.ready);
+    elements.verifyAllTargets.hidden = readyTargets.length === 0;
+    elements.verifyAllTargets.disabled = interfaceBusy;
     elements.testTargetList.replaceChildren(
       ...state.testTargets.map((target) => {
+        const verificationState = verificationStates.get(target.id);
         const item = this.element("article", `test-target is-${target.status}`);
         const content = this.element("div", "test-target__content");
         const heading = this.element("div", "test-target__heading");
@@ -240,25 +258,39 @@ for (const target of targets) {
         const detail = this.element("small");
         detail.textContent = target.detail;
         content.append(heading, detail);
-        if (target.verifiedAt) {
-          const verification = this.element("small", "test-target__verification");
-          verification.append(
-            this.icon("fa-circle-check"),
-            document.createTextNode(
-              ` Zuletzt erfolgreich getestet: ${new Intl.DateTimeFormat("de-DE", {
+        if (verificationState || target.verifiedAt) {
+          const verification = this.element(
+            "small",
+            `test-target__verification${verificationState ? ` is-${verificationState.status}` : " is-passed"}`,
+          );
+          const message = verificationState
+            ? verificationState.message
+            : `Last successfully tested: ${new Intl.DateTimeFormat("en", {
                 dateStyle: "medium",
                 timeStyle: "short",
-              }).format(new Date(target.verifiedAt))}`,
+              }).format(new Date(target.verifiedAt))}`;
+          verification.append(
+            this.icon(
+              verificationState?.status === "running"
+                ? "fa-spinner fa-spin"
+                : verificationState?.status === "failed"
+                  ? "fa-circle-xmark"
+                  : "fa-circle-check",
             ),
+            document.createTextNode(` ${message}`),
           );
           content.append(verification);
         }
         const actions = this.element("div", "test-target__actions");
-        actions.append(this.command(target.id, false, "Ziel-ID"));
+        actions.append(this.command(target.id, false, "Target ID"));
         if (target.ready) {
           const verify = this.element("button", "button button--secondary");
           verify.type = "button";
-          verify.append(this.icon("fa-circle-play"), document.createTextNode(" Testlauf starten"));
+          verify.disabled = interfaceBusy || verificationState?.status === "running";
+          verify.append(
+            this.icon(verificationState?.status === "running" ? "fa-spinner fa-spin" : "fa-circle-play"),
+            document.createTextNode(verificationState?.status === "running" ? " Test running …" : " Run test"),
+          );
           verify.addEventListener("click", () => this.verifyTarget(target));
           actions.append(verify);
         }
@@ -271,6 +303,55 @@ for (const target of targets) {
   static async verifyTarget(target) {
     this.busy(true);
     try {
+      const result = await this.runVerification(target);
+      verificationStates.delete(target.id);
+      this.notice(`${target.label} was tested successfully (${result.durationMs} ms).`, "success");
+      await this.refresh();
+    } catch (error) {
+      this.notice(this.message(error), "error");
+    } finally {
+      this.busy(false);
+    }
+  }
+
+  static async verifyAllTargets() {
+    const targets = state.testTargets.filter((target) => target.ready);
+    if (targets.length === 0) return;
+
+    const failures = [];
+    this.busy(true);
+    try {
+      for (const [index, target] of targets.entries()) {
+        this.verifyAllLabel(`Checking ${index + 1} of ${targets.length}`);
+        try {
+          await this.runVerification(target);
+        } catch (error) {
+          failures.push({ target, error });
+        }
+      }
+      for (const target of targets) {
+        if (verificationStates.get(target.id)?.status === "passed") verificationStates.delete(target.id);
+      }
+      await this.refresh();
+      this.notice(
+        failures.length
+          ? `${targets.length - failures.length} of ${targets.length} tests passed; ${failures.length} failed.`
+          : `All ${targets.length} tests completed successfully.`,
+        failures.length ? "error" : "success",
+      );
+    } finally {
+      this.verifyAllLabel();
+      this.busy(false);
+    }
+  }
+
+  static async runVerification(target) {
+    verificationStates.set(target.id, {
+      status: "running",
+      message: this.verificationProgress(target),
+    });
+    this.renderTestTargets();
+    try {
       const result = await this.request("/v1/verify", {
         method: "POST",
         body: JSON.stringify({
@@ -278,13 +359,26 @@ for (const target of targets) {
           ...(target.kind === "desktop" && target.browser !== "safari" ? { headless: true } : {}),
         }),
       });
-      this.notice(`${target.label} wurde erfolgreich getestet (${result.durationMs} ms).`, "success");
-      await this.refresh();
+      verificationStates.set(target.id, {
+        status: "passed",
+        message: `Test passed (${result.durationMs} ms).`,
+      });
+      this.renderTestTargets();
+      return result;
     } catch (error) {
-      this.notice(this.message(error), "error");
-    } finally {
-      this.busy(false);
+      const message = this.message(error);
+      verificationStates.set(target.id, { status: "failed", message: `Test failed: ${message}` });
+      this.renderTestTargets();
+      throw error;
     }
+  }
+
+  static verifyAllLabel(progress) {
+    if (!elements.verifyAllTargets) return;
+    elements.verifyAllTargets.replaceChildren(
+      this.icon(progress ? "fa-spinner fa-spin" : "fa-list-check"),
+      document.createTextNode(progress ? ` ${progress}` : " Run all tests"),
+    );
   }
 
   static async setup() {
@@ -295,16 +389,15 @@ for (const target of targets) {
         method: "POST",
         body: JSON.stringify({
           targets,
-          ...(targets.includes("chrome-android") ? { androidAvdName: "Browser_Testbench_API_36" } : {}),
         }),
       });
       const failures = actions.filter((action) => action.status === "failed");
       this.notice(
         failures.length
           ? failures.length === 1
-            ? "Ein Einrichtungsschritt ist fehlgeschlagen."
-            : `${failures.length} Einrichtungsschritte sind fehlgeschlagen.`
-          : "Einrichtung abgeschlossen.",
+            ? "One setup step failed."
+            : `${failures.length} setup steps failed.`
+          : "Setup completed.",
         failures.length ? "error" : "success",
       );
       await this.refresh();
@@ -326,7 +419,7 @@ for (const target of targets) {
       });
       state.mcpClients = state.mcpClients.map((candidate) => (candidate.id === selected ? updated : candidate));
       this.renderMcp();
-      this.notice(`${client.label} ist mit der Testbench verbunden.`, "success");
+      this.notice(`${client.label} is connected to Browser Testbench.`, "success");
     } catch (error) {
       this.notice(this.message(error), "error");
     } finally {
@@ -334,14 +427,15 @@ for (const target of targets) {
     }
   }
 
-  static command(value, multiline = false, copyLabel = "Befehl") {
+  static command(value, multiline = false, copyLabel = "Command") {
     const container = this.element("div", `command-block${multiline ? " command-block--multiline" : ""}`);
     const code = this.element("code");
     code.textContent = value;
     const button = this.element("button", "copy-command");
     button.type = "button";
-    button.title = `${copyLabel} kopieren`;
-    button.setAttribute("aria-label", `${copyLabel} kopieren`);
+    const accessibleLabel = copyLabel === "Target ID" ? "Copy target ID" : "Copy command";
+    button.title = accessibleLabel;
+    button.setAttribute("aria-label", accessibleLabel);
     button.append(this.icon("fa-copy"));
     button.addEventListener("click", async () => {
       await navigator.clipboard.writeText(value);
@@ -356,10 +450,10 @@ for (const target of targets) {
     if (authorization) headers.authorization = `Bearer ${authorization}`;
     const response = await fetch(path, { ...options, headers: { ...headers, ...options.headers } });
     if (response.status === 401 && retry) {
-      const token = window.prompt("Bearer-Token der Testbench:");
+      const token = window.prompt("Browser Testbench bearer token:");
       if (token) {
         authorization = token;
-        sessionStorage.setItem("browser-testbench-token", token);
+        sessionStorage.setItem(authorizationStorageKey, token);
         return this.request(path, options, false);
       }
     }
@@ -369,7 +463,8 @@ for (const target of targets) {
   }
 
   static busy(value) {
-    document.querySelectorAll("button, input, select").forEach((control) => {
+    interfaceBusy = value;
+    document.querySelectorAll(".page-content button, .page-content input, .page-content select").forEach((control) => {
       control.disabled = value;
     });
   }
@@ -404,18 +499,26 @@ for (const target of targets) {
   }
 
   static actionStatus(status) {
-    return (
-      { completed: "Installiert", planned: "Bereit", manual: "Manuell", failed: "Fehlgeschlagen" }[status] ?? status
-    );
+    return { completed: "Installed", planned: "Ready", manual: "Manual", failed: "Failed" }[status] ?? status;
   }
 
   static targetAvailability(status) {
     return {
-      ready: "Auf diesem Rechner einsatzbereit",
-      action: "Einrichtung erforderlich",
-      blocked: "Noch nicht verfügbar",
-      skip: "Auf diesem Betriebssystem nicht verfügbar",
+      ready: "Ready on this machine",
+      action: "Setup required",
+      blocked: "Not available yet",
+      skip: "Not available on this operating system",
     }[status];
+  }
+
+  static verificationProgress(target) {
+    if (target.browser === "safari-ios") {
+      return "Test running. On first launch, Xcode may take a few minutes to check the iOS runtime.";
+    }
+    if (target.browser === "chrome-android") {
+      return "Test running. On first launch, the Android Emulator may take a few minutes to start.";
+    }
+    return "Test running.";
   }
 
   static platformIcon(platform) {
@@ -423,7 +526,7 @@ for (const target of targets) {
   }
 
   static deviceState(state) {
-    return { Booted: "Gestartet", Shutdown: "Ausgeschaltet", Creating: "Wird erstellt" }[state] ?? state ?? "";
+    return { Booted: "Running", Shutdown: "Shut down", Creating: "Creating" }[state] ?? state ?? "";
   }
 }
 

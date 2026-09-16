@@ -6,9 +6,7 @@ import { TestbenchPaths } from "../../src/infrastructure/paths.js";
 describe("TargetRegistry", () => {
   it("provides a CLI command using the canonical executable", () => {
     const command = TestbenchPaths.cliCommand("doctor");
-    expect(command).toContain("dist/cli.js");
-    expect(command).toContain("doctor");
-    expect(command).toContain("dist/cli.js");
+    expect(command).toBe("browser-testbench doctor");
   });
   it("uses branded desktop browser capabilities", () => {
     expect(TargetRegistry.capabilities({ name: "chrome" })).toMatchObject({ browserName: "chrome" });
@@ -25,6 +23,7 @@ describe("TargetRegistry", () => {
       browserName: "Safari",
       "appium:automationName": "XCUITest",
       "appium:deviceName": "iPhone 17",
+      "appium:skipLogCapture": true,
       "appium:udid": "SIMULATOR-ID",
     });
     expect(TargetRegistry.capabilities({ name: "chrome-android", avd: "Pixel_Test" })).toMatchObject({
@@ -44,5 +43,11 @@ describe("TargetRegistry", () => {
 
   it("selects platform-specific defaults without unsupported Apple targets on Windows", () => {
     expect(TargetRegistry.defaultTargets("win32")).toEqual(["chrome", "firefox", "edge", "chrome-android"]);
+  });
+
+  it("includes all supported non-Apple targets on Linux", () => {
+    expect(TargetRegistry.defaultTargets("linux")).toEqual(["chrome", "firefox", "edge", "chrome-android"]);
+    expect(TargetRegistry.isSupported("chrome-android", "linux")).toBe(true);
+    expect(TargetRegistry.isSupported("safari-ios", "linux")).toBe(false);
   });
 });

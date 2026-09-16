@@ -1,77 +1,100 @@
 # Browser Testbench
 
-Eine lokale, projektunabhängige Fernsteuerung für reale Desktopbrowser sowie iOS- und Android-Simulatoren.
+A local, project-independent remote control for real desktop browsers and iOS and Android simulators.
 
-Die Verantwortungsgrenze ist bewusst eindeutig:
+The responsibilities are deliberately clear:
 
-- Die Testbench erkennt, startet und steuert Browser und simulierte Geräte.
-- Das Projekt startet seinen eigenen Entwicklungsserver und besitzt Testabläufe, URLs, Assertions und Ergebnisdateien.
-- KI-Assistenten greifen über MCP auf dieselben Steuerbefehle zu.
+- Browser Testbench detects, launches, and controls browsers and simulated devices.
+- Your project starts its own development server and owns its test flows, URLs, assertions, and result files.
+- AI assistants access the same controls through MCP.
 
-Die Testbench importiert keine Testdateien aus einem Projekt und führt keinen fremden Test-Runner aus.
+Browser Testbench does not import test files from a project or run third-party test runners.
 
-## Unterstützte Ziele
+## Supported targets
 
-| Ziel                       | macOS | Windows | Linux |
-| -------------------------- | ----- | ------- | ----- |
-| Chrome                     | ja    | ja      | ja    |
-| Firefox                    | ja    | ja      | ja    |
-| Safari                     | ja    | –       | –     |
-| Edge                       | ja    | ja      | ja    |
-| Safari im iOS-Simulator    | ja    | –       | –     |
-| Chrome im Android-Emulator | ja    | ja      | ja    |
+| Target                         | macOS | Windows | Linux |
+| ------------------------------ | ----- | ------- | ----- |
+| Chrome                         | yes   | yes     | yes   |
+| Firefox                        | yes   | yes     | yes   |
+| Safari                         | yes   | –       | –     |
+| Edge                           | yes   | yes     | yes   |
+| Safari in the iOS Simulator    | yes   | –       | –     |
+| Chrome in the Android Emulator | yes   | yes     | yes   |
 
-Mobile Sessions werden über Appium mit XCUITest beziehungsweise UiAutomator2 gesteuert. Die Weboberfläche erkennt installierte Browser, Simulatoren, Emulatoren und notwendige Einrichtungsschritte.
+Mobile sessions are controlled through Appium with XCUITest or UiAutomator2. The web interface detects installed browsers, simulators, emulators, and required setup steps.
 
-## Installation und Start
+For Android, setup always reuses an existing compatible Google Play AVD. If none exists, it selects the newest matching Google Play system image already installed for the host architecture and the newest available generic Pixel hardware profile. The generated AVD name contains both values, for example `browser-testbench-pixel-10-api-37-1`. Only when no suitable image is installed does the setup ask you to install the latest one through Android Studio's SDK Manager; no API level or Pixel model is hard-coded.
 
-```bash
-npm install
-npm run build
-npm run dev -- serve
-```
+## Installation and startup
 
-Standardmäßig läuft die Oberfläche unter `http://127.0.0.1:55808/setup` und wird beim Start geöffnet. Eine andere Adresse ist möglich:
+Node.js 22 or newer is required. Install Browser Testbench globally once on each machine:
 
 ```bash
-npm run dev -- serve --port 7788 --no-open
+npm install --global browser-testbench
+browser-testbench start
 ```
 
-Bei einer Bindung außerhalb von Loopback ist ein Bearer-Token Pflicht:
+By default, the interface runs at `http://127.0.0.1:55808/setup` and opens on startup. To use a different address:
 
 ```bash
-npm run dev -- serve --host 0.0.0.0 --token "$BROWSER_TESTBENCH_TOKEN"
+browser-testbench start --port 7788 --no-open
 ```
 
-Safari wird aus Rücksicht auf macOS-Berechtigungsdialoge nicht automatisch gestartet. Einmalig erforderlich:
+For development directly from the repository:
+
+```bash
+git clone https://github.com/llakie/browser-testbench.git
+cd browser-testbench
+npm ci
+npm run dev -- start
+```
+
+The web interface has three sections:
+
+- `/setup`: inspect and set up the environment
+- `/targets`: verify test targets and generate project commands
+- `/docs`: local documentation and examples
+
+The project license and third-party license notices are included as `LICENSE.txt` and `THIRD_PARTY_LICENSES.txt` and linked from the interface footer.
+
+A bearer token is required when binding to an address other than loopback:
+
+```bash
+browser-testbench start --host 0.0.0.0 --token "$BROWSER_TESTBENCH_TOKEN"
+```
+
+To avoid unexpected macOS permission dialogs, Safari is never launched automatically. Enable its driver once:
 
 ```bash
 sudo safaridriver --enable
-npm run dev -- verify safari
+browser-testbench verify safari
 ```
 
-`verify` akzeptiert jede konkrete ID aus `browser-testbench targets` und führt den Test über den laufenden
-Testbench-Server aus. Derselbe Test kann in der Weboberfläche mit „Testlauf starten“ bewusst ausgelöst werden.
+`verify` accepts any concrete ID returned by `browser-testbench targets` and runs the check through the active Browser Testbench server. You can trigger the same check explicitly from the web interface with “Run test”.
 
-## Zwei Arbeitsweisen
+## Two workflows
 
-### Interaktiv entwickeln und debuggen
+### Interactive development and debugging
 
-Ein KI-Assistent kann über MCP eine Session öffnen, navigieren, Elemente untersuchen, klicken, tippen, Screenshots erzeugen und mobile Gesten auslösen. Der MCP-Prozess arbeitet dabei als schlanke Brücke zum laufenden Testbench-Server; Zielauflösung, Sessions und Gerätesperren bleiben zentral. Console-Ausgaben und HTTP-Requests/-Responses sind über `get_diagnostics` verfügbar. WebSocket-Transport und WebSocket-Frame-Inspektion sind aktuell nicht Bestandteil der Testbench.
+An AI assistant can use MCP to open a session, navigate, inspect elements, click, type, take screenshots, and perform mobile gestures. The MCP process is a lightweight bridge to the running Browser Testbench server; target resolution, sessions, and device locks remain centralized. Console output and HTTP requests and responses are available through `get_diagnostics`. WebSocket transport and WebSocket frame inspection are not currently included.
 
-Für native Browser-DevTools liefert `get_devtools_instructions` die passende Verbindung:
+`get_devtools_instructions` provides the appropriate connection for native browser developer tools:
 
-- iOS-Simulator: Safari Web Inspector über das Entwickeln-Menü von Safari.
-- Android-Emulator: Chrome DevTools über `chrome://inspect/#devices`.
-- Chromium auf dem Desktop: Console- und Netzwerkdiagnostik direkt über die Testbench; die normalen Browser-DevTools können zusätzlich manuell geöffnet werden.
+- iOS Simulator: Safari Web Inspector through Safari's Develop menu.
+- Android Emulator: Chrome DevTools through `chrome://inspect/#devices`.
+- Chromium on desktop: console and network diagnostics directly through Browser Testbench; the regular browser developer tools can also be opened manually.
 
-### Automatisierte Projekttests
+### Automated project tests
 
-Die Testbench erzeugt für jeden erkannten Browser und jedes kompatible simulierte Gerät eine stabile ID. Beispielsweise
-heißen Ziele `chrome` oder `safari-ios-iphone-17-pro-26-5`. Die Weboberfläche zeigt alle IDs mit Kopierfunktion an.
-Eine Projekt-Konfigurationsdatei ist nicht erforderlich.
+Browser Testbench creates a stable ID for every detected browser and compatible simulated device. Examples include `chrome` and `safari-ios-iphone-17-pro-26-5`. The web interface lists every ID with a copy button. No project configuration file is required.
 
-Installiere den Client aus dem lokalen Testbench-Verzeichnis; der genaue Befehl wird in der Weboberfläche angezeigt. Danach kann jeder Node-basierte Test-Runner dieselbe Fernsteuerung verwenden:
+Install the client in your project:
+
+```bash
+npm install --save-dev browser-testbench
+```
+
+Any Node-based test runner can then use the same remote control:
 
 ```js
 import assert from "node:assert/strict";
@@ -91,7 +114,7 @@ for (const target of targets) {
     await browser.fill('input[name="email"]', "test@example.com");
     await browser.check('[data-testid="terms"]');
     await browser.click('button[type="submit"]');
-    await browser.waitForText("Willkommen");
+    await browser.waitForText("Welcome");
     assert.match((await browser.inspect()).url, /dashboard/);
     await browser.screenshot(`artifacts/login-${target}.png`);
   } finally {
@@ -100,69 +123,57 @@ for (const target of targets) {
 }
 ```
 
-`availableTargets()` behält die angefragte Reihenfolge bei und überspringt Ziele, die auf dem aktuellen Rechner nicht
-einsatzbereit sind. Ist kein einziges angefragtes Ziel bereit, wird das Promise rejected. Die Testbench löst eine mobile
-ID intern zu `deviceName`, Plattformversion und UDID beziehungsweise AVD auf. `headless` wird für mobile Ziele ignoriert.
+`availableTargets()` preserves the requested order and skips targets that are not ready on the current machine. If none of the requested targets are ready, the promise rejects. Browser Testbench resolves a mobile ID internally to its `deviceName`, platform version, and UDID or AVD. Mobile targets ignore `headless`.
 
-Für parallele Ausführung steht außerdem `forEachTarget()` bereit. Verschiedene Geräte können parallel laufen; Zugriffe
-auf dasselbe serielle Ziel werden serverseitig nacheinander ausgeführt.
+For parallel execution, use `forEachTarget()`. Different devices can run in parallel; access to the same serial target is queued by the server.
 
-## Node-Client
+## Node client
 
-`RemoteTestbench` verbindet sich ohne Argumente mit `http://127.0.0.1:55808`. Eine andere Adresse kann über
-`BROWSER_TESTBENCH_URL` oder den Konstruktor gesetzt werden. Der Client bietet:
+`RemoteTestbench` connects to `http://127.0.0.1:55808` by default. Set a different address through `BROWSER_TESTBENCH_URL` or the constructor. The client provides:
 
-- `targets()`, `capabilities()` und `availableTargets([...])`
+- `targets()`, `capabilities()`, and `availableTargets([...])`
 - `open({ target, url, ... })`
 - `forEachTarget(targets, options, callback)`
 
-Eine `RemoteSession` bietet:
+A `RemoteSession` provides:
 
-- Formulare: `fill()`, `append()`, `clear()`, `check()`, `uncheck()`, `select()`, `upload()` und `submit()`
-- Zustand: `state()`, `count()`, `inspect()`, `cookies()` und `storage()`
-- Eingabe: `click()`, `press()`, `focus()`, `blur()`, `hover()`, `doubleClick()`, `rightClick()` und `drag()`
-- Navigation: `navigate()`, `back()`, `forward()`, `refresh()`, Tabs/Fenster und Frames
-- Warten: Element, Text, URL, Wert, Anzahl und Zustände wie sichtbar, entfernt, aktiviert oder ausgewählt
-- Browserzustand: Cookies, Local/Session Storage, Dialoge und Viewport
-- Dateien: Upload, projektseitige Screenshots und Downloads mit konfiguriertem `downloadDir`
-- Debugging: Vollseiten-/Element-Screenshots, PDF, Accessibility-Baum, Zwischenablage und JavaScript-Auswertung
-- Umgebung: Netzwerkbedingungen, blockierte URLs, Fetch-Mocks, Geolocation und Berechtigungen auf Chromium-Zielen
-- `tap()`, `swipe()` und `pinch()` für mobile Ziele
-- Mobil: Orientierung, Zurück-Taste, Tastatur schließen und optionale MP4-Aufzeichnung
-- `diagnostics()`, `clearDiagnostics()` und `devtools()`
+- Forms: `fill()`, `append()`, `clear()`, `check()`, `uncheck()`, `select()`, `upload()`, and `submit()`
+- State: `state()`, `count()`, `inspect()`, `cookies()`, and `storage()`
+- Input: `click()`, `press()`, `focus()`, `blur()`, `hover()`, `doubleClick()`, `rightClick()`, and `drag()`
+- Navigation: `navigate()`, `back()`, `forward()`, `refresh()`, tabs/windows, and frames
+- Waiting: element, text, URL, value, count, and states such as visible, removed, enabled, or selected
+- Browser state: cookies, local/session storage, dialogs, and viewport
+- Files: upload, project-side screenshots, and downloads with a configured `downloadDir`
+- Debugging: full-page/element screenshots, PDF, accessibility tree, clipboard, and JavaScript evaluation
+- Environment: network conditions, blocked URLs, fetch mocks, geolocation, and permissions on Chromium targets
+- `tap()`, `swipe()`, and `pinch()` for mobile targets
+- Mobile: orientation, Back button, dismissing the keyboard, and optional MP4 recording
+- `diagnostics()`, `clearDiagnostics()`, and `devtools()`
 - `close()`
 
-Alle Elementmethoden akzeptieren ausschließlich standardkonforme CSS-Selektoren. Verwende für robuste Tests bevorzugt
-stabile Attribute wie IDs, `name` oder `data-testid`, beispielsweise `#login`, `input[name="email"]` oder
-`[data-testid="terms"]`. Für offene Shadow Roots steht bei Bedarf `evaluate()` mit `shadowRoot.querySelector()` zur
-Verfügung.
+All element methods accept standards-compliant CSS selectors only. Prefer stable attributes such as IDs, `name`, or `data-testid` for robust tests, for example `#login`, `input[name="email"]`, or `[data-testid="terms"]`. For open shadow roots, use `evaluate()` with `shadowRoot.querySelector()` when needed.
 
-Screenshots werden vom Client im Projekt gespeichert. Für Downloads wird beim Öffnen der Session ein `downloadDir`
-auf dem Testbench-Rechner angegeben.
+Screenshots are saved by the client inside the project. For downloads, provide a `downloadDir` on the Browser Testbench machine when opening the session.
 
-`mockFetch()` ersetzt Fetch-Antworten in der aktuell geladenen Seite. `blockUrls()`, Netzwerkbedingungen,
-Geolocation, Berechtigungen, PDF und der native Accessibility-Baum verwenden Chromium DevTools und sind daher für
-Chrome und Edge gedacht. Auf anderen Zielen bleiben die WebDriver-basierten Formular-, Navigations- und
-Zustandsfunktionen verfügbar. Für mobile Videos wird `videoPath` beim Öffnen der Session gesetzt; die Aufzeichnung
-wird beim Schließen der Session abgeschlossen.
+`mockFetch()` replaces fetch responses in the currently loaded page. `blockUrls()`, network conditions, geolocation, permissions, PDF, and the native accessibility tree use Chromium DevTools and are therefore intended for Chrome and Edge. WebDriver-based forms, navigation, and state operations remain available on other targets. For mobile videos, set `videoPath` when opening the session; recording is finalized when the session closes.
 
 ## MCP
 
-Die Weboberfläche erzeugt oder installiert die Konfiguration für Codex, Claude Code, Gemini CLI, GitHub Copilot in VS Code und andere MCP-Clients. Der MCP-Server verwendet `stdio`:
+The web interface generates or installs configuration for Codex, Claude Code, Gemini CLI, GitHub Copilot in VS Code, and other MCP clients. The MCP server uses `stdio`:
 
 ```bash
-npm run dev -- mcp
+browser-testbench mcp
 ```
 
-Wichtige Werkzeuge:
+Key tools:
 
-- Umgebung: `list_targets`, `doctor`, `verify_target`
+- Environment: `list_targets`, `doctor`, `verify_target`
 - Session: `start_session`, `navigate`, `inspect_page`, `close_session`
-- Bedienung: `click`, `type`, `element_action`, `browser_action`, `tap`, `swipe`, `pinch`
-- Synchronisierung: `wait_for_element`, `wait_for_text`, `wait_for_url`, `wait_for_state`, `wait_for_value`, `wait_for_count`
+- Interaction: `click`, `type`, `element_action`, `browser_action`, `tap`, `swipe`, `pinch`
+- Synchronization: `wait_for_element`, `wait_for_text`, `wait_for_url`, `wait_for_state`, `wait_for_value`, `wait_for_count`
 - Debugging: `get_page_source`, `take_screenshot`, `get_diagnostics`, `clear_diagnostics`, `get_devtools_instructions`
 
-## REST-API
+## REST API
 
 ```text
 GET    /health
@@ -191,15 +202,15 @@ DELETE /v1/sessions/:id/diagnostics
 GET    /v1/sessions/:id/devtools
 ```
 
-Mehrere Sessions können gleichzeitig bestehen. Mobile Ziele bleiben wegen ihrer Treiber und Geräte typischerweise seriell zu verwenden. Alle Client-Aufrufe laufen über die zentrale REST-API.
+Multiple sessions can exist at the same time. Mobile targets typically remain serial because of their drivers and devices. All client calls go through the central REST API.
 
-## Kommandozeile
+## Command line
 
 ```text
-browser-testbench serve [--host 127.0.0.1] [--port 55808] [--token ...] [--no-open]
+browser-testbench start [--host 127.0.0.1] [--port 55808] [--token ...] [--no-open]
 browser-testbench targets [--server URL] [--token ...] [--json]
 browser-testbench doctor [--targets ...] [--json]
-browser-testbench setup [--targets ...] [--android-avd NAME] [--yes] [--json]
+browser-testbench setup [--targets ...] [--yes] [--json]
 browser-testbench verify <target-id> [--headless] [--server URL] [--token ...]
 browser-testbench open --target <target> --url <url>
 browser-testbench screenshot --target <target> --url <url> [--output file]
@@ -207,7 +218,7 @@ browser-testbench mcp
 browser-testbench mcp-config --client <client>
 ```
 
-## Entwicklung
+## Development
 
 ```bash
 npm run format
@@ -217,4 +228,8 @@ BTB_BROWSER_TESTS=1 npm test
 npm run build
 ```
 
-Browser-Integrationstests starten ausschließlich Chrome im Headless-Modus. Safari oder Simulatoren werden nie ungefragt als Teil der automatischen Tests geöffnet.
+Browser integration tests launch Chrome in headless mode only. Safari and simulators are never opened without an explicit user action as part of automated tests.
+
+## Contributing and security
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and pull request expectations. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Release changes are documented in [CHANGELOG.md](CHANGELOG.md).

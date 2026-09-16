@@ -33,14 +33,14 @@ export class TargetRegistry {
     },
     "safari-ios": {
       name: "safari-ios",
-      label: "Safari im iOS-Simulator",
+      label: "Safari in the iOS Simulator",
       kind: "mobile",
       supportedPlatforms: ["darwin"],
       serial: true,
     },
     "chrome-android": {
       name: "chrome-android",
-      label: "Chrome im Android-Emulator",
+      label: "Chrome in the Android Emulator",
       kind: "mobile",
       supportedPlatforms: ["darwin", "win32", "linux"],
       serial: true,
@@ -54,7 +54,7 @@ export class TargetRegistry {
   static defaultTargets(platform = process.platform): TargetName[] {
     if (platform === "darwin") return ["chrome", "firefox", "safari", "safari-ios", "chrome-android"];
     if (platform === "win32") return ["chrome", "firefox", "edge", "chrome-android"];
-    return ["chrome", "firefox", "chrome-android"];
+    return ["chrome", "firefox", "edge", "chrome-android"];
   }
 
   static isTargetName(value: string): value is TargetName {
@@ -122,6 +122,7 @@ export class TargetRegistry {
           browserName: "Safari",
           "appium:automationName": "XCUITest",
           "appium:deviceName": target.deviceName ?? "iPhone 16",
+          "appium:skipLogCapture": true,
           ...(target.platformVersion ? { "appium:platformVersion": target.platformVersion } : {}),
           ...(target.udid ? { "appium:udid": target.udid } : {}),
           ...common,

@@ -3,4 +3,3 @@ dist/
 .cache/
 artifacts/
 package-lock.json
-docs/agents/development.md

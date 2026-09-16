@@ -1,5 +1,6 @@
 import { dirname, isAbsolute, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PackageMetadata } from "../config/package-metadata.js";
 
 export class TestbenchPaths {
   static readonly projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -18,9 +19,7 @@ export class TestbenchPaths {
   }
 
   static cliCommand(...args: string[]): string {
-    return [process.execPath, join(this.projectRoot, "dist", "cli.js"), ...args]
-      .map((part) => this.shellArgument(part))
-      .join(" ");
+    return this.shellCommand([PackageMetadata.NAME, ...args]);
   }
 
   static shellCommand(parts: string[]): string {
