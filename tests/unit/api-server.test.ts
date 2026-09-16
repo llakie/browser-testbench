@@ -1,9 +1,45 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TargetRegistry } from "../../src/config/target-registry.js";
+import { TARGET_NAMES } from "../../src/config/types.js";
+import { DoctorService } from "../../src/setup/doctor-service.js";
+import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
+import { SetupService } from "../../src/setup/setup-service.js";
 import { ApiServer } from "../../src/transports/api-server.js";
 
 describe("ApiServer", () => {
   let server: ApiServer | undefined;
-  afterEach(async () => server?.stop());
+
+  beforeEach(() => {
+    vi.spyOn(DoctorService, "inspect").mockResolvedValue(
+      TARGET_NAMES.map((id) => ({
+        id,
+        label: TargetRegistry.definitions[id].label,
+        status: TargetRegistry.isSupported(id) ? "ready" : "skip",
+        detail: "Test environment",
+      })),
+    );
+    vi.spyOn(SetupService, "plan").mockResolvedValue([]);
+    vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue(
+      (["codex", "claude-code", "gemini-cli", "copilot-vscode", "other"] as McpClientId[]).map((id) => ({
+        id,
+        label: id,
+        installed: false,
+        automatic: false,
+        registered: false,
+        current: false,
+        command: "test command",
+        format: "command",
+        detail: "Test environment",
+        instruction: "Test environment",
+      })),
+    );
+  });
+
+  afterEach(async () => {
+    await server?.stop();
+    server = undefined;
+    vi.restoreAllMocks();
+  });
 
   it("serves health and target metadata on loopback", async () => {
     server = new ApiServer({ host: "127.0.0.1", port: 0 });

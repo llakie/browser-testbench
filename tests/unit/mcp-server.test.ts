@@ -1,10 +1,21 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { TargetRegistry } from "../../src/config/target-registry.js";
+import { TARGET_NAMES } from "../../src/config/types.js";
+import { DoctorService } from "../../src/setup/doctor-service.js";
 import { ApiServer } from "../../src/transports/api-server.js";
 
 describe("MCP transport", () => {
   it("exposes the agent control surface over stdio", async () => {
+    vi.spyOn(DoctorService, "inspect").mockResolvedValue(
+      TARGET_NAMES.map((id) => ({
+        id,
+        label: TargetRegistry.definitions[id].label,
+        status: TargetRegistry.isSupported(id) ? "ready" : "skip",
+        detail: "Test environment",
+      })),
+    );
     const api = new ApiServer({ host: "127.0.0.1", port: 0 });
     const address = await api.start();
     const transport = new StdioClientTransport({
@@ -46,6 +57,7 @@ describe("MCP transport", () => {
     } finally {
       await client.close();
       await api.stop();
+      vi.restoreAllMocks();
     }
-  });
+  }, 15_000);
 });
