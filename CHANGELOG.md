@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Runtime dependencies such as Appium and Font Awesome are now resolved correctly when npm hoists them in workspace and project installations.
 - Mutable Testbench data is now stored in a stable, platform-specific user data directory instead of inside the installed npm package.
 - Closing an iOS session now shuts down its target Simulator and cleans up WebDriverAgent.
+- The initial Safari verification can now run while Safari is waiting for its one-time WebDriver confirmation.
 
 ## [0.1.1] - 2026-09-16
 
