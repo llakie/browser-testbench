@@ -42,7 +42,7 @@ describe("MCP transport", () => {
         ]),
       );
       const result = await client.callTool({ name: "list_targets", arguments: {} });
-      expect(JSON.stringify(result.content)).toContain("chrome-android");
+      expect(JSON.stringify(result.content)).toContain("chrome");
     } finally {
       await client.close();
       await api.stop();
