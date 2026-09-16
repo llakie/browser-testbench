@@ -6,6 +6,7 @@ import { BrowserSession } from "../../src/automation/browser-session.js";
 import { ApiServer } from "../../src/transports/api-server.js";
 
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
+const platformLabel = process.platform === "darwin" ? "macOS" : process.platform === "win32" ? "Windows" : "Linux";
 
 describe("workbench UI browser flow", () => {
   browserTest(
@@ -24,7 +25,7 @@ describe("workbench UI browser flow", () => {
         await browser.navigate(`${baseUrl}/setup`);
         await browser.active.waitForText("Google Chrome", 15_000);
 
-        expect(await browser.active.$("#host-badge").getText()).toContain("macOS");
+        expect(await browser.active.$("#host-badge").getText()).toContain(platformLabel);
         expect(await browser.active.$(".environment-group--capabilities .subsection-heading").getText()).toContain(
           "Availability on this machine",
         );
