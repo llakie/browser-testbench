@@ -1,8 +1,12 @@
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { PackageMetadata } from "../config/package-metadata.js";
+import {
+  McpClientExecutableResolver,
+  type ExecutableMcpClientId,
+  type ResolvedMcpClientExecutable,
+} from "./mcp-client-executable-resolver.js";
 
-const CLIENT_DETECTION_TIMEOUT_MS = 5_000;
 const REGISTRATION_STATUS_TIMEOUT_MS = 8_000;
 const REGISTRATION_UPDATE_TIMEOUT_MS = 15_000;
 
@@ -20,12 +24,15 @@ export interface McpIntegrationStatus {
   format: "command" | "json";
   detail: string;
   instruction: string;
+  executable?: string;
+  executableSource?: ResolvedMcpClientExecutable["source"];
 }
 
 interface McpClientDefinition {
   id: McpClientId;
   label: string;
   binary?: string;
+  environmentVariable?: string;
   versionArgs?: string[];
   statusArgs?: string[];
   addArgs?: string[];
@@ -58,10 +65,14 @@ export class McpIntegrationService {
       };
     }
 
-    const version = await CommandRunner.run(definition.binary, definition.versionArgs ?? ["--version"], {
-      timeoutMs: CLIENT_DETECTION_TIMEOUT_MS,
+    const executable = await McpClientExecutableResolver.resolve({
+      id: id as ExecutableMcpClientId,
+      binary: definition.binary,
+      environmentVariable: definition.environmentVariable!,
+      versionArgs: definition.versionArgs,
     });
-    if (version.code !== 0) {
+    if (!executable) {
+      const configuredPath = process.env[definition.environmentVariable!]?.trim();
       return {
         id,
         label: definition.label,
@@ -71,12 +82,31 @@ export class McpIntegrationService {
         current: false,
         command,
         format: "command",
-        detail: `${definition.label} was not found on this machine.`,
+        detail: configuredPath
+          ? `${definition.label} could not be started through ${definition.environmentVariable}. Check the configured executable path.`
+          : `${definition.label} was not found by the Browser Testbench server. Install its CLI or set ${definition.environmentVariable} before starting the server.`,
         instruction: definition.instruction,
       };
     }
 
-    const registration = await CommandRunner.run(definition.binary, definition.statusArgs ?? [], {
+    if (!definition.statusArgs) {
+      return {
+        id,
+        label: definition.label,
+        installed: true,
+        automatic: false,
+        registered: false,
+        current: false,
+        command,
+        format: "command",
+        detail: `${definition.label} is available. Run the command below to connect Browser Testbench.`,
+        instruction: definition.instruction,
+        executable: executable.command,
+        executableSource: executable.source,
+      };
+    }
+
+    const registration = await CommandRunner.run(executable.command, definition.statusArgs, {
       timeoutMs: REGISTRATION_STATUS_TIMEOUT_MS,
     });
     const output = `${registration.stdout}\n${registration.stderr}`;
@@ -97,6 +127,8 @@ export class McpIntegrationService {
           ? "Connected, but to a different Browser Testbench installation."
           : "Not connected to Browser Testbench yet.",
       instruction: definition.instruction,
+      executable: executable.command,
+      executableSource: executable.source,
     };
   }
 
@@ -105,8 +137,9 @@ export class McpIntegrationService {
     const existing = await this.status(id);
     if (!existing.installed) throw new Error(`${definition.label} was not found on this machine.`);
     if (existing.current) return existing;
+    const executable = existing.executable!;
     if (existing.registered) {
-      const removed = await CommandRunner.run(definition.binary!, definition.removeArgs!, {
+      const removed = await CommandRunner.run(executable, definition.removeArgs!, {
         timeoutMs: REGISTRATION_STATUS_TIMEOUT_MS,
       });
       if (removed.code !== 0) {
@@ -115,7 +148,7 @@ export class McpIntegrationService {
         );
       }
     }
-    const added = await CommandRunner.run(definition.binary!, definition.addArgs!, {
+    const added = await CommandRunner.run(executable, definition.addArgs!, {
       timeoutMs: REGISTRATION_UPDATE_TIMEOUT_MS,
     });
     if (added.code !== 0) {
@@ -132,6 +165,7 @@ export class McpIntegrationService {
         id: "codex",
         label: "Codex",
         binary: "codex",
+        environmentVariable: "BROWSER_TESTBENCH_CODEX_PATH",
         statusArgs: ["mcp", "get", PackageMetadata.NAME, "--json"],
         addArgs: ["mcp", "add", PackageMetadata.NAME, "--", ...stdioCommand],
         removeArgs: ["mcp", "remove", PackageMetadata.NAME],
@@ -141,6 +175,7 @@ export class McpIntegrationService {
         id: "claude-code",
         label: "Claude Code",
         binary: "claude",
+        environmentVariable: "BROWSER_TESTBENCH_CLAUDE_PATH",
         statusArgs: ["mcp", "get", PackageMetadata.NAME],
         addArgs: ["mcp", "add", "--transport", "stdio", "--scope", "user", PackageMetadata.NAME, "--", ...stdioCommand],
         removeArgs: ["mcp", "remove", PackageMetadata.NAME, "--scope", "user"],
@@ -150,6 +185,7 @@ export class McpIntegrationService {
         id: "gemini-cli",
         label: "Gemini CLI",
         binary: "gemini",
+        environmentVariable: "BROWSER_TESTBENCH_GEMINI_PATH",
         statusArgs: ["mcp", "list"],
         addArgs: ["mcp", "add", "--scope", "user", PackageMetadata.NAME, ...stdioCommand],
         removeArgs: ["mcp", "remove", "--scope", "user", PackageMetadata.NAME],
@@ -158,6 +194,8 @@ export class McpIntegrationService {
       {
         id: "copilot-vscode",
         label: "GitHub Copilot in VS Code",
+        binary: "code",
+        environmentVariable: "BROWSER_TESTBENCH_CODE_PATH",
         command: TestbenchPaths.shellCommand(["code", "--add-mcp", vscodeConfig]),
         instruction: "Run the command, then confirm the new MCP server in VS Code.",
       },
