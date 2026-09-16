@@ -18,6 +18,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run check
       - run: npm test
+        env:
+          BTB_BROWSER_TESTS: "1"
       - run: npm run build
