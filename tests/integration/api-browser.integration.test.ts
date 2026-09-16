@@ -50,6 +50,37 @@ describe("REST browser control", () => {
         await browser.append("#name", " Client");
         await browser.waitForValue("#name", "REST Client");
         expect((await browser.state("#name")).value).toBe("REST Client");
+        await browser.evaluate(`
+          setTimeout(() => document.querySelector("main").insertAdjacentHTML(
+            "beforeend",
+            '<p id="delayed-element">Rendered later</p>'
+          ), 250)
+        `);
+        await browser.waitForElement("#delayed-element", 5_000);
+        await browser.evaluate(`
+          setTimeout(() => document.querySelector("main").insertAdjacentHTML(
+            "beforeend",
+            '<input id="delayed-value" value="Ready">'
+          ), 250)
+        `);
+        await browser.waitForValue("#delayed-value", "Ready", 5_000);
+        await browser.evaluate(`
+          setTimeout(() => document.querySelector("main").insertAdjacentHTML(
+            "beforeend",
+            '<p id="delayed-attribute" data-state="ready"></p>'
+          ), 250)
+        `);
+        await browser.waitForAttribute("#delayed-attribute", "data-state", "ready", 5_000);
+        await browser.evaluate(`
+          setTimeout(() => document.querySelector("main").insertAdjacentHTML(
+            "beforeend",
+            '<p id="delayed-text">Rendered later</p>'
+          ), 250)
+        `);
+        await browser.waitForElementText("#delayed-text", "Rendered later", 5_000);
+        const missingElementStartedAt = Date.now();
+        await expect(browser.waitForElement("#never-rendered", 300)).rejects.toThrow();
+        expect(Date.now() - missingElementStartedAt).toBeGreaterThanOrEqual(250);
         await browser.check("#terms");
         await browser.waitForState("#terms", "checked");
         expect((await browser.state("#terms")).selected).toBe(true);
