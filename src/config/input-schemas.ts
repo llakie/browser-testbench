@@ -4,36 +4,8 @@ import { TARGET_NAMES } from "./types.js";
 export class InputSchemas {
   static readonly target = z.enum(TARGET_NAMES);
 
-  static readonly targetConfig = z.union([
-    this.target,
-    z.strictObject({
-      name: this.target,
-      enabled: z.boolean().optional(),
-      headless: z.boolean().optional(),
-      deviceName: z.string().min(1).optional(),
-      platformVersion: z.string().min(1).optional(),
-      avd: z.string().min(1).optional(),
-      udid: z.string().min(1).optional(),
-      downloadDir: z.string().min(1).optional(),
-      recordVideo: z.boolean().optional(),
-      capabilities: z.record(z.string(), z.unknown()).optional(),
-    }),
-  ]);
-
   static readonly targetList = z.strictObject({
     targets: z.array(this.target).min(1).optional(),
-  });
-
-  static readonly config = z.strictObject({
-    name: z.string().min(1),
-    baseUrl: z.url(),
-    targetPolicy: z.enum(["available", "strict"]).optional(),
-    targets: z.array(this.targetConfig).min(1),
-    specs: z.array(z.string()).optional(),
-    artifactsDir: z.string().optional(),
-    timeoutMs: z.number().int().positive().optional(),
-    maxDesktopWorkers: z.number().int().positive().optional(),
-    failFast: z.boolean().optional(),
   });
 
   static readonly startSession = z.strictObject({
@@ -43,6 +15,11 @@ export class InputSchemas {
     downloadDir: z.string().min(1).optional(),
     videoPath: z.string().min(1).optional(),
     capabilities: z.record(z.string(), z.unknown()).optional(),
+  });
+
+  static readonly verification = z.strictObject({
+    target: z.string().min(1),
+    headless: z.boolean().optional(),
   });
 
   static readonly setup = z.strictObject({

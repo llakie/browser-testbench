@@ -2,17 +2,12 @@
 import { resolve } from "node:path";
 import { Command } from "commander";
 import open from "open";
-import { OutputFormatter } from "./artifacts/output-formatter.js";
-import { ConfigLoader } from "./config/config-loader.js";
+import { OutputFormatter } from "./cli/output-formatter.js";
 import { TargetRegistry } from "./config/target-registry.js";
 import { TARGET_NAMES, type TargetName } from "./config/types.js";
-import { TestbenchPaths } from "./infrastructure/paths.js";
-import { TestRunner } from "./orchestration/test-runner.js";
 import { DoctorService } from "./setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "./setup/mcp-integration-service.js";
 import { SetupService } from "./setup/setup-service.js";
-import { VerificationStore } from "./setup/verification-store.js";
-import { FixtureServer } from "./support/fixture-server.js";
 import { ApiServer } from "./transports/api-server.js";
 import { McpServerHost } from "./transports/mcp-server.js";
 import { RemoteTestbench } from "./transports/testbench-client.js";
@@ -82,28 +77,19 @@ program
 
 program
   .command("verify")
-  .description("Run the built-in fixture test against one target")
-  .argument("<target>", `One of: ${TARGET_NAMES.join(", ")}`)
+  .description("Run a remote-control smoke test against one concrete target ID")
+  .argument("<target>", "Test target ID returned by the targets command")
   .option("--headless", "Use headless mode where supported")
-  .action(async (name, options) => {
-    const target = requireTarget(name);
-    const fixture = new FixtureServer();
-    const url = await fixture.start();
-    try {
-      const config = ConfigLoader.fromOptions({
-        name: `verify-${target}`,
-        url,
-        targets: [target],
-        headless: options.headless,
-        specs: [resolve(TestbenchPaths.projectRoot, "examples", "smoke.spec.mjs")],
-      });
-      const summary = await new TestRunner().run(config);
-      if (summary.status === "passed") await VerificationStore.record(target, summary.targets[0]?.runtime);
-      console.log(OutputFormatter.summary(summary));
-      if (summary.status !== "passed") process.exitCode = 1;
-    } finally {
-      await fixture.stop();
-    }
+  .option("--server <url>", "Testbench server URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
+  .option("--json", "Output JSON")
+  .action(async (targetId, options) => {
+    const testbench = new RemoteTestbench({ server: options.server, token: options.token });
+    const target = (await testbench.targets()).find((candidate) => candidate.id === targetId);
+    if (!target) throw new Error(`Unknown target '${targetId}'. Run 'browser-testbench targets' to list valid IDs.`);
+    if (!target.ready) throw new Error(`Target '${targetId}' is not ready: ${target.detail}`);
+    const result = await testbench.verify(target.id, { headless: options.headless });
+    console.log(options.json ? JSON.stringify(result, null, 2) : `PASS ${target.id} (${result.durationMs} ms)`);
   });
 
 program

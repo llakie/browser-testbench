@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { eventBus } from "../../src/orchestration/event-bus.js";
 import { ApiServer } from "../../src/transports/api-server.js";
 
 describe("ApiServer", () => {
@@ -82,6 +81,13 @@ describe("ApiServer", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: "Invalid request" });
 
+    const invalidVerification = await fetch(`http://${address.host}:${address.port}/v1/verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ target: "" }),
+    });
+    expect(invalidVerification.status).toBe(400);
+
     const unknown = await fetch(`http://${address.host}:${address.port}/v1/sessions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -95,20 +101,5 @@ describe("ApiServer", () => {
       body: JSON.stringify({ type: "swipe", direction: "diagonal" }),
     });
     expect(gesture.status).toBe(400);
-  });
-
-  it("streams structured run events over SSE", async () => {
-    server = new ApiServer({ host: "127.0.0.1", port: 0 });
-    const address = await server.start();
-    const response = await fetch(`http://${address.host}:${address.port}/v1/events`);
-    const reader = response.body?.getReader();
-    expect(reader).toBeDefined();
-    await reader?.read();
-    eventBus.publish({ type: "verification.event", data: { ok: true } });
-    const event = await reader?.read();
-    const text = new TextDecoder().decode(event?.value);
-    expect(text).toContain("event: verification.event");
-    expect(text).toContain('"ok":true');
-    await reader?.cancel();
   });
 });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { StartSessionInput } from "../config/input-schemas.js";
 import { InteractiveController } from "./interactive-controller.js";
 import { TargetCatalogService } from "../setup/target-catalog-service.js";
+import { TargetLockManager } from "./target-lock-manager.js";
 
 export interface ManagedSession {
   id: string;
@@ -17,13 +18,13 @@ export class SessionNotFoundError extends Error {}
 
 export class SessionManager {
   private readonly sessions = new Map<string, ManagedSession>();
-  private readonly locks = new Map<string, Array<() => void>>();
+  private readonly locks = new TargetLockManager();
 
   async start(input: StartSessionInput): Promise<PublicManagedSession> {
     const id = randomUUID();
     const controller = new InteractiveController();
     const { target, options } = await TargetCatalogService.sessionOptions(input);
-    const release = target.serial ? await this.acquire(target.id) : () => undefined;
+    const release = target.serial ? await this.locks.acquire(target.id) : () => undefined;
     try {
       const runtime = await controller.start(options);
       const session = { id, target: target.id, createdAt: new Date().toISOString(), controller, runtime, release };
@@ -78,22 +79,5 @@ export class SessionManager {
       createdAt: session.createdAt,
       runtime: session.runtime,
     };
-  }
-
-  private async acquire(targetId: string): Promise<() => void> {
-    const queue = this.locks.get(targetId);
-    if (!queue) {
-      this.locks.set(targetId, []);
-      return () => this.release(targetId);
-    }
-    await new Promise<void>((resolve) => queue.push(resolve));
-    return () => this.release(targetId);
-  }
-
-  private release(targetId: string): void {
-    const queue = this.locks.get(targetId);
-    const next = queue?.shift();
-    if (next) next();
-    else this.locks.delete(targetId);
   }
 }

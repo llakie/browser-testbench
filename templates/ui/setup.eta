@@ -95,7 +95,8 @@
             <h2>Testziele für deine Tests</h2>
             <p>
               Verwende diese eindeutigen IDs direkt in deinen Tests. Die Testbench ordnet sie automatisch dem richtigen
-              Browser, Simulator oder Emulator zu.
+              Browser, Simulator oder Emulator zu. „Einsatzbereit“ bestätigt die Umgebung; nach einem erfolgreichen
+              <code>verify</code>-Lauf siehst du zusätzlich das Testdatum.
             </p>
           </div>
         </div>

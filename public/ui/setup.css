@@ -623,6 +623,23 @@ select:focus {
   font-size: 0.78rem;
 }
 
+.test-target__content .test-target__verification {
+  color: var(--color-success);
+}
+
+.test-target__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.test-target__actions > .button {
+  align-self: end;
+  margin-top: var(--space-2);
+  white-space: nowrap;
+}
+
 .input-with-icon {
   position: relative;
 }
@@ -739,6 +756,7 @@ footer {
 
   .check-grid,
   .test-target-list,
+  .test-target__actions,
   .debug-controls {
     grid-template-columns: 1fr;
   }

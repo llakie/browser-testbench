@@ -50,6 +50,9 @@ sudo safaridriver --enable
 npm run dev -- verify safari
 ```
 
+`verify` akzeptiert jede konkrete ID aus `browser-testbench targets` und führt den Test über den laufenden
+Testbench-Server aus. Derselbe Test kann in der Weboberfläche mit „Testlauf starten“ bewusst ausgelöst werden.
+
 ## Zwei Arbeitsweisen
 
 ### Interaktiv entwickeln und debuggen
@@ -153,7 +156,7 @@ npm run dev -- mcp
 
 Wichtige Werkzeuge:
 
-- Umgebung: `list_targets`, `doctor`
+- Umgebung: `list_targets`, `doctor`, `verify_target`
 - Session: `start_session`, `navigate`, `inspect_page`, `close_session`
 - Bedienung: `click`, `type`, `element_action`, `browser_action`, `tap`, `swipe`, `pinch`
 - Synchronisierung: `wait_for_element`, `wait_for_text`, `wait_for_url`, `wait_for_state`, `wait_for_value`, `wait_for_count`
@@ -165,12 +168,11 @@ Wichtige Werkzeuge:
 GET    /health
 GET    /v1/targets
 GET    /v1/capabilities
+POST   /v1/verify
 GET    /v1/doctor
 GET    /v1/workbench
 POST   /v1/workbench/setup
 POST   /v1/workbench/mcp
-GET    /v1/events
-
 GET    /v1/sessions
 POST   /v1/sessions
 DELETE /v1/sessions/:id
@@ -189,7 +191,7 @@ DELETE /v1/sessions/:id/diagnostics
 GET    /v1/sessions/:id/devtools
 ```
 
-Mehrere Sessions können gleichzeitig bestehen. Mobile Ziele bleiben wegen ihrer Treiber und Geräte typischerweise seriell zu verwenden. Statusereignisse laufen über Server-Sent Events; für normale Client-Aufrufe genügt REST.
+Mehrere Sessions können gleichzeitig bestehen. Mobile Ziele bleiben wegen ihrer Treiber und Geräte typischerweise seriell zu verwenden. Alle Client-Aufrufe laufen über die zentrale REST-API.
 
 ## Kommandozeile
 
@@ -198,7 +200,7 @@ browser-testbench serve [--host 127.0.0.1] [--port 55808] [--token ...] [--no-op
 browser-testbench targets [--server URL] [--token ...] [--json]
 browser-testbench doctor [--targets ...] [--json]
 browser-testbench setup [--targets ...] [--android-avd NAME] [--yes] [--json]
-browser-testbench verify <target> [--headless]
+browser-testbench verify <target-id> [--headless] [--server URL] [--token ...]
 browser-testbench open --target <target> --url <url>
 browser-testbench screenshot --target <target> --url <url> [--output file]
 browser-testbench mcp

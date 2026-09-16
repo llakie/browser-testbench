@@ -240,10 +240,51 @@ for (const target of targets) {
         const detail = this.element("small");
         detail.textContent = target.detail;
         content.append(heading, detail);
-        item.append(content, this.command(target.id, false, "Ziel-ID"));
+        if (target.verifiedAt) {
+          const verification = this.element("small", "test-target__verification");
+          verification.append(
+            this.icon("fa-circle-check"),
+            document.createTextNode(
+              ` Zuletzt erfolgreich getestet: ${new Intl.DateTimeFormat("de-DE", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }).format(new Date(target.verifiedAt))}`,
+            ),
+          );
+          content.append(verification);
+        }
+        const actions = this.element("div", "test-target__actions");
+        actions.append(this.command(target.id, false, "Ziel-ID"));
+        if (target.ready) {
+          const verify = this.element("button", "button button--secondary");
+          verify.type = "button";
+          verify.append(this.icon("fa-circle-play"), document.createTextNode(" Testlauf starten"));
+          verify.addEventListener("click", () => this.verifyTarget(target));
+          actions.append(verify);
+        }
+        item.append(content, actions);
         return item;
       }),
     );
+  }
+
+  static async verifyTarget(target) {
+    this.busy(true);
+    try {
+      const result = await this.request("/v1/verify", {
+        method: "POST",
+        body: JSON.stringify({
+          target: target.id,
+          ...(target.kind === "desktop" && target.browser !== "safari" ? { headless: true } : {}),
+        }),
+      });
+      this.notice(`${target.label} wurde erfolgreich getestet (${result.durationMs} ms).`, "success");
+      await this.refresh();
+    } catch (error) {
+      this.notice(this.message(error), "error");
+    } finally {
+      this.busy(false);
+    }
   }
 
   static async setup() {

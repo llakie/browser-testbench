@@ -6,8 +6,6 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { ZodError } from "zod";
 import { SessionManager, SessionNotFoundError } from "../automation/session-manager.js";
 import { InputSchemas } from "../config/input-schemas.js";
-import type { TestbenchEvent } from "../config/types.js";
-import { eventBus } from "../orchestration/event-bus.js";
 import { DoctorService } from "../setup/doctor-service.js";
 import { SetupService } from "../setup/setup-service.js";
 import { McpIntegrationService } from "../setup/mcp-integration-service.js";
@@ -15,6 +13,7 @@ import { WorkbenchService } from "../setup/workbench-service.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { UiRenderer } from "../ui/ui-renderer.js";
 import { TargetCatalogService, UnknownTargetError } from "../setup/target-catalog-service.js";
+import { TargetVerificationService } from "../setup/target-verification-service.js";
 
 export interface ApiServerOptions {
   host: string;
@@ -24,11 +23,9 @@ export interface ApiServerOptions {
 
 export class ApiServer {
   private readonly sessions = new SessionManager();
-  private readonly clients = new Set<Response>();
   private readonly app = express();
   private readonly server: Server;
   private readonly workbench = new WorkbenchService();
-  private unsubscribe?: () => void;
 
   constructor(private readonly options: ApiServerOptions) {
     this.app.disable("x-powered-by");
@@ -65,7 +62,6 @@ export class ApiServer {
   }
 
   async start(): Promise<{ host: string; port: number }> {
-    this.unsubscribe = eventBus.subscribe((event) => this.broadcast(event));
     await new Promise<void>((resolve, reject) => {
       this.server.once("error", reject);
       this.server.listen(this.options.port, this.options.host, resolve);
@@ -75,8 +71,6 @@ export class ApiServer {
   }
 
   async stop(): Promise<void> {
-    this.unsubscribe?.();
-    for (const client of this.clients) client.end();
     await this.sessions.closeAll();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
   }
@@ -86,6 +80,9 @@ export class ApiServer {
     this.app.get("/v1/targets", async (_request, response) => response.json(await TargetCatalogService.publicList()));
     this.app.get("/v1/doctor", async (_request, response) => response.json(await DoctorService.inspect()));
     this.app.get("/v1/capabilities", async (_request, response) => response.json(await this.workbench.capabilities()));
+    this.app.post("/v1/verify", async (request, response) => {
+      response.json(await TargetVerificationService.run(this.sessions, InputSchemas.verification.parse(request.body)));
+    });
     this.app.get("/v1/workbench", async (_request, response) => response.json(await this.workbench.state()));
     this.app.post("/v1/workbench/setup", async (request, response) => {
       const input = InputSchemas.setup.parse(request.body);
@@ -94,16 +91,6 @@ export class ApiServer {
     this.app.post("/v1/workbench/mcp", async (request, response) => {
       const input = InputSchemas.mcpIntegration.parse(request.body);
       response.json(await McpIntegrationService.register(input.client));
-    });
-    this.app.get("/v1/events", (request, response) => {
-      response.writeHead(200, {
-        "content-type": "text/event-stream",
-        "cache-control": "no-cache",
-        connection: "keep-alive",
-      });
-      response.write(": connected\n\n");
-      this.clients.add(response);
-      request.on("close", () => this.clients.delete(response));
     });
     this.app.get("/v1/sessions", (_request, response) => response.json(this.sessions.list()));
     this.app.post("/v1/sessions", async (request, response) => {
@@ -175,10 +162,5 @@ export class ApiServer {
     const received = Buffer.from(supplied);
     if (expected.length === received.length && timingSafeEqual(expected, received)) return next();
     response.status(401).json({ error: "Unauthorized" });
-  }
-
-  private broadcast(event: TestbenchEvent): void {
-    const payload = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
-    for (const client of this.clients) client.write(payload);
   }
 }

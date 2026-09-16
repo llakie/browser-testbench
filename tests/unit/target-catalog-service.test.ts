@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DoctorCheck, TargetDeviceOption } from "../../src/config/types.js";
 import { TargetCatalogService } from "../../src/setup/target-catalog-service.js";
+import { VerificationStore } from "../../src/setup/verification-store.js";
 
 describe("TargetCatalogService", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("creates readable IDs for desktop browsers and concrete mobile devices", () => {
     const targets = TargetCatalogService.build([
       check("chrome", "ready"),
@@ -42,6 +45,17 @@ describe("TargetCatalogService", () => {
       "safari-ios-iphone-17-pro-26-5-b",
     ]);
     expect(targets.map((target) => target.config.udid)).toEqual(["a", "b"]);
+  });
+
+  it("publishes verification dates without exposing internal device configuration", async () => {
+    vi.spyOn(VerificationStore, "read").mockResolvedValue({
+      target: "chrome",
+      verifiedAt: "2026-09-16T10:00:00.000Z",
+    });
+    const [target] = await TargetCatalogService.toPublic(TargetCatalogService.build([check("chrome", "ready")]));
+
+    expect(target).toMatchObject({ id: "chrome", ready: true, verifiedAt: "2026-09-16T10:00:00.000Z" });
+    expect(target).not.toHaveProperty("config");
   });
 });
 

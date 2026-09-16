@@ -20,6 +20,7 @@ describe("MCP transport", () => {
       expect(tools.tools.map((tool) => tool.name)).toEqual(
         expect.arrayContaining([
           "doctor",
+          "verify_target",
           "start_session",
           "inspect_page",
           "take_screenshot",

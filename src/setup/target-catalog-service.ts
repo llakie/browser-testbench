@@ -7,6 +7,7 @@ import {
   type TestTargetInfo,
 } from "../config/types.js";
 import { DoctorService } from "./doctor-service.js";
+import { VerificationStore } from "./verification-store.js";
 import type { StartSessionInput } from "../config/input-schemas.js";
 
 export class UnknownTargetError extends Error {}
@@ -38,8 +39,13 @@ export class TargetCatalogService {
     return targets;
   }
 
-  static toPublic(targets: TestTarget[]): TestTargetInfo[] {
-    return targets.map(({ config: _config, ...target }) => target);
+  static async toPublic(targets: TestTarget[]): Promise<TestTargetInfo[]> {
+    return Promise.all(
+      targets.map(async ({ config: _config, ...target }) => ({
+        ...target,
+        verifiedAt: (await VerificationStore.read(target.id))?.verifiedAt,
+      })),
+    );
   }
 
   static async sessionOptions(input: StartSessionInput) {

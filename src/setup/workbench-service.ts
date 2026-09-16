@@ -14,7 +14,7 @@ export class WorkbenchService {
       SetupService.plan(targets),
       McpIntegrationService.statuses(),
     ]);
-    const testTargets = TargetCatalogService.toPublic(TargetCatalogService.update(checks));
+    const testTargets = await TargetCatalogService.toPublic(TargetCatalogService.update(checks));
 
     return {
       platform: process.platform,
@@ -35,7 +35,7 @@ export class WorkbenchService {
   async capabilities(): Promise<Record<string, unknown>> {
     const targets = [...TARGET_NAMES];
     const checks = await DoctorService.inspect(targets);
-    const testTargets = TargetCatalogService.toPublic(TargetCatalogService.update(checks));
+    const testTargets = await TargetCatalogService.toPublic(TargetCatalogService.update(checks));
     return {
       platform: process.platform,
       architecture: process.arch,

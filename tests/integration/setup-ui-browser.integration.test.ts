@@ -58,6 +58,9 @@ describe("setup UI browser flow", () => {
             'return document.querySelector("#test-target-list .copy-command").getAttribute("aria-label")',
           ),
         ).toBe("Ziel-ID kopieren");
+        expect(await browser.active.$("#test-target-list .test-target__actions .button").getText()).toBe(
+          "Testlauf starten",
+        );
         await browser.active.execute(`
           const client = document.querySelector("#mcp-client");
           client.value = "claude-code";

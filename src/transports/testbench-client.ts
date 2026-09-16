@@ -10,7 +10,7 @@ import {
   type StartSessionInput,
   type WaitRequest,
 } from "../config/input-schemas.js";
-import type { DoctorCheck, TargetDefinition, TestTargetInfo } from "../config/types.js";
+import type { DoctorCheck, TargetDefinition, TestTargetInfo, VerificationResult } from "../config/types.js";
 
 export interface RemoteTestbenchOptions {
   server?: string;
@@ -92,6 +92,13 @@ export class RemoteTestbench {
       body: JSON.stringify(input),
     });
     return new RemoteSession(this, started);
+  }
+
+  verify(target: string, options: { headless?: boolean } = {}): Promise<VerificationResult> {
+    return this.request<VerificationResult>("/v1/verify", {
+      method: "POST",
+      body: JSON.stringify({ target, ...options }),
+    });
   }
 
   async forEachTarget<T>(

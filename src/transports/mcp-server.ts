@@ -50,6 +50,16 @@ export class McpServerHost {
     );
 
     server.registerTool(
+      "verify_target",
+      {
+        description:
+          "Run the built-in remote-control smoke test against one concrete ready target and close it afterward.",
+        inputSchema: InputSchemas.verification.shape,
+      },
+      async (input) => textResult(await testbench.verify(input.target, { headless: input.headless })),
+    );
+
+    server.registerTool(
       "start_session",
       {
         description: "Start one interactive browser or simulator session using a concrete ID returned by list_targets.",
