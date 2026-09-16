@@ -165,6 +165,16 @@ The web interface generates or installs configuration for Codex, Claude Code, Ge
 browser-testbench mcp
 ```
 
+Browser Testbench resolves supported client CLIs from its process `PATH` and common per-user install locations.
+When a client is installed elsewhere, set its executable explicitly before starting the server:
+
+```bash
+export BROWSER_TESTBENCH_CODEX_PATH=/path/to/codex
+export BROWSER_TESTBENCH_CLAUDE_PATH=/path/to/claude
+export BROWSER_TESTBENCH_GEMINI_PATH=/path/to/gemini
+export BROWSER_TESTBENCH_CODE_PATH=/path/to/code
+```
+
 Key tools:
 
 - Environment: `list_targets`, `doctor`, `verify_target`
