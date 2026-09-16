@@ -66,11 +66,11 @@
     "express": "5.2.1",
     "open": "11.0.4",
     "selenium-webdriver": "4.49.0",
-    "zod": "4.1.12"
+    "zod": "4.6.4"
   },
   "devDependencies": {
     "@types/express": "5.0.6",
-    "@types/node": "24.10.1",
+    "@types/node": "22.20.3",
     "@types/selenium-webdriver": "4.35.7",
     "generate-license-file": "4.1.1",
     "prettier": "3.9.6",
