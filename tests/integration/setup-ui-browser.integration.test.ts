@@ -1,8 +1,13 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { TargetRegistry } from "../../src/config/target-registry.js";
+import { TARGET_NAMES } from "../../src/config/types.js";
 import { BrowserSession } from "../../src/automation/browser-session.js";
+import { DoctorService } from "../../src/setup/doctor-service.js";
+import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
+import { SetupService } from "../../src/setup/setup-service.js";
 import { ApiServer } from "../../src/transports/api-server.js";
 
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
@@ -12,6 +17,29 @@ describe("workbench UI browser flow", () => {
   browserTest(
     "navigates the responsive app shell and operates the workbench pages",
     async () => {
+      vi.spyOn(DoctorService, "inspect").mockResolvedValue(
+        TARGET_NAMES.map((id) => ({
+          id,
+          label: TargetRegistry.definitions[id].label,
+          status: id === "chrome" ? "ready" : "skip",
+          detail: "Browser integration fixture",
+        })),
+      );
+      vi.spyOn(SetupService, "plan").mockResolvedValue([]);
+      vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue(
+        (["codex", "claude-code", "gemini-cli", "copilot-vscode", "other"] as McpClientId[]).map((id) => ({
+          id,
+          label: id,
+          installed: false,
+          automatic: false,
+          registered: false,
+          current: false,
+          command: id === "claude-code" ? "claude mcp add browser-testbench" : "test command",
+          format: "command",
+          detail: "Browser integration fixture",
+          instruction: "Browser integration fixture",
+        })),
+      );
       const directory = await mkdtemp(join(tmpdir(), "browser-testbench-ui-flow-"));
       const screenshotPath = join(directory, "targets-ui.png");
       const api = new ApiServer({ host: "127.0.0.1", port: 0 });
@@ -222,6 +250,7 @@ describe("workbench UI browser flow", () => {
       } finally {
         await browser.close();
         await api.stop();
+        vi.restoreAllMocks();
       }
     },
     60_000,

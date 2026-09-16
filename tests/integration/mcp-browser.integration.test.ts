@@ -48,7 +48,12 @@ describe("MCP browser control", () => {
         const diagnostics = await client.callTool({ name: "get_diagnostics", arguments: {} });
         expect(JSON.stringify(diagnostics.content)).toContain("fixture submitted");
         const screenshot = await client.callTool({ name: "take_screenshot", arguments: { path: screenshotPath } });
-        expect(JSON.stringify(screenshot.content)).toContain(screenshotPath);
+        expect(screenshot.content).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ type: "text", text: screenshotPath }),
+            expect.objectContaining({ type: "image" }),
+          ]),
+        );
         await client.callTool({ name: "close_session", arguments: {} });
       } finally {
         await client.close();
