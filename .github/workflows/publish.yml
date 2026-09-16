@@ -18,7 +18,29 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11
       - run: npm ci
       - run: npm run check
       - run: npm test
-      - run: npm publish
+      - name: Verify release version
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "v$package_version" ]; then
+            echo "Release tag $GITHUB_REF_NAME does not match package version $package_version."
+            exit 1
+          fi
+      - name: Check npm registry
+        id: registry
+        run: |
+          package_name="$(node -p "require('./package.json').name")"
+          package_version="$(node -p "require('./package.json').version")"
+          if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "$package_name@$package_version is already published."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish package
+        if: steps.registry.outputs.already_published != 'true'
+        run: npm publish
