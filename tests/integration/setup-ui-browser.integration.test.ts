@@ -46,7 +46,7 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.execute("return document.documentElement.classList.contains('is-menu-open')")).toBe(
           true,
         );
-        await browser.active.$("#sidebar-backdrop").click();
+        await browser.active.execute('document.querySelector("#sidebar-backdrop").click()');
         expect(await browser.active.execute("return document.documentElement.classList.contains('is-menu-open')")).toBe(
           false,
         );
