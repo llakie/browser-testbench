@@ -104,7 +104,10 @@ export class BrowserElement {
 
   async waitForDisplayed(options: { timeout?: number } = {}): Promise<void> {
     const timeout = options.timeout ?? TestbenchDefaults.WAIT_TIMEOUT_MS;
-    await this.driver.wait(async () => (await this.element()).isDisplayed().catch(() => false), timeout);
+    await this.driver.wait(async () => {
+      const [element] = await this.driver.findElements(By.css(this.selector));
+      return element ? element.isDisplayed().catch(() => false) : false;
+    }, timeout);
   }
 
   async waitForClickable(options: { timeout?: number } = {}): Promise<void> {
@@ -182,6 +185,10 @@ export class BrowserHandle {
 
   $(selector: string): BrowserElement {
     return new BrowserElement(this.driver, selector);
+  }
+
+  private async findOptionalElement(selector: string): Promise<WebElement | undefined> {
+    return (await this.driver.findElements(By.css(selector)))[0];
   }
 
   async elementState(selector: string): Promise<Record<string, unknown>> {
@@ -403,10 +410,10 @@ export class BrowserHandle {
   }
 
   async waitForValue(selector: string, value: string, timeoutMs: number): Promise<void> {
-    await this.driver.wait(
-      async () => (await (await this.driver.findElement(By.css(selector))).getAttribute("value")) === value,
-      timeoutMs,
-    );
+    await this.driver.wait(async () => {
+      const element = await this.findOptionalElement(selector);
+      return element ? (await element.getAttribute("value")) === value : false;
+    }, timeoutMs);
   }
 
   async waitForCount(selector: string, count: number, timeoutMs: number): Promise<void> {
@@ -415,16 +422,18 @@ export class BrowserHandle {
 
   async waitForAttribute(selector: string, name: string, value: string | undefined, timeoutMs: number): Promise<void> {
     await this.driver.wait(async () => {
-      const attribute = await (await this.driver.findElement(By.css(selector))).getAttribute(name);
+      const element = await this.findOptionalElement(selector);
+      if (!element) return false;
+      const attribute = await element.getAttribute(name);
       return value === undefined ? attribute !== null : attribute === value;
     }, timeoutMs);
   }
 
   async waitForElementText(selector: string, text: string, timeoutMs: number): Promise<void> {
-    await this.driver.wait(
-      async () => (await (await this.driver.findElement(By.css(selector))).getText()).includes(text),
-      timeoutMs,
-    );
+    await this.driver.wait(async () => {
+      const element = await this.findOptionalElement(selector);
+      return element ? (await element.getText()).includes(text) : false;
+    }, timeoutMs);
   }
 
   async waitForWindowCount(count: number, timeoutMs: number): Promise<void> {
