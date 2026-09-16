@@ -159,11 +159,15 @@ Screenshots are saved by the client inside the project. For downloads, provide a
 
 ## MCP
 
-The web interface generates or installs configuration for Codex, Claude Code, Gemini CLI, GitHub Copilot in VS Code, and other MCP clients. The MCP server uses `stdio`:
+The web interface generates or installs user-wide configuration for Codex, Claude Code, Gemini CLI, GitHub Copilot in VS Code, and other MCP clients. It uses the Node and npm runtime that launched Browser Testbench to create a project-independent MCP command. Browser Testbench does not need to be installed globally. Restart the AI client after changing its MCP configuration.
+
+The generated configuration starts the latest published MCP server through npm:
 
 ```bash
-browser-testbench mcp
+npx --yes browser-testbench@latest mcp
 ```
+
+You can still start the MCP server directly from an installed package with `browser-testbench mcp`.
 
 Browser Testbench resolves supported client CLIs from its process `PATH` and common per-user install locations.
 When a client is installed elsewhere, set its executable explicitly before starting the server:
@@ -173,6 +177,7 @@ export BROWSER_TESTBENCH_CODEX_PATH=/path/to/codex
 export BROWSER_TESTBENCH_CLAUDE_PATH=/path/to/claude
 export BROWSER_TESTBENCH_GEMINI_PATH=/path/to/gemini
 export BROWSER_TESTBENCH_CODE_PATH=/path/to/code
+export BROWSER_TESTBENCH_NPX_CLI_PATH=/path/to/npx-cli.js
 ```
 
 Key tools:

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandRunner } from "../../src/infrastructure/command-runner.js";
 import { McpIntegrationService } from "../../src/setup/mcp-integration-service.js";
+import { McpServerLauncher } from "../../src/setup/mcp-server-launcher.js";
 
 describe("McpIntegrationService", () => {
   afterEach(() => {
@@ -11,9 +12,7 @@ describe("McpIntegrationService", () => {
   it("provides client-specific setup commands", async () => {
     vi.spyOn(CommandRunner, "run").mockResolvedValue({ code: -1, stdout: "", stderr: "not found" });
 
-    expect((await McpIntegrationService.status("codex")).command).toBe(
-      "codex mcp add browser-testbench -- browser-testbench mcp",
-    );
+    expect((await McpIntegrationService.status("codex")).command).toContain("codex mcp add browser-testbench --");
     expect((await McpIntegrationService.status("claude-code")).command).toContain(
       "claude mcp add --transport stdio --scope user browser-testbench",
     );
@@ -22,16 +21,18 @@ describe("McpIntegrationService", () => {
     );
     expect((await McpIntegrationService.status("copilot-vscode")).command).toContain("code --add-mcp");
     expect((await McpIntegrationService.status("codex")).command).not.toContain("dist/cli.js");
+    expect((await McpIntegrationService.status("codex")).command).toContain("browser-testbench@latest mcp");
   });
 
   it("provides a portable configuration for other MCP clients", async () => {
     const status = await McpIntegrationService.status("other");
     const config = JSON.parse(status.command);
+    const launcher = McpServerLauncher.command();
 
     expect(status.format).toBe("json");
-    expect(config.mcpServers["browser-testbench"]).toMatchObject({
-      command: "browser-testbench",
-      args: ["mcp"],
+    expect(config.mcpServers["browser-testbench"]).toEqual({
+      command: launcher.command,
+      args: launcher.args,
     });
   });
 
@@ -40,7 +41,7 @@ describe("McpIntegrationService", () => {
       .mockResolvedValueOnce({ code: 0, stdout: "2.1.0", stderr: "" })
       .mockResolvedValueOnce({
         code: 0,
-        stdout: "browser-testbench: browser-testbench mcp",
+        stdout: "browser-testbench: node npx-cli.js --yes browser-testbench@latest mcp",
         stderr: "",
       });
 
@@ -52,11 +53,12 @@ describe("McpIntegrationService", () => {
   });
 
   it("recognizes a portable Codex JSON connection", async () => {
+    const launcher = McpServerLauncher.command();
     vi.spyOn(CommandRunner, "run")
       .mockResolvedValueOnce({ code: 0, stdout: "1.0.0", stderr: "" })
       .mockResolvedValueOnce({
         code: 0,
-        stdout: JSON.stringify({ transport: { command: "browser-testbench", args: ["mcp"] } }),
+        stdout: JSON.stringify({ transport: launcher }),
         stderr: "",
       });
 
@@ -64,13 +66,14 @@ describe("McpIntegrationService", () => {
   });
 
   it("uses an explicit client executable outside the server PATH", async () => {
+    const launcher = McpServerLauncher.command();
     vi.stubEnv("BROWSER_TESTBENCH_CODEX_PATH", "/opt/codex/bin/codex");
     const run = vi
       .spyOn(CommandRunner, "run")
       .mockResolvedValueOnce({ code: 0, stdout: "1.0.0", stderr: "" })
       .mockResolvedValueOnce({
         code: 0,
-        stdout: JSON.stringify({ transport: { command: "browser-testbench", args: ["mcp"] } }),
+        stdout: JSON.stringify({ transport: launcher }),
         stderr: "",
       });
 
@@ -89,13 +92,13 @@ describe("McpIntegrationService", () => {
 
   it("uses the resolved executable when replacing a non-portable connection", async () => {
     vi.stubEnv("BROWSER_TESTBENCH_CODEX_PATH", "/opt/codex/bin/codex");
-    const portableConnection = JSON.stringify({
-      transport: { command: "browser-testbench", args: ["mcp"] },
-    });
+    const launcher = McpServerLauncher.command();
+    const portableConnection = JSON.stringify({ transport: launcher });
     const run = vi
       .spyOn(CommandRunner, "run")
       .mockResolvedValueOnce({ code: 0, stdout: "1.0.0", stderr: "" })
       .mockResolvedValueOnce({ code: 0, stdout: "/local/dist/cli.js browser-testbench", stderr: "" })
+      .mockResolvedValueOnce({ code: 0, stdout: "0.1.3", stderr: "" })
       .mockResolvedValueOnce({ code: 0, stdout: "", stderr: "" })
       .mockResolvedValueOnce({ code: 0, stdout: "", stderr: "" })
       .mockResolvedValueOnce({ code: 0, stdout: "1.0.0", stderr: "" })
@@ -103,17 +106,32 @@ describe("McpIntegrationService", () => {
 
     await expect(McpIntegrationService.register("codex")).resolves.toMatchObject({ current: true });
     expect(run).toHaveBeenNthCalledWith(
-      3,
+      4,
       "/opt/codex/bin/codex",
       ["mcp", "remove", "browser-testbench"],
       expect.any(Object),
     );
     expect(run).toHaveBeenNthCalledWith(
-      4,
+      5,
       "/opt/codex/bin/codex",
-      ["mcp", "add", "browser-testbench", "--", "browser-testbench", "mcp"],
+      ["mcp", "add", "browser-testbench", "--", launcher.command, ...launcher.args],
       expect.any(Object),
     );
+  });
+
+  it("does not report the old globally installed command as ready", async () => {
+    vi.spyOn(CommandRunner, "run")
+      .mockResolvedValueOnce({ code: 0, stdout: "1.0.0", stderr: "" })
+      .mockResolvedValueOnce({
+        code: 0,
+        stdout: JSON.stringify({ transport: { command: "browser-testbench", args: ["mcp"] } }),
+        stderr: "",
+      });
+
+    await expect(McpIntegrationService.status("codex")).resolves.toMatchObject({
+      registered: true,
+      current: false,
+    });
   });
 
   it("checks whether the VS Code command-line launcher is actually available", async () => {

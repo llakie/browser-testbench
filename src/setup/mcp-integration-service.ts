@@ -6,9 +6,11 @@ import {
   type ExecutableMcpClientId,
   type ResolvedMcpClientExecutable,
 } from "./mcp-client-executable-resolver.js";
+import { McpServerLauncher } from "./mcp-server-launcher.js";
 
 const REGISTRATION_STATUS_TIMEOUT_MS = 8_000;
 const REGISTRATION_UPDATE_TIMEOUT_MS = 15_000;
+const MCP_LAUNCHER_PREPARATION_TIMEOUT_MS = 120_000;
 
 export type McpClientId = "codex" | "claude-code" | "gemini-cli" | "copilot-vscode" | "other";
 export type AutomaticMcpClientId = Extract<McpClientId, "codex" | "claude-code" | "gemini-cli">;
@@ -48,6 +50,7 @@ export class McpIntegrationService {
   }
 
   static async status(id: McpClientId): Promise<McpIntegrationStatus> {
+    await McpServerLauncher.prepare();
     const definition = this.definition(id);
     const command = this.setupValue(definition);
     if (!definition.binary) {
@@ -111,7 +114,7 @@ export class McpIntegrationService {
     });
     const output = `${registration.stdout}\n${registration.stderr}`;
     const registered = output.includes(PackageMetadata.NAME);
-    const current = registration.code === 0 && registered && this.usesPortableCommand(registration.stdout, output);
+    const current = registration.code === 0 && registered && this.usesManagedLauncher(registration.stdout, output);
     return {
       id,
       label: definition.label,
@@ -122,9 +125,9 @@ export class McpIntegrationService {
       command,
       format: "command",
       detail: current
-        ? "Connected and ready."
+        ? "Configured for new sessions."
         : registered
-          ? "Connected, but to a different Browser Testbench installation."
+          ? "Configured with an outdated or project-dependent Browser Testbench launcher."
           : "Not connected to Browser Testbench yet.",
       instruction: definition.instruction,
       executable: executable.command,
@@ -138,6 +141,16 @@ export class McpIntegrationService {
     if (!existing.installed) throw new Error(`${definition.label} was not found on this machine.`);
     if (existing.current) return existing;
     const executable = existing.executable!;
+    const launcher = McpServerLauncher.command();
+    const prepared = await CommandRunner.run(launcher.command, launcher.verificationArgs, {
+      timeoutMs: MCP_LAUNCHER_PREPARATION_TIMEOUT_MS,
+    });
+    if (prepared.code !== 0) {
+      throw new Error(
+        prepared.stderr.trim() ||
+          "The project-independent Browser Testbench MCP launcher could not be prepared through npm.",
+      );
+    }
     if (existing.registered) {
       const removed = await CommandRunner.run(executable, definition.removeArgs!, {
         timeoutMs: REGISTRATION_STATUS_TIMEOUT_MS,
@@ -158,8 +171,13 @@ export class McpIntegrationService {
   }
 
   private static definitions(): McpClientDefinition[] {
-    const stdioCommand = [PackageMetadata.NAME, "mcp"];
-    const vscodeConfig = JSON.stringify({ name: PackageMetadata.NAME, command: stdioCommand[0], args: ["mcp"] });
+    const launcher = McpServerLauncher.command();
+    const stdioCommand = [launcher.command, ...launcher.args];
+    const vscodeConfig = JSON.stringify({
+      name: PackageMetadata.NAME,
+      command: launcher.command,
+      args: launcher.args,
+    });
     return [
       {
         id: "codex",
@@ -169,7 +187,7 @@ export class McpIntegrationService {
         statusArgs: ["mcp", "get", PackageMetadata.NAME, "--json"],
         addArgs: ["mcp", "add", PackageMetadata.NAME, "--", ...stdioCommand],
         removeArgs: ["mcp", "remove", PackageMetadata.NAME],
-        instruction: "The connection is user-wide and therefore available in every project.",
+        instruction: "The connection applies to new Codex sessions in every project. Restart Codex after setup.",
       },
       {
         id: "claude-code",
@@ -179,7 +197,7 @@ export class McpIntegrationService {
         statusArgs: ["mcp", "get", PackageMetadata.NAME],
         addArgs: ["mcp", "add", "--transport", "stdio", "--scope", "user", PackageMetadata.NAME, "--", ...stdioCommand],
         removeArgs: ["mcp", "remove", PackageMetadata.NAME, "--scope", "user"],
-        instruction: "The connection is added to the user-wide Claude Code profile.",
+        instruction: "The connection applies to new Claude Code sessions in every project. Restart after setup.",
       },
       {
         id: "gemini-cli",
@@ -189,7 +207,7 @@ export class McpIntegrationService {
         statusArgs: ["mcp", "list"],
         addArgs: ["mcp", "add", "--scope", "user", PackageMetadata.NAME, ...stdioCommand],
         removeArgs: ["mcp", "remove", "--scope", "user", PackageMetadata.NAME],
-        instruction: "The connection is added to the user-wide Gemini CLI profile.",
+        instruction: "The connection applies to new Gemini CLI sessions in every project. Restart after setup.",
       },
       {
         id: "copilot-vscode",
@@ -203,7 +221,7 @@ export class McpIntegrationService {
         id: "other",
         label: "Other MCP client",
         format: "json",
-        instruction: "Add this standard local MCP entry to your client's configuration.",
+        instruction: "Add this project-independent MCP entry to your client's configuration, then restart it.",
       },
     ];
   }
@@ -217,12 +235,13 @@ export class McpIntegrationService {
   private static setupValue(definition: McpClientDefinition): string {
     if (definition.command) return definition.command;
     if (!definition.binary) {
+      const launcher = McpServerLauncher.command();
       return JSON.stringify(
         {
           mcpServers: {
             [PackageMetadata.NAME]: {
-              command: PackageMetadata.NAME,
-              args: ["mcp"],
+              command: launcher.command,
+              args: launcher.args,
             },
           },
         },
@@ -233,22 +252,27 @@ export class McpIntegrationService {
     return TestbenchPaths.shellCommand([definition.binary, ...(definition.addArgs ?? [])]);
   }
 
-  private static usesPortableCommand(stdout: string, output: string): boolean {
+  private static usesManagedLauncher(stdout: string, output: string): boolean {
     try {
-      if (this.containsPortableCommand(JSON.parse(stdout))) return true;
+      if (this.containsManagedLauncher(JSON.parse(stdout))) return true;
     } catch {
       // Some MCP clients return human-readable status output instead of JSON.
     }
-    return output.includes(`${PackageMetadata.NAME} mcp`);
+    return output.includes(`${PackageMetadata.NAME}@latest`) && output.includes("mcp");
   }
 
-  private static containsPortableCommand(value: unknown): boolean {
+  private static containsManagedLauncher(value: unknown): boolean {
     if (!value || typeof value !== "object") return false;
     if (!Array.isArray(value)) {
       const record = value as Record<string, unknown>;
-      if (record.command === PackageMetadata.NAME && Array.isArray(record.args) && record.args[0] === "mcp")
-        return true;
+      if (Array.isArray(record.args) && this.isManagedLauncherArgs(record.args)) return true;
     }
-    return Object.values(value).some((entry) => this.containsPortableCommand(entry));
+    return Object.values(value).some((entry) => this.containsManagedLauncher(entry));
+  }
+
+  private static isManagedLauncherArgs(args: unknown[]): boolean {
+    const values = args.filter((value): value is string => typeof value === "string");
+    const packageIndex = values.indexOf(`${PackageMetadata.NAME}@latest`);
+    return packageIndex >= 0 && values[packageIndex + 1] === "mcp";
   }
 }
