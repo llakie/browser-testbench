@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TestTarget } from "../../src/config/types.js";
+import { IosSimulatorCleanup } from "../../src/automation/ios-simulator-cleanup.js";
+import type { TargetConfig } from "../../src/config/types.js";
 import { CommandRunner } from "../../src/infrastructure/command-runner.js";
-import { IosVerificationCleanup } from "../../src/setup/ios-verification-cleanup.js";
 
-describe("IosVerificationCleanup", () => {
+describe("IosSimulatorCleanup", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it.runIf(process.platform === "darwin")("terminates WebDriverAgent and closes the last simulator", async () => {
@@ -19,7 +19,7 @@ describe("IosVerificationCleanup", () => {
         stderr: "",
       });
 
-    await IosVerificationCleanup.run(target());
+    await IosSimulatorCleanup.run(target());
 
     expect(run).toHaveBeenNthCalledWith(
       1,
@@ -45,22 +45,15 @@ describe("IosVerificationCleanup", () => {
         stderr: "",
       });
 
-    await IosVerificationCleanup.run(target());
+    await IosSimulatorCleanup.run(target());
 
     expect(run).toHaveBeenCalledTimes(4);
   });
 });
 
-function target(): TestTarget {
+function target(): TargetConfig {
   return {
-    id: "safari-ios-iphone-17-pro-26-5",
-    browser: "safari-ios",
-    label: "iPhone 17 Pro",
-    kind: "mobile",
-    status: "ready",
-    ready: true,
-    serial: true,
-    detail: "Ready",
-    config: { name: "safari-ios", udid: "SIMULATOR-ID" },
+    name: "safari-ios",
+    udid: "SIMULATOR-ID",
   };
 }

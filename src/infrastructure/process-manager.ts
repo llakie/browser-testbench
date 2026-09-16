@@ -63,13 +63,24 @@ export class ManagedProcess {
 export class ServiceManager {
   static async startAppium(): Promise<{ process: ManagedProcess; port: number }> {
     const port = await this.freePort();
-    const appiumHome = TestbenchPaths.cache("appium");
+    const appiumHome = TestbenchPaths.data("appium");
     await mkdir(appiumHome, { recursive: true });
-    await mkdir(TestbenchPaths.cache("chromedrivers"), { recursive: true });
-    const executable = TestbenchPaths.localBinary("appium");
+    await mkdir(TestbenchPaths.data("chromedrivers"), { recursive: true });
+    const executable = TestbenchPaths.packageBinary("appium");
     const androidSdkRoot = await AndroidSdk.root();
-    const process = new ManagedProcess(
-      `\"${executable}\" --address ${TestbenchDefaults.LOOPBACK_HOST} --port ${port} --log-level warn --allow-insecure uiautomator2:chromedriver_autodownload`,
+    const managedProcess = new ManagedProcess(
+      TestbenchPaths.shellCommand([
+        process.execPath,
+        executable,
+        "--address",
+        TestbenchDefaults.LOOPBACK_HOST,
+        "--port",
+        String(port),
+        "--log-level",
+        "warn",
+        "--allow-insecure",
+        "uiautomator2:chromedriver_autodownload",
+      ]),
       TestbenchPaths.projectRoot,
       {
         APPIUM_HOME: appiumHome,
@@ -80,11 +91,11 @@ export class ServiceManager {
       await this.waitForUrl(
         `http://${TestbenchDefaults.LOOPBACK_HOST}:${port}/status`,
         APPIUM_START_TIMEOUT_MS,
-        process,
+        managedProcess,
       );
-      return { process, port };
+      return { process: managedProcess, port };
     } catch (error) {
-      await process.stop();
+      await managedProcess.stop();
       throw error;
     }
   }

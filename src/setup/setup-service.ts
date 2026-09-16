@@ -64,7 +64,7 @@ export class SetupService {
     const results: SetupAction[] = [];
     const mobileTargets = targets.filter((target) => target === "safari-ios" || target === "chrome-android");
     if (mobileTargets.length > 0) {
-      const appiumHome = TestbenchPaths.cache("appium");
+      const appiumHome = TestbenchPaths.data("appium");
       await mkdir(appiumHome, { recursive: true });
       const existingDrivers = new Map(
         (await this.appiumDriverStatus(mobileTargets)).map((driver) => [driver.name, driver]),
@@ -83,8 +83,8 @@ export class SetupService {
         }
         options.onOutput?.(`Installing Appium driver ${driver} …`);
         const installation = await CommandRunner.run(
-          TestbenchPaths.localBinary("appium"),
-          ["driver", "install", driver],
+          process.execPath,
+          [TestbenchPaths.packageBinary("appium"), "driver", "install", driver],
           {
             env: { ...process.env, APPIUM_HOME: appiumHome },
             timeoutMs: DRIVER_INSTALL_TIMEOUT_MS,
@@ -119,10 +119,10 @@ export class SetupService {
     ];
     if (drivers.length === 0) return [];
     const listed = await CommandRunner.run(
-      TestbenchPaths.localBinary("appium"),
-      ["driver", "list", "--installed", "--json"],
+      process.execPath,
+      [TestbenchPaths.packageBinary("appium"), "driver", "list", "--installed", "--json"],
       {
-        env: { ...process.env, APPIUM_HOME: TestbenchPaths.cache("appium") },
+        env: { ...process.env, APPIUM_HOME: TestbenchPaths.data("appium") },
         timeoutMs: DRIVER_STATUS_TIMEOUT_MS,
       },
     );

@@ -63,10 +63,7 @@ export class ApiServer {
       response.sendFile(join(TestbenchPaths.projectRoot, "THIRD_PARTY_LICENSES.txt")),
     );
     this.app.use("/ui-assets", express.static(join(TestbenchPaths.projectRoot, "public", "ui")));
-    this.app.use(
-      "/fontawesome",
-      express.static(join(TestbenchPaths.projectRoot, "node_modules", "@fortawesome", "fontawesome-free")),
-    );
+    this.app.use("/fontawesome", express.static(TestbenchPaths.packageDirectory("@fortawesome/fontawesome-free")));
   }
 
   async start(): Promise<{ host: string; port: number }> {
