@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { extname } from "node:path";
 
 export interface CommandResult {
   code: number;
@@ -13,12 +14,24 @@ export class CommandRunner {
     options: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number; input?: string } = {},
   ): Promise<CommandResult> {
     return new Promise((resolve) => {
-      const child = spawn(command, args, {
-        cwd: options.cwd,
-        env: options.env ?? process.env,
-        stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-        windowsHide: true,
-      });
+      let child: ChildProcess;
+      try {
+        const requiresWindowsShell = this.requiresWindowsShell(command);
+        child = spawn(
+          requiresWindowsShell ? this.windowsShellCommand(command, args) : command,
+          requiresWindowsShell ? [] : args,
+          {
+            cwd: options.cwd,
+            env: options.env ?? process.env,
+            shell: requiresWindowsShell,
+            stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+            windowsHide: true,
+          },
+        );
+      } catch (error) {
+        resolve({ code: -1, stdout: "", stderr: error instanceof Error ? error.message : String(error) });
+        return;
+      }
       let stdout = "";
       let stderr = "";
       const timer = options.timeoutMs ? setTimeout(() => child.kill("SIGTERM"), options.timeoutMs) : undefined;
@@ -35,6 +48,16 @@ export class CommandRunner {
         resolve({ code: code ?? -1, stdout, stderr });
       });
     });
+  }
+
+  private static requiresWindowsShell(command: string): boolean {
+    if (process.platform !== "win32") return false;
+    const extension = extname(command).toLowerCase();
+    return extension === ".cmd" || extension === ".bat";
+  }
+
+  private static windowsShellCommand(command: string, args: string[]): string {
+    return [command, ...args].map((value) => `"${value.replaceAll('"', '""')}"`).join(" ");
   }
 
   static spawnShell(command: string, options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): ChildProcess {
