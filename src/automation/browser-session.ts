@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import type { TargetConfig } from "../config/types.js";
+import { AndroidUsbNetwork } from "./android-usb-network.js";
 
 export class BrowserElement {
   constructor(
@@ -478,6 +479,8 @@ export class KeyboardKeys {
 
 export class BrowserSession {
   private browser?: BrowserHandle;
+  private androidUsbNetwork?: AndroidUsbNetwork;
+  private target?: TargetConfig;
 
   get active(): BrowserHandle {
     if (!this.browser) throw new Error("No browser session is active.");
@@ -491,22 +494,38 @@ export class BrowserSession {
     if (this.browser) await this.close();
     const isMobile = TargetRegistry.definitions[target.name].kind === "mobile";
     const serverUrl = isMobile ? `http://${TestbenchDefaults.LOOPBACK_HOST}:${options.appiumPort}` : undefined;
-    this.browser = await BrowserHandle.create(TargetRegistry.capabilities(target), serverUrl);
-    return this.browser;
+    this.target = target;
+    this.androidUsbNetwork = new AndroidUsbNetwork(target);
+    try {
+      this.browser = await BrowserHandle.create(TargetRegistry.capabilities(target), serverUrl);
+      return this.browser;
+    } catch (error) {
+      this.target = undefined;
+      this.androidUsbNetwork = undefined;
+      throw error;
+    }
   }
 
   async navigate(url: string): Promise<void> {
-    await this.active.url(url);
+    const mapped = this.target ? BrowserSession.urlForTarget(url, this.target) : url;
+    const prepared = await this.androidUsbNetwork?.prepare(mapped);
+    await this.active.url(prepared ?? mapped);
   }
 
   async close(): Promise<void> {
     const current = this.browser;
     this.browser = undefined;
-    if (current) await current.deleteSession();
+    try {
+      if (current) await current.deleteSession();
+    } finally {
+      await this.androidUsbNetwork?.close();
+      this.androidUsbNetwork = undefined;
+      this.target = undefined;
+    }
   }
 
   static urlForTarget(url: string, target: TargetConfig): string {
-    if (target.name !== "chrome-android") return url;
+    if (target.name !== "chrome-android" || target.deviceKind === "physical") return url;
     const parsed = new URL(url);
     if (parsed.hostname === "localhost" || parsed.hostname === TestbenchDefaults.LOOPBACK_HOST) {
       parsed.hostname = TestbenchDefaults.ANDROID_EMULATOR_LOOPBACK_HOST;

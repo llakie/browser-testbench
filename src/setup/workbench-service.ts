@@ -9,9 +9,9 @@ import { TargetCatalogService } from "./target-catalog-service.js";
 export class WorkbenchService {
   async state(): Promise<Record<string, unknown>> {
     const targets = [...TARGET_NAMES];
-    const [checks, actions, mcpClients] = await Promise.all([
-      DoctorService.inspect(targets),
-      SetupService.plan(targets),
+    const checks = await DoctorService.inspect(targets);
+    const [actions, mcpClients] = await Promise.all([
+      SetupService.plan(targets, checks),
       McpIntegrationService.statuses(),
     ]);
     const testTargets = await TargetCatalogService.toPublic(TargetCatalogService.update(checks));

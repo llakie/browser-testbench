@@ -21,6 +21,10 @@ export class AndroidSdk {
     return { ANDROID_HOME: root, ANDROID_SDK_ROOT: root };
   }
 
+  static adb(root: string, platform: NodeJS.Platform = process.platform): string {
+    return join(root, "platform-tools", this.executableName("adb", ".exe", platform));
+  }
+
   static executableName(
     name: string,
     windowsExtension: ".exe" | ".bat" = ".exe",

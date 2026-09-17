@@ -4,7 +4,7 @@ import { TargetRegistry } from "../config/target-registry.js";
 import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
-import { DoctorService } from "./doctor-service.js";
+import { AndroidDeviceService } from "./android-device-service.js";
 import type { SetupAction } from "./setup-types.js";
 
 const SDK_COMMAND_TIMEOUT_MS = 8_000;
@@ -193,7 +193,7 @@ export class AndroidAvdService {
   }
 
   private static async environment(): Promise<AndroidAvdEnvironment | undefined> {
-    const sdkRoot = await DoctorService.androidSdkRoot();
+    const sdkRoot = await AndroidSdk.root();
     if (!sdkRoot) return undefined;
     const emulator = join(sdkRoot, "emulator", AndroidSdk.executableName("emulator"));
     if (!(await this.exists(emulator))) return undefined;
@@ -205,7 +205,7 @@ export class AndroidAvdService {
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
-    const options = await DoctorService.androidDeviceOptions(names);
+    const options = await AndroidDeviceService.avdOptions(names);
     return {
       sdkRoot,
       compatibleNames: options.filter((option) => option.compatible).map((option) => option.name),

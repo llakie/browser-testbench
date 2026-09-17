@@ -72,6 +72,9 @@ describe("ApiServer", () => {
     );
     expect((await fetch(`${baseUrl}/licenses`)).status).toBe(404);
     expect((await fetch(`${baseUrl}/ui-assets/setup.css`)).status).toBe(200);
+    expect(await fetch(`${baseUrl}/ui-assets/environment-events.js`).then((response) => response.text())).toContain(
+      "EnvironmentEventStream",
+    );
 
     const initial = (await fetch(`${baseUrl}/v1/workbench`).then((response) => response.json())) as {
       platform: string;
@@ -132,6 +135,16 @@ describe("ApiServer", () => {
     });
     expect(unauthorized.status).toBe(401);
     expect(authorized.status).toBe(200);
+
+    const unauthorizedEvents = await fetch(`http://${address.host}:${address.port}/v1/events`);
+    expect(unauthorizedEvents.status).toBe(401);
+    const eventResponse = await fetch(`http://${address.host}:${address.port}/v1/events`, {
+      headers: { authorization: "Bearer test-secret" },
+    });
+    const reader = eventResponse.body!.getReader();
+    const firstEvent = await reader.read();
+    expect(new TextDecoder().decode(firstEvent.value)).toContain("event: connected");
+    await reader.cancel();
   });
 
   it("rejects invalid requests at the API boundary", async () => {

@@ -1,5 +1,6 @@
 import { TARGET_NAMES, type TargetConfig, type TargetDefinition, type TargetName } from "./types.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
+import { TestbenchDefaults } from "./defaults.js";
 
 export class TargetRegistry {
   static readonly definitions: Record<TargetName, TargetDefinition> = {
@@ -40,7 +41,7 @@ export class TargetRegistry {
     },
     "chrome-android": {
       name: "chrome-android",
-      label: "Chrome in the Android Emulator",
+      label: "Chrome on Android",
       kind: "mobile",
       supportedPlatforms: ["darwin", "win32", "linux"],
       serial: true,
@@ -134,6 +135,8 @@ export class TargetRegistry {
           "appium:automationName": "UiAutomator2",
           "appium:deviceName": target.deviceName ?? "Android Emulator",
           "appium:chromedriverExecutableDir": TestbenchPaths.data("chromedrivers"),
+          "appium:adbExecTimeout": TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS,
+          "appium:uiautomator2ServerInstallTimeout": TestbenchDefaults.ANDROID_UIAUTOMATOR_INSTALL_TIMEOUT_MS,
           ...(target.platformVersion ? { "appium:platformVersion": target.platformVersion } : {}),
           ...(target.avd ? { "appium:avd": target.avd } : {}),
           ...(target.udid ? { "appium:udid": target.udid } : {}),

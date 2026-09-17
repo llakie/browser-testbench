@@ -15,12 +15,20 @@ import { UiRenderer } from "../ui/ui-renderer.js";
 import { UiLiveReload } from "../ui/ui-live-reload.js";
 import { TargetCatalogService, UnknownTargetError } from "../setup/target-catalog-service.js";
 import { TargetVerificationService } from "../setup/target-verification-service.js";
+import { AndroidDeviceMonitor } from "../setup/android-device-monitor.js";
+import { WorkbenchEvents } from "../setup/workbench-events.js";
+import { WorkbenchEventStream } from "./workbench-event-stream.js";
 
 export interface ApiServerOptions {
   host: string;
   port: number;
   token?: string;
   liveReload?: boolean;
+}
+
+export interface ApiServerDependencies {
+  events?: WorkbenchEvents;
+  androidMonitor?: AndroidDeviceMonitor;
 }
 
 export class ApiServer {
@@ -30,8 +38,18 @@ export class ApiServer {
   private readonly workbench = new WorkbenchService();
   private readonly liveReload?: UiLiveReload;
   private readonly liveReloadResponses = new Set<Response>();
+  private readonly events: WorkbenchEvents;
+  private readonly eventStream: WorkbenchEventStream;
+  private readonly androidMonitor: AndroidDeviceMonitor;
 
-  constructor(private readonly options: ApiServerOptions) {
+  constructor(
+    private readonly options: ApiServerOptions,
+    dependencies: ApiServerDependencies = {},
+  ) {
+    this.events = dependencies.events ?? new WorkbenchEvents();
+    this.eventStream = new WorkbenchEventStream(this.events);
+    this.androidMonitor =
+      dependencies.androidMonitor ?? new AndroidDeviceMonitor(() => this.notifyEnvironmentChanged("android"));
     if (options.liveReload) {
       this.liveReload = new UiLiveReload([
         join(TestbenchPaths.projectRoot, "templates", "ui"),
@@ -96,14 +114,17 @@ export class ApiServer {
       this.server.listen(this.options.port, this.options.host, resolve);
     });
     this.liveReload?.start();
+    this.androidMonitor.start();
     const address = this.server.address() as AddressInfo;
     return { host: this.options.host, port: address.port };
   }
 
   async stop(): Promise<void> {
     this.liveReload?.stop();
+    this.androidMonitor.stop();
     for (const response of this.liveReloadResponses) response.end();
     this.liveReloadResponses.clear();
+    this.eventStream.close();
     await this.sessions.closeAll();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
   }
@@ -131,6 +152,7 @@ export class ApiServer {
 
   private registerRoutes(): void {
     this.app.get("/health", (_request, response) => response.json({ status: "ok" }));
+    this.app.get("/v1/events", (_request, response) => this.eventStream.connect(response));
     this.app.get("/v1/targets", async (_request, response) => response.json(await TargetCatalogService.publicList()));
     this.app.get("/v1/doctor", async (_request, response) => response.json(await DoctorService.inspect()));
     this.app.get("/v1/capabilities", async (_request, response) => response.json(await this.workbench.capabilities()));
@@ -156,48 +178,50 @@ export class ApiServer {
     });
     this.app.get("/v1/sessions/:id/inspect", async (request, response) => {
       const { limit } = InputSchemas.inspect.parse(request.query);
-      response.json(await this.sessions.get(request.params.id).inspect(limit));
+      response.json(await this.sessions.run(request.params.id, (session) => session.inspect(limit)));
     });
     this.app.get("/v1/sessions/:id/source", async (request, response) => {
       const { maxCharacters } = InputSchemas.pageSource.parse(request.query);
-      response.json(await this.sessions.get(request.params.id).source(maxCharacters));
+      response.json(await this.sessions.run(request.params.id, (session) => session.source(maxCharacters)));
     });
     this.app.post("/v1/sessions/:id/navigate", async (request, response) => {
       const { url } = InputSchemas.navigate.parse(request.body);
-      response.json(await this.sessions.get(request.params.id).navigate(url));
+      response.json(await this.sessions.run(request.params.id, (session) => session.navigate(url)));
     });
     this.app.post("/v1/sessions/:id/click", async (request, response) => {
       const { selector } = InputSchemas.click.parse(request.body);
-      await this.sessions.get(request.params.id).click(selector);
+      await this.sessions.run(request.params.id, (session) => session.click(selector));
       response.json({ clicked: selector });
     });
     this.app.post("/v1/sessions/:id/type", async (request, response) => {
       const { selector, value, clear } = InputSchemas.type.parse(request.body);
-      await this.sessions.get(request.params.id).type(selector, value, clear);
+      await this.sessions.run(request.params.id, (session) => session.type(selector, value, clear));
       response.json({ typed: selector });
     });
     this.app.post("/v1/sessions/:id/element", async (request, response) => {
       const input = InputSchemas.elementAction.parse(request.body);
-      response.json(await this.sessions.get(request.params.id).elementAction(input));
+      response.json(await this.sessions.run(request.params.id, (session) => session.elementAction(input)));
     });
     this.app.post("/v1/sessions/:id/browser", async (request, response) => {
       const input = InputSchemas.browserAction.parse(request.body);
-      response.json(await this.sessions.get(request.params.id).browserAction(input));
+      response.json(await this.sessions.run(request.params.id, (session) => session.browserAction(input)));
     });
     this.app.post("/v1/sessions/:id/screenshot", async (request, response) => {
       const { fullPage } = InputSchemas.screenshot.parse(request.body);
-      response.json({ base64: await this.sessions.get(request.params.id).captureScreenshot(fullPage) });
+      response.json({
+        base64: await this.sessions.run(request.params.id, (session) => session.captureScreenshot(fullPage)),
+      });
     });
     this.app.post("/v1/sessions/:id/gesture", async (request, response) => {
       const input = InputSchemas.gesture.parse(request.body);
-      response.json(await this.sessions.get(request.params.id).gesture(input));
+      response.json(await this.sessions.run(request.params.id, (session) => session.gesture(input)));
     });
     this.app.post("/v1/sessions/:id/wait", async (request, response) => {
-      await this.sessions.get(request.params.id).wait(InputSchemas.wait.parse(request.body));
+      await this.sessions.run(request.params.id, (session) => session.wait(InputSchemas.wait.parse(request.body)));
       response.json({ ready: true });
     });
     this.app.get("/v1/sessions/:id/diagnostics", async (request, response) => {
-      response.json(await this.sessions.get(request.params.id).diagnostics());
+      response.json(await this.sessions.run(request.params.id, (session) => session.diagnostics()));
     });
     this.app.delete("/v1/sessions/:id/diagnostics", (request, response) => {
       this.sessions.get(request.params.id).clearDiagnostics();
@@ -207,6 +231,11 @@ export class ApiServer {
       response.json(this.sessions.get(request.params.id).debugTools());
     });
     this.app.use((_request, response) => response.status(404).json({ error: "Not found" }));
+  }
+
+  private notifyEnvironmentChanged(source: "android"): void {
+    TargetCatalogService.invalidate();
+    this.events.publish({ type: "environment.changed", source, occurredAt: new Date().toISOString() });
   }
 
   private authorize(request: Request, response: Response, next: NextFunction): void {

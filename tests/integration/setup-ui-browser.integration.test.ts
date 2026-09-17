@@ -8,6 +8,7 @@ import { BrowserSession } from "../../src/automation/browser-session.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
 import { SetupService } from "../../src/setup/setup-service.js";
+import { WorkbenchEvents } from "../../src/setup/workbench-events.js";
 import { ApiServer } from "../../src/transports/api-server.js";
 
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
@@ -17,16 +18,45 @@ describe("workbench UI browser flow", () => {
   browserTest(
     "navigates the responsive app shell and operates the workbench pages",
     async () => {
-      vi.spyOn(DoctorService, "inspect").mockResolvedValue(
-        TARGET_NAMES.map((id) => ({
-          id,
-          label: TargetRegistry.definitions[id].label,
-          status: id === "chrome" ? "ready" : "skip",
-          detail:
-            id === "chrome"
-              ? "C:\\Program Files\\Google\\Chrome\\Application\\a-very-long-directory-name\\chrome.exe"
-              : "Browser integration fixture",
-        })),
+      let androidConnected = true;
+      vi.spyOn(DoctorService, "inspect").mockImplementation(async () =>
+        TARGET_NAMES.map((id) => {
+          const android = id === "chrome-android";
+          return {
+            id,
+            label: TargetRegistry.definitions[id].label,
+            status: id === "chrome" || (android && androidConnected) ? ("ready" as const) : android ? "action" : "skip",
+            detail:
+              id === "chrome"
+                ? "C:\\Program Files\\Google\\Chrome\\Application\\a-very-long-directory-name\\chrome.exe"
+                : android
+                  ? androidConnected
+                    ? "1 connected device ready for Chrome testing."
+                    : "No Android device or compatible emulator was found."
+                  : "Browser integration fixture",
+            ...(android && androidConnected
+              ? {
+                  devices: [
+                    {
+                      id: "R5CT1234",
+                      name: "Pixel 8",
+                      platformVersion: "16",
+                      state: "Connected",
+                      deviceKind: "physical" as const,
+                      compatible: true,
+                      config: {
+                        name: "chrome-android" as const,
+                        deviceKind: "physical" as const,
+                        deviceName: "Pixel 8",
+                        platformVersion: "16",
+                        udid: "R5CT1234",
+                      },
+                    },
+                  ],
+                }
+              : {}),
+          };
+        }),
       );
       vi.spyOn(SetupService, "plan").mockResolvedValue([
         {
@@ -60,7 +90,8 @@ describe("workbench UI browser flow", () => {
       );
       const directory = await mkdtemp(join(tmpdir(), "browser-testbench-ui-flow-"));
       const screenshotPath = join(directory, "targets-ui.png");
-      const api = new ApiServer({ host: "127.0.0.1", port: 0, liveReload: true });
+      const events = new WorkbenchEvents();
+      const api = new ApiServer({ host: "127.0.0.1", port: 0, liveReload: true }, { events });
       const address = await api.start();
       const baseUrl = `http://${address.host}:${address.port}`;
       const browser = new BrowserSession();
@@ -91,6 +122,30 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.$(".environment-group--capabilities .subsection-heading").getText()).toContain(
           "Availability on this machine",
         );
+        await browser.active.$(".check-card--device .device-options summary").click();
+        expect(await browser.active.$(".check-card--device .device-option").getText()).toContain(
+          "Physical device · Version 16 · Connected via USB",
+        );
+        await browser.active.waitForScript(
+          "return document.documentElement.dataset.environmentStream === 'connected'",
+          [],
+          15_000,
+        );
+        await browser.active.execute(
+          "window.__previousDeviceDetails = document.querySelector('.check-card--device .device-options')",
+        );
+        events.publish({ type: "environment.changed", source: "android", occurredAt: new Date().toISOString() });
+        await browser.active.waitForScript(
+          "return !window.__previousDeviceDetails.isConnected && document.querySelector('.check-card--device .device-options').open",
+          [],
+          15_000,
+        );
+        await browser.active.execute("window.__pageSurvivedEnvironmentUpdate = true");
+        androidConnected = false;
+        events.publish({ type: "environment.changed", source: "android", occurredAt: new Date().toISOString() });
+        await browser.active.waitForText("No Android device or compatible emulator was found.", 15_000);
+        expect(await browser.active.execute("return window.__pageSurvivedEnvironmentUpdate")).toBe(true);
+        expect(await browser.active.$("#checks").getText()).not.toContain("Pixel 8");
         expect(await browser.active.$(".guided-actions__heading").getText()).toContain("Environment setup");
         expect(await browser.active.$(".integration-card").getText()).toContain("Connect an AI assistant through MCP");
         expect(

@@ -1,7 +1,7 @@
 {
   "name": "browser-testbench",
   "version": "0.1.5",
-  "description": "Cross-platform browser testbench for controlling, debugging, and automating desktop browsers, iOS simulators, and Android emulators",
+  "description": "Cross-platform browser testbench for controlling, debugging, and automating desktop browsers, iOS simulators, Android emulators, and physical Android devices",
   "author": "Lars-Erich Kiefer",
   "license": "MIT",
   "repository": {
@@ -22,6 +22,7 @@
     "selenium",
     "ios-simulator",
     "android-emulator",
+    "android-device",
     "mcp"
   ],
   "type": "module",

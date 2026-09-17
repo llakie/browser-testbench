@@ -62,4 +62,34 @@ describe("SetupService Appium status", () => {
       expect.objectContaining({ label: "Node.js", automatic: false, status: "manual" }),
     ]);
   });
+
+  it("does not offer emulator provisioning when a compatible USB device is connected", async () => {
+    vi.spyOn(DoctorService, "isNodeSupported").mockReturnValue(true);
+    vi.spyOn(SetupService, "appiumDriverStatus").mockResolvedValue([
+      { name: "uiautomator2", installed: true, version: "8.7.0" },
+    ]);
+    const avdPlan = vi.spyOn(AndroidAvdService, "plan");
+    const checks = [
+      {
+        id: "chrome-android",
+        label: "Chrome on Android",
+        status: "ready" as const,
+        detail: "1 connected device ready for Chrome testing.",
+        devices: [
+          {
+            id: "R5CT1234",
+            name: "Pixel 8",
+            deviceKind: "physical" as const,
+            compatible: true,
+            config: { name: "chrome-android" as const, deviceKind: "physical" as const, udid: "R5CT1234" },
+          },
+        ],
+      },
+    ];
+
+    await expect(SetupService.plan(["chrome-android"], checks)).resolves.toEqual([
+      expect.objectContaining({ label: "Appium UiAutomator2", status: "completed" }),
+    ]);
+    expect(avdPlan).not.toHaveBeenCalled();
+  });
 });

@@ -2,6 +2,7 @@ export const TARGET_NAMES = ["chrome", "firefox", "safari", "edge", "safari-ios"
 
 export type TargetName = (typeof TARGET_NAMES)[number];
 export type TargetKind = "desktop" | "mobile";
+export type MobileDeviceKind = "simulator" | "emulator" | "physical";
 export type CheckStatus = "ready" | "action" | "blocked" | "skip";
 
 export interface TargetConfig {
@@ -12,6 +13,7 @@ export interface TargetConfig {
   platformVersion?: string;
   avd?: string;
   udid?: string;
+  deviceKind?: MobileDeviceKind;
   downloadDir?: string;
   capabilities?: Record<string, unknown>;
 }
@@ -31,6 +33,8 @@ export interface TargetDeviceOption {
   name: string;
   platformVersion?: string;
   state?: string;
+  deviceKind?: MobileDeviceKind;
+  detail?: string;
   compatible: boolean;
   config: TargetConfig;
 }
@@ -51,6 +55,7 @@ export interface TestTarget {
   status: CheckStatus;
   ready: boolean;
   serial: boolean;
+  deviceKind?: MobileDeviceKind;
   detail: string;
   verifiedAt?: string;
   config: TargetConfig;
