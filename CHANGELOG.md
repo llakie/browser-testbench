@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Windows command scripts such as `code.cmd` and Android SDK batch tools now run through the Windows command shell instead of failing with `spawn EINVAL`.
 - Appium installation is no longer offered on Node.js versions that cannot run the bundled Appium dependencies.
 - Long-running UI actions consistently display an animated progress indicator instead of only disabling their controls.
+- Third-party license generation now includes every supported platform package from the lockfile and produces the same output on macOS, Windows, and Linux.
 
 ## [0.1.4] - 2026-09-16
 
