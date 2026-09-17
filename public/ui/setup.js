@@ -4,7 +4,6 @@ const elements = {
   actions: document.querySelector("#guided-actions"),
   actionSummary: document.querySelector("#setup-summary"),
   actionList: document.querySelector("#setup-action-list"),
-  runSetup: document.querySelector("#run-setup"),
   notice: document.querySelector("#notice"),
   testTargetList: document.querySelector("#test-target-list"),
   verifyAllTargets: document.querySelector("#verify-all-targets"),
@@ -23,9 +22,12 @@ let interfaceBusy = false;
 
 class WorkbenchUi {
   static async initialize() {
-    document.querySelector("#refresh-environment")?.addEventListener("click", () => this.refresh());
-    document.querySelector("#run-setup")?.addEventListener("click", () => this.setup());
-    document.querySelector("#register-mcp")?.addEventListener("click", () => this.registerMcp());
+    document
+      .querySelector("#refresh-environment")
+      ?.addEventListener("click", (event) => this.refresh(event.currentTarget));
+    document
+      .querySelector("#register-mcp")
+      ?.addEventListener("click", (event) => this.registerMcp(event.currentTarget));
     elements.verifyAllTargets?.addEventListener("click", () => this.verifyAllTargets());
     elements.mcpClient?.addEventListener("change", () => this.renderMcp());
     elements.debugUrl?.addEventListener("input", () => this.renderDebugCommand());
@@ -33,7 +35,8 @@ class WorkbenchUi {
     await this.refresh();
   }
 
-  static async refresh() {
+  static async refresh(trigger) {
+    const restoreTrigger = this.buttonProgress(trigger, "Checking \u2026");
     this.busy(true);
     try {
       state = await this.request("/v1/workbench");
@@ -48,6 +51,7 @@ class WorkbenchUi {
     } catch (error) {
       this.notice(this.message(error), "error");
     } finally {
+      restoreTrigger();
       this.busy(false);
     }
   }
@@ -59,8 +63,9 @@ class WorkbenchUi {
     const status = this.element("span", "status-icon");
     status.append(this.icon(this.statusIcon(check.status)));
     title.append(document.createTextNode(check.label), status);
-    const detail = this.element("p");
+    const detail = this.element("p", "check-card__detail");
     detail.textContent = check.detail;
+    detail.title = check.detail;
     card.append(title, detail);
     if (check.action) {
       const action = this.element("p", "check-card__action");
@@ -109,7 +114,6 @@ class WorkbenchUi {
     if (!elements.actions) return;
     const actions = state.actions ?? [];
     elements.actions.hidden = actions.length === 0;
-    elements.runSetup.hidden = !actions.some((action) => action.automatic && action.status === "planned");
     if (actions.length === 0) return;
     const completed = actions.filter((action) => action.status === "completed").length;
     const pending = actions.length - completed;
@@ -120,19 +124,25 @@ class WorkbenchUi {
       ...actions.map((action) => {
         const item = this.element("div", "setup-action");
         const copy = this.element("div", "setup-action__copy");
-        const heading = this.element("span", "setup-action__heading");
         const label = this.element("strong");
         label.textContent = action.label;
-        const status = this.element("span", `setup-action__status is-${action.status}`);
-        status.append(
-          this.icon(action.status === "completed" ? "fa-check" : "fa-arrow-right"),
-          document.createTextNode(` ${this.actionStatus(action.status)}`),
+        const isInstallable = action.automatic && action.status === "planned" && action.targets?.length;
+        const status = this.element(
+          isInstallable ? "button" : "span",
+          `${isInstallable ? "button button--secondary " : ""}setup-action__status is-${action.status}`,
         );
-        heading.append(label, status);
+        if (isInstallable) {
+          status.type = "button";
+          status.addEventListener("click", () => this.setup(action.targets, status));
+        }
+        status.append(
+          this.icon(isInstallable ? "fa-download" : this.actionStatusIcon(action.status)),
+          document.createTextNode(` ${isInstallable ? "Install" : this.actionStatus(action.status)}`),
+        );
         const detail = this.element("small");
         detail.textContent = action.detail ?? "This step must be completed manually.";
-        copy.append(heading, detail);
-        item.append(copy);
+        copy.append(label, detail);
+        item.append(copy, status);
         if (action.command) item.append(this.command(action.command));
         return item;
       }),
@@ -291,7 +301,8 @@ for (const target of targets) {
             this.icon(verificationState?.status === "running" ? "fa-spinner fa-spin" : "fa-circle-play"),
             document.createTextNode(verificationState?.status === "running" ? " Test running …" : " Run test"),
           );
-          verify.addEventListener("click", () => this.verifyTarget(target));
+          if (verificationState?.status === "running") verify.setAttribute("aria-busy", "true");
+          verify.addEventListener("click", () => this.verifyTarget(target, verify));
           actions.append(verify);
         }
         item.append(content, actions);
@@ -300,7 +311,8 @@ for (const target of targets) {
     );
   }
 
-  static async verifyTarget(target) {
+  static async verifyTarget(target, trigger) {
+    trigger?.setAttribute("aria-busy", "true");
     this.busy(true);
     try {
       const result = await this.runVerification(target);
@@ -375,14 +387,17 @@ for (const target of targets) {
 
   static verifyAllLabel(progress) {
     if (!elements.verifyAllTargets) return;
+    if (progress) elements.verifyAllTargets.setAttribute("aria-busy", "true");
+    else elements.verifyAllTargets.removeAttribute("aria-busy");
     elements.verifyAllTargets.replaceChildren(
       this.icon(progress ? "fa-spinner fa-spin" : "fa-list-check"),
       document.createTextNode(progress ? ` ${progress}` : " Run all tests"),
     );
   }
 
-  static async setup() {
-    const targets = state.targets.filter((target) => target.check?.status !== "skip").map((target) => target.name);
+  static async setup(targets, trigger) {
+    targets ??= state.targets.filter((target) => target.check?.status !== "skip").map((target) => target.name);
+    const restoreTrigger = this.buttonProgress(trigger, "Installing \u2026");
     this.busy(true);
     try {
       const actions = await this.request("/v1/workbench/setup", {
@@ -404,13 +419,15 @@ for (const target of targets) {
     } catch (error) {
       this.notice(this.message(error), "error");
     } finally {
+      restoreTrigger();
       this.busy(false);
     }
   }
 
-  static async registerMcp() {
+  static async registerMcp(trigger) {
     const selected = elements.mcpClient.value;
     const client = state.mcpClients.find((candidate) => candidate.id === selected);
+    const restoreTrigger = this.buttonProgress(trigger, "Connecting \u2026");
     this.busy(true);
     try {
       const updated = await this.request("/v1/workbench/mcp", {
@@ -423,6 +440,7 @@ for (const target of targets) {
     } catch (error) {
       this.notice(this.message(error), "error");
     } finally {
+      restoreTrigger();
       this.busy(false);
     }
   }
@@ -469,6 +487,18 @@ for (const target of targets) {
     });
   }
 
+  static buttonProgress(button, label) {
+    if (!button) return () => {};
+    const content = [...button.childNodes];
+    button.setAttribute("aria-busy", "true");
+    button.replaceChildren(this.icon("fa-spinner fa-spin"), document.createTextNode(` ${label}`));
+    return () => {
+      if (!button.isConnected) return;
+      button.removeAttribute("aria-busy");
+      button.replaceChildren(...content);
+    };
+  }
+
   static notice(message, kind = "") {
     elements.notice.hidden = false;
     elements.notice.className = `notice${kind ? ` is-${kind}` : ""}`;
@@ -499,7 +529,21 @@ for (const target of targets) {
   }
 
   static actionStatus(status) {
-    return { completed: "Installed", planned: "Ready", manual: "Manual", failed: "Failed" }[status] ?? status;
+    return (
+      { completed: "Installed", planned: "Not installed", manual: "Action required", failed: "Failed" }[status] ??
+      status
+    );
+  }
+
+  static actionStatusIcon(status) {
+    return (
+      {
+        completed: "fa-check",
+        planned: "fa-clock",
+        manual: "fa-triangle-exclamation",
+        failed: "fa-xmark",
+      }[status] ?? "fa-circle"
+    );
   }
 
   static targetAvailability(status) {

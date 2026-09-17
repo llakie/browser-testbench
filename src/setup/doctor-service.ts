@@ -24,14 +24,19 @@ export class DoctorService {
   }
 
   private static async nodeCheck(): Promise<DoctorCheck> {
-    const major = Number(process.versions.node.split(".")[0]);
+    const supported = this.isNodeSupported();
     return {
       id: "node",
       label: "Node.js",
-      status: major >= 22 ? "ready" : "blocked",
+      status: supported ? "ready" : "blocked",
       detail: process.version,
-      ...(major < 22 ? { action: "Install Node.js 22 or newer." } : {}),
+      ...(!supported ? { action: "Install Node.js 22.12 LTS or Node.js 24 or newer." } : {}),
     };
+  }
+
+  static isNodeSupported(version = process.versions.node): boolean {
+    const [major = 0, minor = 0] = version.split(".").map(Number);
+    return (major === 22 && minor >= 12) || major >= 24;
   }
 
   private static async targetCheck(name: TargetName): Promise<DoctorCheck> {

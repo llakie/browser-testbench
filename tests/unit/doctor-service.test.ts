@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 
 describe("DoctorService device discovery", () => {
+  it.each([
+    ["22.11.0", false],
+    ["22.12.0", true],
+    ["23.11.0", false],
+    ["24.0.0", true],
+  ])("checks whether Node.js %s can run the bundled dependencies", (version, supported) => {
+    expect(DoctorService.isNodeSupported(version)).toBe(supported);
+  });
+
   it("preserves every available iOS simulator as a selectable project target", () => {
     const devices = DoctorService.iosDeviceOptions(
       [{ identifier: "runtime-26-5", name: "iOS 26.5", version: "26.5" }],
