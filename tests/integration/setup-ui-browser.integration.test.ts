@@ -275,11 +275,14 @@ describe("workbench UI browser flow", () => {
           window.fetch = (...argumentsList) => {
             if (String(argumentsList[0]) !== "/v1/workbench/setup") return originalFetch(...argumentsList);
             window.__setupTargets = JSON.parse(argumentsList[1].body).targets;
-            return new Promise(resolve => setTimeout(() => resolve(new Response("[]", { status: 200, headers: { "content-type": "application/json" } })), 200));
+            return new Promise(resolve => {
+              window.__completeEnvironmentSetup = () => resolve(new Response("[]", { status: 200, headers: { "content-type": "application/json" } }));
+            });
           };
         `);
         await browser.active.$(".setup-action__status.is-planned").click();
         expect(await browser.active.$(".setup-action__status.is-planned").getText()).toBe("Installing \u2026");
+        await browser.active.execute("window.__completeEnvironmentSetup()");
         await browser.active.waitForText("Setup completed.");
         expect(await browser.active.execute("return window.__setupTargets")).toEqual(["chrome-android"]);
         expect(
