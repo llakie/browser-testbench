@@ -103,7 +103,9 @@ describe("workbench UI browser flow", () => {
           window.fetch = (...argumentsList) => {
             if (String(argumentsList[0]) !== "/v1/workbench/mcp") return originalFetch(...argumentsList);
             const client = { id: "codex", label: "codex", installed: true, automatic: true, registered: true, current: true, command: "test command", format: "command", detail: "Connected", instruction: "Browser integration fixture" };
-            return new Promise(resolve => setTimeout(() => resolve(new Response(JSON.stringify(client), { status: 200, headers: { "content-type": "application/json" } })), 300));
+            return new Promise(resolve => {
+              window.__completeMcpRegistration = () => resolve(new Response(JSON.stringify(client), { status: 200, headers: { "content-type": "application/json" } }));
+            });
           };
         `);
         await browser.active.$("#register-mcp").click();
@@ -111,6 +113,7 @@ describe("workbench UI browser flow", () => {
         expect(
           await browser.active.execute("return document.querySelector('#register-mcp').getAttribute('aria-busy')"),
         ).toBe("true");
+        await browser.active.execute("window.__completeMcpRegistration()");
         await browser.active.waitForText("codex is connected to Browser Testbench.");
         await browser.active.execute(`
           const client = document.querySelector("#mcp-client");
