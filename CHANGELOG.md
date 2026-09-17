@@ -4,6 +4,27 @@ All notable changes to Browser Testbench are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-09-17
+
+### Added
+
+- Physical Android devices connected over USB are detected through ADB and exposed as individual Chrome test targets.
+- Localhost URLs are forwarded automatically to physical Android devices for the lifetime of a test session.
+- Authenticated server-sent events keep the web interface synchronized when connected Android devices change.
+
+### Changed
+
+- Android setup and status views distinguish physical devices from emulators and provide actionable authorization, offline, and Chrome availability guidance.
+- A connected compatible Android device now satisfies Android setup without requiring or provisioning an emulator.
+- Background environment refreshes preserve expanded device details and do not interrupt active UI operations.
+- Android sessions use installation-safe ADB and UiAutomator2 timeouts.
+- Invalid WebDriver sessions are removed automatically so they no longer keep a physical device locked.
+
+### Fixed
+
+- Page inspection and navigation no longer fail in Android Chrome because of build-tool helper code leaking into browser-executed scripts.
+- Android full-page screenshot requests now fail clearly instead of returning incomplete or duplicated stitched images.
+
 ## [0.1.5] - 2026-09-17
 
 ### Added
