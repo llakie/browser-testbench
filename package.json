@@ -49,7 +49,8 @@
     "fixture:server": "node tests/fixtures/site-server.mjs",
     "format": "prettier --write . \"templates/**/*.eta\"",
     "format:check": "prettier --check . \"templates/**/*.eta\"",
-    "licenses": "generate-license-file --input package.json --output THIRD_PARTY_LICENSES.txt --overwrite --eol lf --ci --no-spinner",
+    "licenses": "node scripts/generate-licenses.mjs",
+    "licenses:check": "node scripts/generate-licenses.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "npm run build"
