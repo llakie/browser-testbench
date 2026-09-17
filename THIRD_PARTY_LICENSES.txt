@@ -4333,7 +4333,7 @@ CC-BY-3.0
 
 The following npm package may be included in this product:
 
- - spdx-license-ids@3.0.24
+ - spdx-license-ids@3.0.23
 
 This package contains the following license:
 
@@ -7937,7 +7937,7 @@ The following npm packages may be included in this product:
  - default-browser-id@5.0.1
  - default-browser@5.5.1
  - define-lazy-prop@3.0.0
- - get-east-asian-width@1.7.0
+ - get-east-asian-width@1.6.0
  - is-docker@3.0.0
  - is-in-ssh@1.0.0
  - is-inside-container@1.0.0
