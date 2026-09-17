@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AndroidAvdService } from "../../src/setup/android-avd-service.js";
+import { AndroidDeviceService } from "../../src/setup/android-device-service.js";
+import { AndroidSdk } from "../../src/infrastructure/android-sdk.js";
 import { CommandRunner } from "../../src/infrastructure/command-runner.js";
-import { DoctorService } from "../../src/setup/doctor-service.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -63,8 +64,8 @@ describe("AndroidAvdService", () => {
     const emulator = join(sdkRoot, "emulator", process.platform === "win32" ? "emulator.exe" : "emulator");
     await mkdir(join(sdkRoot, "emulator"), { recursive: true });
     await writeFile(emulator, "");
-    vi.spyOn(DoctorService, "androidSdkRoot").mockResolvedValue(sdkRoot);
-    vi.spyOn(DoctorService, "androidDeviceOptions").mockResolvedValue([
+    vi.spyOn(AndroidSdk, "root").mockResolvedValue(sdkRoot);
+    vi.spyOn(AndroidDeviceService, "avdOptions").mockResolvedValue([
       {
         id: "Pixel_9_API_35",
         name: "Pixel_9_API_35",
@@ -99,8 +100,8 @@ describe("AndroidAvdService", () => {
     await mkdir(join(sdkRoot, "cmdline-tools", "latest", "bin"), { recursive: true });
     await writeFile(emulator, "");
     await writeFile(avdManager, "");
-    vi.spyOn(DoctorService, "androidSdkRoot").mockResolvedValue(sdkRoot);
-    vi.spyOn(DoctorService, "androidDeviceOptions").mockResolvedValue([]);
+    vi.spyOn(AndroidSdk, "root").mockResolvedValue(sdkRoot);
+    vi.spyOn(AndroidDeviceService, "avdOptions").mockResolvedValue([]);
     vi.spyOn(CommandRunner, "run").mockResolvedValue({ code: 0, stdout: "", stderr: "" });
 
     await expect(AndroidAvdService.plan()).resolves.toMatchObject({
@@ -127,8 +128,8 @@ describe("AndroidAvdService", () => {
     await writeFile(emulator, "");
     await writeFile(avdManager, "");
     await installImage(sdkRoot, "37.1", "google_apis_playstore", architecture);
-    vi.spyOn(DoctorService, "androidSdkRoot").mockResolvedValue(sdkRoot);
-    vi.spyOn(DoctorService, "androidDeviceOptions").mockResolvedValue([]);
+    vi.spyOn(AndroidSdk, "root").mockResolvedValue(sdkRoot);
+    vi.spyOn(AndroidDeviceService, "avdOptions").mockResolvedValue([]);
     const run = vi.spyOn(CommandRunner, "run").mockImplementation(async (command, arguments_) => {
       if (command === emulator) return { code: 0, stdout: "", stderr: "" };
       if (arguments_.includes("--compact")) return { code: 0, stdout: "pixel_9\npixel_10\n", stderr: "" };

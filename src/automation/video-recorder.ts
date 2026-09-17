@@ -5,7 +5,6 @@ import { join } from "node:path";
 import type { TargetConfig } from "../config/types.js";
 import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
-import { DoctorService } from "../setup/doctor-service.js";
 
 const ADB_COMMAND_TIMEOUT_MS = 5_000;
 const RECORDER_STOP_TIMEOUT_MS = 10_000;
@@ -35,9 +34,9 @@ export class VideoRecorder {
       return new VideoRecorder(child, outputPath);
     }
     if (target.name === "chrome-android") {
-      const sdkRoot = await DoctorService.androidSdkRoot();
+      const sdkRoot = await AndroidSdk.root();
       if (!sdkRoot) throw new Error("Android SDK not found for video recording.");
-      const adb = join(sdkRoot, "platform-tools", AndroidSdk.executableName("adb"));
+      const adb = AndroidSdk.adb(sdkRoot);
       const serial = await this.androidSerial(adb, target, capabilities);
       const remotePath = `/sdcard/browser-testbench-${Date.now()}.mp4`;
       const child = spawn(adb, ["-s", serial, "shell", "screenrecord", remotePath], {
@@ -84,14 +83,15 @@ export class VideoRecorder {
     target: TargetConfig,
     capabilities: Record<string, unknown>,
   ): Promise<string> {
-    const configured = target.capabilities?.["appium:udid"] ?? capabilities.deviceUDID ?? capabilities.udid;
+    const configured =
+      target.udid ?? target.capabilities?.["appium:udid"] ?? capabilities.deviceUDID ?? capabilities.udid;
     if (typeof configured === "string" && configured) return configured;
     const devices = await CommandRunner.run(adb, ["devices"], { timeoutMs: ADB_COMMAND_TIMEOUT_MS });
     const serial = devices.stdout
       .split(/\r?\n/)
-      .map((line) => line.match(/^(emulator-\d+)\s+device$/)?.[1])
+      .map((line) => line.match(/^(\S+)\s+device(?:\s|$)/)?.[1])
       .find(Boolean);
-    if (!serial) throw new Error("No running Android emulator was found for video recording.");
+    if (!serial) throw new Error("No connected Android device was found for video recording.");
     return serial;
   }
 

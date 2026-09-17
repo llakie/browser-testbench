@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import type { TargetName } from "../config/types.js";
+import type { DoctorCheck, TargetName } from "../config/types.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
@@ -18,7 +18,7 @@ export interface AppiumDriverStatus {
 }
 
 export class SetupService {
-  static async plan(targets: TargetName[]): Promise<SetupAction[]> {
+  static async plan(targets: TargetName[], detectedChecks?: DoctorCheck[]): Promise<SetupAction[]> {
     targets = targets.filter((target) => TargetRegistry.isSupported(target));
     const actions: SetupAction[] = [];
     const mobileTargets = targets.filter((target) => target === "safari-ios" || target === "chrome-android");
@@ -40,11 +40,13 @@ export class SetupService {
         });
       }
     }
-    const androidAction = targets.includes("chrome-android") ? await AndroidAvdService.plan() : undefined;
+    const checks = detectedChecks ?? (await DoctorService.inspect(targets));
+    const androidAction =
+      targets.includes("chrome-android") && !this.hasDetectedPhysicalAndroidDevice(checks)
+        ? await AndroidAvdService.plan()
+        : undefined;
     if (androidAction) actions.push({ ...androidAction, targets: ["chrome-android"] });
-    const checks = await DoctorService.inspect(targets);
     for (const check of checks.filter((entry) => entry.status === "blocked" || entry.status === "action")) {
-      if (check.id === "chrome-android" && androidAction) continue;
       if (check.action && !actions.some((action) => action.label === check.label)) {
         actions.push({
           label: check.label,
@@ -112,8 +114,11 @@ export class SetupService {
     }
     let androidAvdAction: SetupAction | undefined;
     if (targets.includes("chrome-android")) {
-      androidAvdAction = await AndroidAvdService.ensure(options.onOutput);
-      results.push(androidAvdAction);
+      const checks = await DoctorService.inspect(["chrome-android"]);
+      if (!this.hasDetectedPhysicalAndroidDevice(checks)) {
+        androidAvdAction = await AndroidAvdService.ensure(options.onOutput);
+        results.push(androidAvdAction);
+      }
     }
     results.push(
       ...(await this.plan(targets)).filter((action) => {
@@ -155,5 +160,13 @@ export class SetupService {
 
   private static driverLabel(name: "xcuitest" | "uiautomator2"): string {
     return name === "xcuitest" ? "XCUITest" : "UiAutomator2";
+  }
+
+  private static hasDetectedPhysicalAndroidDevice(checks: DoctorCheck[]): boolean {
+    return Boolean(
+      checks
+        .find((check) => check.id === "chrome-android")
+        ?.devices?.some((device) => device.deviceKind === "physical"),
+    );
   }
 }

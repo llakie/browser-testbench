@@ -27,11 +27,21 @@ export class UiRenderer {
   });
 
   static setup(liveReload = false): string {
-    return this.page("dashboard", "Overview", { scripts: ["/ui-assets/setup.js"] }, liveReload);
+    return this.page(
+      "dashboard",
+      "Overview",
+      { scripts: ["/ui-assets/environment-events.js", "/ui-assets/setup.js"] },
+      liveReload,
+    );
   }
 
   static targets(liveReload = false): string {
-    return this.page("targets", "Test targets", { scripts: ["/ui-assets/setup.js"] }, liveReload);
+    return this.page(
+      "targets",
+      "Test targets",
+      { scripts: ["/ui-assets/environment-events.js", "/ui-assets/setup.js"] },
+      liveReload,
+    );
   }
 
   static documentation(liveReload = false): string {

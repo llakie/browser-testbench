@@ -31,6 +31,24 @@ describe("TargetRegistry", () => {
       browserName: "Chrome",
       "appium:automationName": "UiAutomator2",
       "appium:avd": "Pixel_Test",
+      "appium:adbExecTimeout": 120_000,
+      "appium:uiautomator2ServerInstallTimeout": 120_000,
+    });
+    expect(
+      TargetRegistry.capabilities({
+        name: "chrome-android",
+        deviceKind: "physical",
+        deviceName: "Pixel 8",
+        platformVersion: "16",
+        udid: "R5CT1234",
+      }),
+    ).toMatchObject({
+      platformName: "Android",
+      browserName: "Chrome",
+      "appium:automationName": "UiAutomator2",
+      "appium:deviceName": "Pixel 8",
+      "appium:platformVersion": "16",
+      "appium:udid": "R5CT1234",
     });
   });
 
@@ -39,6 +57,13 @@ describe("TargetRegistry", () => {
       "http://10.0.2.2:3000/path",
     );
     expect(BrowserSession.urlForTarget("https://example.com", { name: "chrome-android" })).toBe("https://example.com/");
+    expect(
+      BrowserSession.urlForTarget("http://localhost:3000/path", {
+        name: "chrome-android",
+        deviceKind: "physical",
+        udid: "R5CT1234",
+      }),
+    ).toBe("http://localhost:3000/path");
   });
 
   it("selects platform-specific defaults without unsupported Apple targets on Windows", () => {

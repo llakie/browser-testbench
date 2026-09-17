@@ -16,6 +16,7 @@ import { ServiceManager, type ManagedProcess } from "../infrastructure/process-m
 import { BrowserSession } from "./browser-session.js";
 import { IosSimulatorCleanup } from "./ios-simulator-cleanup.js";
 import { MobileGestures, type GestureExecution } from "./mobile-gestures.js";
+import { PageInspectionScript } from "./page-inspection-script.js";
 import { VideoRecorder } from "./video-recorder.js";
 
 export interface PageInspection {
@@ -56,6 +57,7 @@ export type ResolvedStartSessionInput = Omit<StartSessionInput, "target"> & {
   platformVersion?: string;
   avd?: string;
   udid?: string;
+  deviceKind?: TargetConfig["deviceKind"];
 };
 
 export class InteractiveController {
@@ -77,6 +79,7 @@ export class InteractiveController {
       platformVersion: options.platformVersion,
       avd: options.avd,
       udid: options.udid,
+      deviceKind: options.deviceKind,
       downloadDir: options.downloadDir,
       capabilities: options.capabilities,
     };
@@ -89,7 +92,7 @@ export class InteractiveController {
         const recorder = await VideoRecorder.start(target, dirname(options.videoPath), browser.capabilities);
         this.video = { recorder, path: options.videoPath };
       }
-      if (options.url) await this.session.navigate(BrowserSession.urlForTarget(options.url, target));
+      if (options.url) await this.session.navigate(options.url);
       return {
         target: options.targetId,
         browser: options.target,
@@ -105,62 +108,14 @@ export class InteractiveController {
 
   async navigate(url: string): Promise<PageInspection> {
     if (!this.target) throw new Error("No interactive target is active.");
-    await this.session.navigate(BrowserSession.urlForTarget(url, this.target));
+    await this.session.navigate(url);
     return this.inspect();
   }
 
   async inspect(limit = TestbenchDefaults.INSPECTION_LIMIT): Promise<PageInspection> {
     const browser = this.session.active;
-    const elements = await browser.execute(
-      (maxItems: number, maxTextLength: number) => {
-        const selector = "a,button,input,textarea,select,[role],[contenteditable='true'],h1,h2,h3";
-        const cssSelector = (element: HTMLElement): string => {
-          if (element.id) return `#${CSS.escape(element.id)}`;
-          if (element.dataset.testid) return `[data-testid=${JSON.stringify(element.dataset.testid)}]`;
-          const ariaLabel = element.getAttribute("aria-label");
-          if (ariaLabel) return `[aria-label=${JSON.stringify(ariaLabel)}]`;
-          const placeholder = element.getAttribute("placeholder");
-          if (placeholder) return `[placeholder=${JSON.stringify(placeholder)}]`;
-          const name = element.getAttribute("name");
-          if (name) return `${element.tagName.toLowerCase()}[name=${JSON.stringify(name)}]`;
-
-          const path: string[] = [];
-          let current: HTMLElement | null = element;
-          while (current) {
-            let segment = current.tagName.toLowerCase();
-            const parent: HTMLElement | null = current.parentElement;
-            if (parent) {
-              const siblings = Array.from(parent.children).filter((child) => child.tagName === current?.tagName);
-              if (siblings.length > 1) segment += `:nth-of-type(${siblings.indexOf(current) + 1})`;
-            }
-            path.unshift(segment);
-            if (!parent || current === document.body) break;
-            current = parent;
-          }
-          return path.join(" > ");
-        };
-        return Array.from(document.querySelectorAll<HTMLElement>(selector))
-          .slice(0, maxItems)
-          .map((element) => ({
-            tag: element.tagName.toLowerCase(),
-            role: element.getAttribute("role") ?? undefined,
-            type: element.getAttribute("type") ?? undefined,
-            text:
-              (element.innerText || element.textContent || "").trim().replace(/\s+/g, " ").slice(0, maxTextLength) ||
-              undefined,
-            label:
-              element.getAttribute("aria-label") ??
-              (element.id
-                ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`)?.textContent?.trim()
-                : undefined) ??
-              element.getAttribute("name") ??
-              undefined,
-            value: "value" in element ? String((element as HTMLInputElement).value) : undefined,
-            selector: cssSelector(element),
-            disabled: "disabled" in element ? Boolean((element as HTMLInputElement).disabled) : false,
-            checked: "checked" in element ? Boolean((element as HTMLInputElement).checked) : undefined,
-          }));
-      },
+    const elements = await browser.execute<PageInspection["elements"]>(
+      PageInspectionScript.SOURCE,
       limit,
       TestbenchDefaults.INSPECTED_TEXT_MAX_LENGTH,
     );
@@ -350,15 +305,19 @@ export class InteractiveController {
   async screenshot(path?: string, fullPage = false): Promise<{ path: string; base64: string }> {
     const output = path ?? join(process.cwd(), "artifacts", "interactive", `screenshot-${Date.now()}.png`);
     await mkdir(dirname(output), { recursive: true });
-    const base64 = fullPage
-      ? await this.session.active.takeFullPageScreenshot()
-      : await this.session.active.takeScreenshot();
+    const base64 = await this.captureScreenshot(fullPage);
     await writeFile(output, Buffer.from(base64, "base64"));
     return { path: output, base64 };
   }
 
   async captureScreenshot(fullPage = false): Promise<string> {
-    return fullPage ? this.session.active.takeFullPageScreenshot() : this.session.active.takeScreenshot();
+    if (!fullPage) return this.session.active.takeScreenshot();
+    if (this.target?.name === "chrome-android") {
+      throw new Error(
+        "Full-page screenshots are not supported by Chrome on Android. Capture a viewport screenshot instead.",
+      );
+    }
+    return this.session.active.takeFullPageScreenshot();
   }
 
   async source(maxCharacters = TestbenchDefaults.PAGE_SOURCE_LIMIT): Promise<string> {

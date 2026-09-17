@@ -3,8 +3,8 @@
     <p class="eyebrow">Central test environment</p>
     <h1>Browsers and devices for your projects</h1>
     <p class="hero__copy">
-      Set up browsers, simulators, and emulators once in one place. Your application and test cases remain in their
-      respective projects.
+      Set up browsers, physical devices, simulators, and emulators once in one place. Your application and test cases
+      remain in their respective projects.
     </p>
   </div>
 </section>

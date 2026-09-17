@@ -47,6 +47,16 @@ export class SessionManager {
     return session.controller;
   }
 
+  async run<T>(id: string, action: (controller: InteractiveController) => Promise<T>): Promise<T> {
+    const controller = this.get(id);
+    try {
+      return await action(controller);
+    } catch (error) {
+      if (SessionManager.isTerminatedSessionError(error)) await this.discard(id);
+      throw error;
+    }
+  }
+
   async close(id: string): Promise<{ videoPath?: string }> {
     const session = this.sessions.get(id);
     if (!session) throw new SessionNotFoundError(`Session '${id}' was not found.`);
@@ -70,6 +80,28 @@ export class SessionManager {
         }
       }),
     );
+  }
+
+  static isTerminatedSessionError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    const description = `${error.name} ${error.message}`.toLowerCase();
+    return (
+      description.includes("invalid session id") ||
+      description.includes("no such session") ||
+      description.includes("nosuchsession") ||
+      description.includes("session is either terminated or not started")
+    );
+  }
+
+  private async discard(id: string): Promise<void> {
+    const session = this.sessions.get(id);
+    if (!session) return;
+    this.sessions.delete(id);
+    try {
+      await session.controller.close();
+    } finally {
+      session.release();
+    }
   }
 
   private publicSession(session: ManagedSession): PublicManagedSession {

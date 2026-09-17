@@ -57,9 +57,14 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
   </section>
 
   <section id="mobile">
-    <p class="eyebrow">Simulators and emulators</p>
+    <p class="eyebrow">Physical and virtual devices</p>
     <h2>Mobile devices</h2>
-    <p>Tap, swipe, pinch, portrait, and landscape are available through the Node client and MCP.</p>
+    <p>
+      Android devices connected by USB appear automatically after USB debugging is enabled and authorized. Chrome must
+      be installed on the device. Connecting or disconnecting a device updates the interface automatically, and
+      localhost URLs are forwarded over USB for the session. Tap, swipe, pinch, portrait, and landscape are available
+      through the Node client and MCP.
+    </p>
     <pre><code>import { BrowserOrientation, PinchDirection, SwipeDirection } from "browser-testbench/client";
 
 await browser.setOrientation(BrowserOrientation.Landscape);

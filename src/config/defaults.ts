@@ -14,6 +14,11 @@ export class TestbenchDefaults {
   static readonly DIAGNOSTIC_EVENT_LIMIT = 500;
   static readonly DOWNLOAD_POLL_INTERVAL_MS = 100;
   static readonly TARGET_CACHE_TTL_MS = 30_000;
+  static readonly ENVIRONMENT_POLL_INTERVAL_MS = 2_000;
+  static readonly EVENT_HEARTBEAT_INTERVAL_MS = 15_000;
+  static readonly ANDROID_ADB_COMMAND_TIMEOUT_MS = 120_000;
+  static readonly ANDROID_UIAUTOMATOR_INSTALL_TIMEOUT_MS = 120_000;
+  static readonly SCREENSHOT_SCROLL_SETTLE_MS = 250;
   static readonly GESTURE_MAX_PERCENT = 0.99;
   static readonly SWIPE_PERCENT = 0.75;
   static readonly PINCH_PERCENT = 0.5;

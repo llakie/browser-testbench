@@ -16,6 +16,10 @@ export class UnknownTargetError extends Error {}
 export class TargetCatalogService {
   private static cached?: { expiresAt: number; targets: TestTarget[] };
 
+  static invalidate(): void {
+    this.cached = undefined;
+  }
+
   static async list(options: { refresh?: boolean } = {}): Promise<TestTarget[]> {
     if (!options.refresh && this.cached && this.cached.expiresAt > Date.now()) return this.cached.targets;
     const checks = await DoctorService.inspect([...TARGET_NAMES]);
@@ -105,14 +109,19 @@ export class TargetCatalogService {
       const position = positions.get(baseId) ?? 0;
       positions.set(baseId, position + 1);
       const id = counts.get(baseId)! > 1 ? `${baseId}-${this.alphaSuffix(position)}` : baseId;
+      const kindLabel =
+        device.deviceKind === "physical" ? "USB device" : device.deviceKind === "emulator" ? "Emulator" : "";
       return {
         id,
         browser,
-        label: `${TargetRegistry.definitions[browser].label} · ${device.name}${device.platformVersion ? ` · ${device.platformVersion}` : ""}`,
+        label: [TargetRegistry.definitions[browser].label, device.name, device.platformVersion, kindLabel]
+          .filter(Boolean)
+          .join(" · "),
         kind: "mobile",
         status: check.status,
         ready: check.status === "ready",
         serial: true,
+        deviceKind: device.deviceKind,
         detail: check.detail,
         config: { ...device.config },
       };

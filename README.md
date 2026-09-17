@@ -1,6 +1,6 @@
 # Browser Testbench
 
-A local, project-independent remote control for real desktop browsers and iOS and Android simulators.
+A local, project-independent remote control for real desktop browsers, iOS simulators, Android emulators, and physical Android devices.
 
 The responsibilities are deliberately clear:
 
@@ -12,18 +12,20 @@ Browser Testbench does not import test files from a project or run third-party t
 
 ## Supported targets
 
-| Target                         | macOS | Windows | Linux |
-| ------------------------------ | ----- | ------- | ----- |
-| Chrome                         | yes   | yes     | yes   |
-| Firefox                        | yes   | yes     | yes   |
-| Safari                         | yes   | –       | –     |
-| Edge                           | yes   | yes     | yes   |
-| Safari in the iOS Simulator    | yes   | –       | –     |
-| Chrome in the Android Emulator | yes   | yes     | yes   |
+| Target                              | macOS | Windows | Linux |
+| ----------------------------------- | ----- | ------- | ----- |
+| Chrome                              | yes   | yes     | yes   |
+| Firefox                             | yes   | yes     | yes   |
+| Safari                              | yes   | –       | –     |
+| Edge                                | yes   | yes     | yes   |
+| Safari in the iOS Simulator         | yes   | –       | –     |
+| Chrome on Android (USB or emulator) | yes   | yes     | yes   |
 
-Mobile sessions are controlled through Appium with XCUITest or UiAutomator2. The web interface detects installed browsers, simulators, emulators, and required setup steps.
+Mobile sessions are controlled through Appium with XCUITest or UiAutomator2. The web interface detects installed browsers, physical devices, simulators, emulators, and required setup steps.
 
-For Android, setup always reuses an existing compatible Google Play AVD. If none exists, it selects the newest matching Google Play system image already installed for the host architecture and the newest available generic Pixel hardware profile. The generated AVD name contains both values, for example `browser-testbench-pixel-10-api-37-1`. Only when no suitable image is installed does the setup ask you to install the latest one through Android Studio's SDK Manager; no API level or Pixel model is hard-coded.
+For a physical Android device, install the Android SDK Platform Tools, enable Developer options and USB debugging, connect the device by USB, unlock it, and accept the debugging authorization prompt. Chrome must be installed on the device. Browser Testbench detects every authorized device through ADB and creates a separate, stable test target for it. Connecting, disconnecting, or changing the authorization state updates the open web interface automatically. Local URLs such as `http://127.0.0.1:3000` are forwarded over USB for the duration of the session and require no Wi-Fi configuration.
+
+For Android emulator testing, setup reuses an existing compatible Google Play AVD. If none exists and no physical device is connected, it selects the newest matching Google Play system image already installed for the host architecture and the newest available generic Pixel hardware profile. The generated AVD name contains both values, for example `browser-testbench-pixel-10-api-37-1`. Only when no suitable image is installed does the setup ask you to install the latest one through Android Studio's SDK Manager; no API level or Pixel model is hard-coded.
 
 ## Installation and startup
 
@@ -81,12 +83,12 @@ An AI assistant can use MCP to open a session, navigate, inspect elements, click
 `get_devtools_instructions` provides the appropriate connection for native browser developer tools:
 
 - iOS Simulator: Safari Web Inspector through Safari's Develop menu.
-- Android Emulator: Chrome DevTools through `chrome://inspect/#devices`.
+- Android devices and emulators: Chrome DevTools through `chrome://inspect/#devices`.
 - Chromium on desktop: console and network diagnostics directly through Browser Testbench; the regular browser developer tools can also be opened manually.
 
 ### Automated project tests
 
-Browser Testbench creates a stable ID for every detected browser and compatible simulated device. Examples include `chrome` and `safari-ios-iphone-17-pro-26-5`. The web interface lists every ID with a copy button. No project configuration file is required.
+Browser Testbench creates a stable ID for every detected browser and compatible mobile device. Examples include `chrome`, `safari-ios-iphone-17-pro-26-5`, and `chrome-android-pixel-8-16`. The web interface lists every ID with a copy button. No project configuration file is required.
 
 Install the client in your project:
 
@@ -194,6 +196,7 @@ Key tools:
 GET    /health
 GET    /v1/targets
 GET    /v1/capabilities
+GET    /v1/events
 POST   /v1/verify
 GET    /v1/doctor
 GET    /v1/workbench

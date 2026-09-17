@@ -13,12 +13,14 @@ const elements = {
 };
 
 const defaultApplicationUrl = "http://127.0.0.1:3000";
+const environmentRefreshDelayMs = 250;
 
 let state;
 const authorizationStorageKey = "browser-testbench-token";
 let authorization = sessionStorage.getItem(authorizationStorageKey) ?? "";
 const verificationStates = new Map();
 let interfaceBusy = false;
+let environmentRefreshTimer;
 
 class WorkbenchUi {
   static async initialize() {
@@ -32,33 +34,60 @@ class WorkbenchUi {
     elements.mcpClient?.addEventListener("change", () => this.renderMcp());
     elements.debugUrl?.addEventListener("input", () => this.renderDebugCommand());
     elements.debugTarget?.addEventListener("change", () => this.renderDebugCommand());
+    void window.EnvironmentEventStream.listen({
+      authorization: () => authorization,
+      onEnvironmentChanged: () => this.scheduleEnvironmentRefresh(),
+    });
     await this.refresh();
   }
 
-  static async refresh(trigger) {
+  static async refresh(trigger, { background = false } = {}) {
     const restoreTrigger = this.buttonProgress(trigger, "Checking \u2026");
-    this.busy(true);
+    if (!background) this.busy(true);
     try {
       state = await this.request("/v1/workbench");
       elements.hostBadge?.replaceChildren(
         this.icon(this.platformIcon(state.platform)),
         document.createTextNode(`${state.platformLabel} · ${state.architecture}`),
       );
+      const expandedChecks = new Set(
+        [...(elements.checks?.querySelectorAll(".check-card[data-check-id] .device-options[open]") ?? [])].map(
+          (details) => details.closest(".check-card").dataset.checkId,
+        ),
+      );
       elements.checks?.replaceChildren(...state.checks.map((check) => this.checkCard(check)));
+      for (const checkId of expandedChecks) {
+        const details = [...(elements.checks?.querySelectorAll(".check-card .device-options") ?? [])].find(
+          (candidate) => candidate.closest(".check-card").dataset.checkId === checkId,
+        );
+        if (details) details.open = true;
+      }
       this.renderActions();
       this.renderTestTargets();
       this.renderConnections();
     } catch (error) {
-      this.notice(this.message(error), "error");
+      if (!background) this.notice(this.message(error), "error");
     } finally {
       restoreTrigger();
-      this.busy(false);
+      if (!background) this.busy(false);
     }
+  }
+
+  static scheduleEnvironmentRefresh() {
+    clearTimeout(environmentRefreshTimer);
+    environmentRefreshTimer = setTimeout(() => {
+      if (interfaceBusy) {
+        this.scheduleEnvironmentRefresh();
+        return;
+      }
+      void this.refresh(undefined, { background: true });
+    }, environmentRefreshDelayMs);
   }
 
   static checkCard(check) {
     const deviceClass = check.id === "safari-ios" || check.id === "chrome-android" ? " check-card--device" : "";
     const card = this.element("article", `check-card${deviceClass} is-${check.status}`);
+    card.dataset.checkId = check.id;
     const title = this.element("div", "check-card__title");
     const status = this.element("span", "status-icon");
     status.append(this.icon(this.statusIcon(check.status)));
@@ -92,16 +121,22 @@ class WorkbenchUi {
         const name = this.element("strong");
         name.textContent = device.name;
         const status = this.element("span");
-        status.textContent = device.compatible ? "Ready" : "Not Chrome-compatible";
+        status.textContent = device.compatible ? "Ready" : "Needs attention";
         heading.append(name, status);
         const meta = this.element("small");
         meta.textContent = [
+          this.deviceKind(device.deviceKind),
           device.platformVersion ? `Version ${device.platformVersion}` : "",
           this.deviceState(device.state),
         ]
           .filter(Boolean)
           .join(" · ");
         item.append(heading, meta);
+        if (device.detail) {
+          const detail = this.element("small", "device-option__detail");
+          detail.textContent = device.detail;
+          item.append(detail);
+        }
         if (device.compatible) item.append(this.command(JSON.stringify(device.config)));
         return item;
       }),
@@ -560,6 +595,9 @@ for (const target of targets) {
       return "Test running. On first launch, Xcode may take a few minutes to check the iOS runtime.";
     }
     if (target.browser === "chrome-android") {
+      if (target.deviceKind === "physical") {
+        return "Test running on the connected Android device. The first Appium session can take a moment.";
+      }
       return "Test running. On first launch, the Android Emulator may take a few minutes to start.";
     }
     return "Test running.";
@@ -570,7 +608,24 @@ for (const target of targets) {
   }
 
   static deviceState(state) {
-    return { Booted: "Running", Shutdown: "Shut down", Creating: "Creating" }[state] ?? state ?? "";
+    return (
+      {
+        Booted: "Running",
+        Shutdown: "Shut down",
+        Creating: "Creating",
+        Connected: "Connected via USB",
+        unauthorized: "USB debugging authorization required",
+        offline: "Device offline",
+        "no permissions": "USB permission required",
+        Available: "Available",
+      }[state] ??
+      state ??
+      ""
+    );
+  }
+
+  static deviceKind(kind) {
+    return { physical: "Physical device", emulator: "Emulator", simulator: "Simulator" }[kind] ?? "";
   }
 }
 
