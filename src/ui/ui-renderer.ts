@@ -17,29 +17,43 @@ const documentationNavigation = [
 ];
 
 export class UiRenderer {
-  private static readonly templates = new Eta({
+  private static readonly cachedTemplates = new Eta({
     views: join(TestbenchPaths.projectRoot, "templates", "ui"),
     cache: true,
   });
+  private static readonly liveTemplates = new Eta({
+    views: join(TestbenchPaths.projectRoot, "templates", "ui"),
+    cache: false,
+  });
 
-  static setup(): string {
-    return this.page("dashboard", "Overview", { scripts: ["/ui-assets/setup.js"] });
+  static setup(liveReload = false): string {
+    return this.page("dashboard", "Overview", { scripts: ["/ui-assets/setup.js"] }, liveReload);
   }
 
-  static targets(): string {
-    return this.page("targets", "Test targets", { scripts: ["/ui-assets/setup.js"] });
+  static targets(liveReload = false): string {
+    return this.page("targets", "Test targets", { scripts: ["/ui-assets/setup.js"] }, liveReload);
   }
 
-  static documentation(): string {
-    return this.page("documentation", "Documentation", {
-      activePage: "docs",
-      badgeIcon: "fa-book-open",
-      badgeLabel: "Local documentation",
-      subnavigation: documentationNavigation,
-    });
+  static documentation(liveReload = false): string {
+    return this.page(
+      "documentation",
+      "Documentation",
+      {
+        activePage: "docs",
+        badgeIcon: "fa-book-open",
+        badgeLabel: "Local documentation",
+        subnavigation: documentationNavigation,
+      },
+      liveReload,
+    );
   }
 
-  private static page(template: string, pageTitle: string, data: Record<string, unknown> = {}): string {
+  private static page(
+    template: string,
+    pageTitle: string,
+    data: Record<string, unknown> = {},
+    liveReload = false,
+  ): string {
     const activePage = (data.activePage as string | undefined) ?? template;
     const shared = {
       title: "Browser Testbench",
@@ -47,12 +61,16 @@ export class UiRenderer {
       activePage,
       navigation,
       subnavigation: [],
-      scripts: [],
       badgeIcon: "fa-circle-notch fa-spin",
       badgeLabel: "Checking system",
       ...data,
+      scripts: [
+        ...((data.scripts as string[] | undefined) ?? []),
+        ...(liveReload ? ["/ui-assets/live-reload.js"] : []),
+      ],
     };
-    const content = this.templates.render(`./pages/${template}`, shared);
-    return this.templates.render("./layout", { ...shared, content });
+    const templates = liveReload ? this.liveTemplates : this.cachedTemplates;
+    const content = templates.render(`./pages/${template}`, shared);
+    return templates.render("./layout", { ...shared, content });
   }
 }

@@ -152,6 +152,7 @@ program
   .option("--host <host>", "Bind host", TestbenchDefaults.LOOPBACK_HOST)
   .option("--port <port>", "Bind port", String(TestbenchDefaults.PORT))
   .option("--token <token>", "Bearer token (recommended outside loopback)")
+  .option("--live-reload", "Reload the UI when templates or assets change", import.meta.url.endsWith(".ts"))
   .option("--no-open", "Do not open the setup UI in the default browser")
   .action(async (options) => {
     if (options.host !== TestbenchDefaults.LOOPBACK_HOST && options.host !== "localhost" && !options.token)
@@ -160,6 +161,7 @@ program
       host: options.host,
       port: Number(options.port),
       token: options.token,
+      liveReload: options.liveReload,
     });
     const address = await server.start();
     const url = `http://${address.host}:${address.port}/setup`;
