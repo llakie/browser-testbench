@@ -11,7 +11,7 @@ Thank you for helping improve Browser Testbench.
 
 ## Development setup
 
-Browser Testbench requires Node.js 22 or newer.
+Browser Testbench requires Node.js 22.12 or 24 and newer.
 
 ```bash
 git clone https://github.com/llakie/browser-testbench.git

@@ -27,7 +27,7 @@ For Android, setup always reuses an existing compatible Google Play AVD. If none
 
 ## Installation and startup
 
-Node.js 22 or newer is required. Install Browser Testbench globally once on each machine:
+Node.js 22.12 or 24 and newer is required. Install Browser Testbench globally once on each machine:
 
 ```bash
 npm install --global browser-testbench

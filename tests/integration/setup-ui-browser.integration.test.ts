@@ -22,16 +22,34 @@ describe("workbench UI browser flow", () => {
           id,
           label: TargetRegistry.definitions[id].label,
           status: id === "chrome" ? "ready" : "skip",
-          detail: "Browser integration fixture",
+          detail:
+            id === "chrome"
+              ? "C:\\Program Files\\Google\\Chrome\\Application\\a-very-long-directory-name\\chrome.exe"
+              : "Browser integration fixture",
         })),
       );
-      vi.spyOn(SetupService, "plan").mockResolvedValue([]);
+      vi.spyOn(SetupService, "plan").mockResolvedValue([
+        {
+          label: "Appium UiAutomator2",
+          command: "browser-testbench setup --yes --targets chrome-android",
+          automatic: true,
+          status: "planned",
+          detail: "Browser integration fixture",
+          targets: ["chrome-android"],
+        },
+        {
+          label: "Android SDK",
+          automatic: false,
+          status: "manual",
+          detail: "Browser integration fixture",
+        },
+      ]);
       vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue(
         (["codex", "claude-code", "gemini-cli", "copilot-vscode", "other"] as McpClientId[]).map((id) => ({
           id,
           label: id,
-          installed: false,
-          automatic: false,
+          installed: id === "codex",
+          automatic: id === "codex",
           registered: false,
           current: false,
           command: id === "claude-code" ? "claude mcp add browser-testbench" : "test command",
@@ -42,7 +60,7 @@ describe("workbench UI browser flow", () => {
       );
       const directory = await mkdtemp(join(tmpdir(), "browser-testbench-ui-flow-"));
       const screenshotPath = join(directory, "targets-ui.png");
-      const api = new ApiServer({ host: "127.0.0.1", port: 0 });
+      const api = new ApiServer({ host: "127.0.0.1", port: 0, liveReload: true });
       const address = await api.start();
       const baseUrl = `http://${address.host}:${address.port}`;
       const browser = new BrowserSession();
@@ -52,17 +70,48 @@ describe("workbench UI browser flow", () => {
         await browser.active.setWindowRect(500, 812);
         await browser.navigate(`${baseUrl}/setup`);
         await browser.active.waitForText("Google Chrome", 15_000);
+        expect(
+          await browser.active.execute(
+            "return Boolean(document.querySelector('script[src=\"/ui-assets/live-reload.js\"]'))",
+          ),
+        ).toBe(true);
 
         expect(await browser.active.$("#host-badge").getText()).toContain(platformLabel);
+        expect(
+          await browser.active.execute(
+            "const card = [...document.querySelectorAll('.check-card')].find(candidate => candidate.textContent.includes('Google Chrome')); const detail = card.querySelector('.check-card__detail'); const style = getComputedStyle(detail); return { overflow: style.overflow, textOverflow: style.textOverflow, whiteSpace: style.whiteSpace, truncated: detail.scrollWidth > detail.clientWidth, title: detail.title }",
+          ),
+        ).toEqual({
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          truncated: true,
+          title: "C:\\Program Files\\Google\\Chrome\\Application\\a-very-long-directory-name\\chrome.exe",
+        });
         expect(await browser.active.$(".environment-group--capabilities .subsection-heading").getText()).toContain(
           "Availability on this machine",
         );
+        expect(await browser.active.$(".guided-actions__heading").getText()).toContain("Environment setup");
         expect(await browser.active.$(".integration-card").getText()).toContain("Connect an AI assistant through MCP");
         expect(
           await browser.active.execute(
             "const select = document.querySelector('#mcp-client'); const status = document.querySelector('#mcp-status'); const content = document.querySelector('.integration-card__content'); const selectRect = select.getBoundingClientRect(); const statusRect = status.getBoundingClientRect(); return { appearance: getComputedStyle(select).appearance, hasCaretSpace: parseFloat(getComputedStyle(select).paddingRight) >= 44, consistentGap: statusRect.top - selectRect.bottom === parseFloat(getComputedStyle(content).rowGap), caret: Boolean(document.querySelector('.select-control > .fa-chevron-down')) }",
           ),
         ).toEqual({ appearance: "none", hasCaretSpace: true, consistentGap: true, caret: true });
+        await browser.active.execute(`
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (...argumentsList) => {
+            if (String(argumentsList[0]) !== "/v1/workbench/mcp") return originalFetch(...argumentsList);
+            const client = { id: "codex", label: "codex", installed: true, automatic: true, registered: true, current: true, command: "test command", format: "command", detail: "Connected", instruction: "Browser integration fixture" };
+            return new Promise(resolve => setTimeout(() => resolve(new Response(JSON.stringify(client), { status: 200, headers: { "content-type": "application/json" } })), 300));
+          };
+        `);
+        await browser.active.$("#register-mcp").click();
+        expect(await browser.active.$("#register-mcp").getText()).toBe("Connecting \u2026");
+        expect(
+          await browser.active.execute("return document.querySelector('#register-mcp').getAttribute('aria-busy')"),
+        ).toBe("true");
+        await browser.active.waitForText("codex is connected to Browser Testbench.");
         await browser.active.execute(`
           const client = document.querySelector("#mcp-client");
           client.value = "claude-code";
@@ -207,6 +256,29 @@ describe("workbench UI browser flow", () => {
         await browser.active.setWindowRect(1000, 812);
         await browser.navigate(`${baseUrl}/setup`);
         await browser.active.waitForText("Google Chrome", 15_000);
+        expect(await browser.active.execute("return document.querySelector('#run-setup')")).toBeNull();
+        expect(
+          await browser.active.execute(
+            "const content = document.querySelector('.guided-actions__content').getBoundingClientRect(); const list = document.querySelector('#setup-action-list').getBoundingClientRect(); return { left: list.left === content.left, right: list.right === content.right }",
+          ),
+        ).toEqual({ left: true, right: true });
+        expect(
+          await browser.active.execute(
+            "const statuses = [...document.querySelectorAll('.setup-action__status')]; return { labels: statuses.map(status => status.textContent.trim()), aligned: new Set(statuses.map(status => status.getBoundingClientRect().right)).size === 1, sameWidth: new Set(statuses.map(status => status.getBoundingClientRect().width)).size === 1 }",
+          ),
+        ).toEqual({ labels: ["Install", "Action required"], aligned: true, sameWidth: true });
+        await browser.active.execute(`
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (...argumentsList) => {
+            if (String(argumentsList[0]) !== "/v1/workbench/setup") return originalFetch(...argumentsList);
+            window.__setupTargets = JSON.parse(argumentsList[1].body).targets;
+            return new Promise(resolve => setTimeout(() => resolve(new Response("[]", { status: 200, headers: { "content-type": "application/json" } })), 200));
+          };
+        `);
+        await browser.active.$(".setup-action__status.is-planned").click();
+        expect(await browser.active.$(".setup-action__status.is-planned").getText()).toBe("Installing \u2026");
+        await browser.active.waitForText("Setup completed.");
+        expect(await browser.active.execute("return window.__setupTargets")).toEqual(["chrome-android"]);
         expect(
           await browser.active.execute(
             "const button = document.querySelector('#sidebar-collapse').getBoundingClientRect(); const icon = document.querySelector('#sidebar-collapse i').getBoundingClientRect(); return button.right - icon.right < icon.left - button.left",

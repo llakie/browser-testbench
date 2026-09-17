@@ -22,9 +22,10 @@ export class SetupService {
     targets = targets.filter((target) => TargetRegistry.isSupported(target));
     const actions: SetupAction[] = [];
     const mobileTargets = targets.filter((target) => target === "safari-ios" || target === "chrome-android");
-    if (mobileTargets.length > 0) {
+    if (mobileTargets.length > 0 && DoctorService.isNodeSupported()) {
       const statuses = await this.appiumDriverStatus(mobileTargets);
       for (const driver of statuses) {
+        const target = driver.name === "xcuitest" ? "safari-ios" : "chrome-android";
         actions.push({
           label: `Appium ${this.driverLabel(driver.name)}`,
           command: driver.installed
@@ -32,6 +33,7 @@ export class SetupService {
             : TestbenchPaths.cliCommand("setup", "--yes", "--targets", mobileTargets.join(",")),
           automatic: true,
           status: driver.installed ? "completed" : "planned",
+          targets: [target],
           detail: driver.installed
             ? `Version ${driver.version ?? "unknown"} is installed locally.`
             : "The driver is not installed yet.",
@@ -39,7 +41,7 @@ export class SetupService {
       }
     }
     const androidAction = targets.includes("chrome-android") ? await AndroidAvdService.plan() : undefined;
-    if (androidAction) actions.push(androidAction);
+    if (androidAction) actions.push({ ...androidAction, targets: ["chrome-android"] });
     const checks = await DoctorService.inspect(targets);
     for (const check of checks.filter((entry) => entry.status === "blocked" || entry.status === "action")) {
       if (check.id === "chrome-android" && androidAction) continue;
@@ -63,6 +65,16 @@ export class SetupService {
     targets = targets.filter((target) => TargetRegistry.isSupported(target));
     const results: SetupAction[] = [];
     const mobileTargets = targets.filter((target) => target === "safari-ios" || target === "chrome-android");
+    if (mobileTargets.length > 0 && !DoctorService.isNodeSupported()) {
+      return [
+        {
+          label: "Node.js",
+          automatic: false,
+          status: "failed",
+          detail: "Appium setup requires Node.js 22.12 LTS or Node.js 24 or newer.",
+        },
+      ];
+    }
     if (mobileTargets.length > 0) {
       const appiumHome = TestbenchPaths.data("appium");
       await mkdir(appiumHome, { recursive: true });
