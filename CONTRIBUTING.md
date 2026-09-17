@@ -21,6 +21,8 @@ npm run dev -- start
 ```
 
 The setup interface opens at `http://127.0.0.1:55808/setup` by default.
+When the CLI runs directly from the TypeScript sources, changes below `templates/ui` and `public/ui` automatically
+reload the open browser page. Built installations can opt into the same behavior with `--live-reload`.
 
 ## Validation
 

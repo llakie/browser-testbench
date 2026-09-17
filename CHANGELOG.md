@@ -4,6 +4,24 @@ All notable changes to Browser Testbench are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-09-17
+
+### Added
+
+- Development live reload refreshes open UI pages when templates, styles, or browser scripts change.
+- Setup actions can install individual automatic components and show visible progress while work is running.
+
+### Changed
+
+- The environment setup panel now uses full-width action rows, aligned statuses, clearer labels, and truncated path details with full hover text.
+- Node.js 22.12 LTS or Node.js 24 and newer is now required to match Appium and other runtime dependencies.
+
+### Fixed
+
+- Windows command scripts such as `code.cmd` and Android SDK batch tools now run through the Windows command shell instead of failing with `spawn EINVAL`.
+- Appium installation is no longer offered on Node.js versions that cannot run the bundled Appium dependencies.
+- Long-running UI actions consistently display an animated progress indicator instead of only disabling their controls.
+
 ## [0.1.4] - 2026-09-16
 
 ### Fixed
@@ -51,6 +69,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Automated CI for macOS, Windows, and Linux and npm publishing through GitHub Actions.
 
 [0.1.4]: https://github.com/llakie/browser-testbench/compare/v0.1.3...v0.1.4
+[0.1.5]: https://github.com/llakie/browser-testbench/compare/v0.1.4...v0.1.5
 [0.1.3]: https://github.com/llakie/browser-testbench/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/llakie/browser-testbench/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/llakie/browser-testbench/compare/v0.1.0...v0.1.1
