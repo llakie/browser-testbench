@@ -110,6 +110,19 @@ describe("ApiServer", () => {
     expect((await fetch(`${baseUrl}/v1/workbench/config`, { method: "PUT" })).status).toBe(404);
   });
 
+  it("serves uncached UI pages with the reload client in development mode", async () => {
+    server = new ApiServer({ host: "127.0.0.1", port: 0, liveReload: true });
+    const address = await server.start();
+    const baseUrl = `http://${address.host}:${address.port}`;
+
+    const page = await fetch(`${baseUrl}/setup`);
+    const asset = await fetch(`${baseUrl}/ui-assets/setup.css`);
+
+    expect(page.headers.get("cache-control")).toBe("no-store");
+    expect(await page.text()).toContain("/ui-assets/live-reload.js");
+    expect(asset.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("enforces a bearer token when configured", async () => {
     server = new ApiServer({ host: "127.0.0.1", port: 0, token: "test-secret" });
     const address = await server.start();

@@ -12,6 +12,7 @@ import { McpIntegrationService } from "../setup/mcp-integration-service.js";
 import { WorkbenchService } from "../setup/workbench-service.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { UiRenderer } from "../ui/ui-renderer.js";
+import { UiLiveReload } from "../ui/ui-live-reload.js";
 import { TargetCatalogService, UnknownTargetError } from "../setup/target-catalog-service.js";
 import { TargetVerificationService } from "../setup/target-verification-service.js";
 
@@ -19,6 +20,7 @@ export interface ApiServerOptions {
   host: string;
   port: number;
   token?: string;
+  liveReload?: boolean;
 }
 
 export class ApiServer {
@@ -26,8 +28,16 @@ export class ApiServer {
   private readonly app = express();
   private readonly server: Server;
   private readonly workbench = new WorkbenchService();
+  private readonly liveReload?: UiLiveReload;
+  private readonly liveReloadResponses = new Set<Response>();
 
   constructor(private readonly options: ApiServerOptions) {
+    if (options.liveReload) {
+      this.liveReload = new UiLiveReload([
+        join(TestbenchPaths.projectRoot, "templates", "ui"),
+        join(TestbenchPaths.projectRoot, "public", "ui"),
+      ]);
+    }
     this.app.disable("x-powered-by");
     this.registerPublicRoutes();
     this.app.use(express.json({ limit: "1mb" }));
@@ -53,16 +63,30 @@ export class ApiServer {
 
   private registerPublicRoutes(): void {
     this.app.get("/", (_request, response) => response.redirect("/setup"));
-    this.app.get("/setup", (_request, response) => response.type("html").send(UiRenderer.setup()));
-    this.app.get("/targets", (_request, response) => response.type("html").send(UiRenderer.targets()));
-    this.app.get("/docs", (_request, response) => response.type("html").send(UiRenderer.documentation()));
+    this.app.get("/setup", (_request, response) => this.sendUi(response, UiRenderer.setup(this.options.liveReload)));
+    this.app.get("/targets", (_request, response) =>
+      this.sendUi(response, UiRenderer.targets(this.options.liveReload)),
+    );
+    this.app.get("/docs", (_request, response) =>
+      this.sendUi(response, UiRenderer.documentation(this.options.liveReload)),
+    );
     this.app.get("/LICENSE.txt", (_request, response) =>
       response.sendFile(join(TestbenchPaths.projectRoot, "LICENSE.txt")),
     );
     this.app.get("/THIRD_PARTY_LICENSES.txt", (_request, response) =>
       response.sendFile(join(TestbenchPaths.projectRoot, "THIRD_PARTY_LICENSES.txt")),
     );
-    this.app.use("/ui-assets", express.static(join(TestbenchPaths.projectRoot, "public", "ui")));
+    if (this.liveReload) this.app.get("/ui-live-reload", (_request, response) => this.connectLiveReload(response));
+    this.app.use(
+      "/ui-assets",
+      express.static(join(TestbenchPaths.projectRoot, "public", "ui"), {
+        etag: !this.options.liveReload,
+        lastModified: !this.options.liveReload,
+        setHeaders: (response) => {
+          if (this.options.liveReload) response.setHeader("Cache-Control", "no-store");
+        },
+      }),
+    );
     this.app.use("/fontawesome", express.static(TestbenchPaths.packageDirectory("@fortawesome/fontawesome-free")));
   }
 
@@ -71,13 +95,38 @@ export class ApiServer {
       this.server.once("error", reject);
       this.server.listen(this.options.port, this.options.host, resolve);
     });
+    this.liveReload?.start();
     const address = this.server.address() as AddressInfo;
     return { host: this.options.host, port: address.port };
   }
 
   async stop(): Promise<void> {
+    this.liveReload?.stop();
+    for (const response of this.liveReloadResponses) response.end();
+    this.liveReloadResponses.clear();
     await this.sessions.closeAll();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
+  }
+
+  private sendUi(response: Response, html: string): void {
+    if (this.options.liveReload) response.setHeader("Cache-Control", "no-store");
+    response.type("html").send(html);
+  }
+
+  private connectLiveReload(response: Response): void {
+    response.set({
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream",
+    });
+    response.flushHeaders();
+    response.write("event: connected\ndata: ready\n\n");
+    this.liveReloadResponses.add(response);
+    const unsubscribe = this.liveReload!.subscribe(() => response.write("data: reload\n\n"));
+    response.on("close", () => {
+      unsubscribe();
+      this.liveReloadResponses.delete(response);
+    });
   }
 
   private registerRoutes(): void {
