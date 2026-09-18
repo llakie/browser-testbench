@@ -36,18 +36,23 @@ export interface PageInspection {
 }
 
 export interface DiagnosticEvent {
-  type: "console" | "request" | "response" | "requestFailed";
+  type: "console" | "request" | "response" | "requestFailed" | "webSocket" | "webSocketFrame";
   timestamp: string;
   level?: string;
   message?: string;
+  requestId?: string;
   method?: string;
   url?: string;
   status?: number;
+  statusText?: string;
   mimeType?: string;
   headers?: Record<string, unknown>;
   body?: string;
   error?: string;
   durationMs?: number;
+  phase?: "created" | "handshakeRequest" | "handshakeResponse" | "closed" | "error";
+  direction?: "sent" | "received";
+  opcode?: number;
 }
 
 export type ResolvedStartSessionInput = Omit<StartSessionInput, "target"> & {
@@ -67,6 +72,7 @@ export class InteractiveController {
   private video?: { recorder: VideoRecorder; path: string };
   private readonly diagnosticEvents: DiagnosticEvent[] = [];
   private readonly requestTimestamps = new Map<string, number>();
+  private readonly webSocketUrls = new Map<string, string>();
 
   async start(options: ResolvedStartSessionInput): Promise<Record<string, unknown>> {
     if (!TargetRegistry.isSupported(options.target))
@@ -359,6 +365,7 @@ export class InteractiveController {
   clearDiagnostics(): void {
     this.diagnosticEvents.length = 0;
     this.requestTimestamps.clear();
+    this.webSocketUrls.clear();
   }
 
   debugTools(): Record<string, unknown> {
@@ -379,7 +386,8 @@ export class InteractiveController {
     return {
       tool: "Testbench diagnostics",
       automatic: true,
-      detail: "Console output and HTTP requests/responses are available through the diagnostics endpoint.",
+      detail:
+        "Console output, HTTP requests/responses, and WebSocket connections/frames are available through the diagnostics endpoint.",
     };
   }
 
@@ -452,6 +460,80 @@ export class InteractiveController {
           });
           if (requestId) this.requestTimestamps.delete(requestId);
         }
+        if (message?.method === "Network.webSocketCreated") {
+          const requestId = message.params?.requestId as string | undefined;
+          const url = message.params?.url as string | undefined;
+          if (requestId && url) this.webSocketUrls.set(requestId, url);
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "created",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url,
+          });
+        }
+        if (message?.method === "Network.webSocketWillSendHandshakeRequest") {
+          const requestId = message.params?.requestId as string | undefined;
+          const request = message.params?.request as { headers?: Record<string, unknown> } | undefined;
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "handshakeRequest",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+            headers: request?.headers,
+          });
+        }
+        if (message?.method === "Network.webSocketHandshakeResponseReceived") {
+          const requestId = message.params?.requestId as string | undefined;
+          const response = message.params?.response as
+            { status?: number; statusText?: string; headers?: Record<string, unknown> } | undefined;
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "handshakeResponse",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+            status: response?.status,
+            statusText: response?.statusText,
+            headers: response?.headers,
+          });
+        }
+        if (message?.method === "Network.webSocketFrameSent" || message?.method === "Network.webSocketFrameReceived") {
+          const requestId = message.params?.requestId as string | undefined;
+          const frame = message.params?.response as { opcode?: number; payloadData?: string } | undefined;
+          this.pushDiagnostic({
+            type: "webSocketFrame",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+            direction: message.method === "Network.webSocketFrameSent" ? "sent" : "received",
+            opcode: frame?.opcode,
+            body: frame?.payloadData?.slice(0, TestbenchDefaults.PAGE_SOURCE_LIMIT),
+          });
+        }
+        if (message?.method === "Network.webSocketFrameError") {
+          const requestId = message.params?.requestId as string | undefined;
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "error",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+            error: message.params?.errorMessage as string | undefined,
+          });
+        }
+        if (message?.method === "Network.webSocketClosed") {
+          const requestId = message.params?.requestId as string | undefined;
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "closed",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+          });
+          if (requestId) this.webSocketUrls.delete(requestId);
+        }
       }
     } catch {
       // Performance logging is currently available on Chromium targets only.
@@ -513,6 +595,7 @@ export class InteractiveController {
     this.target = undefined;
     this.diagnosticEvents.length = 0;
     this.requestTimestamps.clear();
+    this.webSocketUrls.clear();
     return { videoPath };
   }
 }

@@ -296,7 +296,8 @@ export class McpServerHost {
     server.registerTool(
       "get_diagnostics",
       {
-        description: "Return captured console output and HTTP request/response diagnostics for the active session.",
+        description:
+          "Return captured console output, HTTP request/response, and WebSocket connection/frame diagnostics for the active session.",
         annotations: { readOnlyHint: true },
       },
       async () => textResult(await active().diagnostics()),
@@ -304,7 +305,7 @@ export class McpServerHost {
 
     server.registerTool(
       "clear_diagnostics",
-      { description: "Clear collected console and HTTP diagnostics for the active session." },
+      { description: "Clear collected console, HTTP, and WebSocket diagnostics for the active session." },
       async () => {
         await active().clearDiagnostics();
         return textResult({ cleared: true });

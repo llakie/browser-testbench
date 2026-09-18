@@ -78,7 +78,7 @@ browser-testbench verify safari
 
 ### Interactive development and debugging
 
-An AI assistant can use MCP to open a session, navigate, inspect elements, click, type, take screenshots, and perform mobile gestures. The MCP process is a lightweight bridge to the running Browser Testbench server; target resolution, sessions, and device locks remain centralized. Console output and HTTP requests and responses are available through `get_diagnostics`. WebSocket transport and WebSocket frame inspection are not currently included.
+An AI assistant can use MCP to open a session, navigate, inspect elements, click, type, take screenshots, and perform mobile gestures. The MCP process is a lightweight bridge to the running Browser Testbench server; target resolution, sessions, and device locks remain centralized. Console output, HTTP requests and responses, and WebSocket connections and frames are available through `get_diagnostics` on Chromium desktop targets.
 
 `get_devtools_instructions` provides the appropriate connection for native browser developer tools:
 

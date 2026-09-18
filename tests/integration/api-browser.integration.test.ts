@@ -138,12 +138,46 @@ describe("REST browser control", () => {
         await browser.printPdf(pdfPath);
         expect((await stat(pdfPath)).size).toBeGreaterThan(100);
         expect(await browser.accessibility()).toBeTruthy();
+        expect(
+          await browser.evaluate<string>(`
+            return new Promise((resolve, reject) => {
+              const socket = new WebSocket(location.origin.replace(/^http/, "ws") + "/websocket");
+              const timeout = setTimeout(() => reject(new Error("WebSocket fixture timed out")), 5_000);
+              socket.addEventListener("open", () => socket.send("client-frame"));
+              socket.addEventListener("message", event => {
+                window.__webSocketFixtureReply = event.data;
+                socket.close();
+              });
+              socket.addEventListener("close", () => {
+                clearTimeout(timeout);
+                resolve(window.__webSocketFixtureReply);
+              });
+              socket.addEventListener("error", reject);
+            });
+          `),
+        ).toBe("echo:client-frame");
         const diagnostics = await browser.diagnostics();
         expect(
           diagnostics.some((entry) => entry.type === "console" && entry.message?.includes("fixture submitted")),
         ).toBe(true);
         expect(diagnostics.some((entry) => entry.type === "request" && entry.url?.includes("/api/ping"))).toBe(true);
         expect(diagnostics.some((entry) => entry.type === "response" && entry.url?.includes("/api/ping"))).toBe(true);
+        expect(
+          diagnostics.some(
+            (entry) => entry.type === "webSocket" && entry.phase === "handshakeResponse" && entry.status === 101,
+          ),
+        ).toBe(true);
+        expect(
+          diagnostics.some(
+            (entry) => entry.type === "webSocketFrame" && entry.direction === "sent" && entry.body === "client-frame",
+          ),
+        ).toBe(true);
+        expect(
+          diagnostics.some(
+            (entry) =>
+              entry.type === "webSocketFrame" && entry.direction === "received" && entry.body === "echo:client-frame",
+          ),
+        ).toBe(true);
         await browser.clearDiagnostics();
         expect(await browser.diagnostics()).toEqual([]);
         await browser.close();

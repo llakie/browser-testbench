@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { createServer } from "node:http";
 
@@ -53,6 +54,33 @@ export class FixtureServer {
     );
   });
 
+  constructor() {
+    this.server.on("upgrade", (request, socket) => {
+      if (request.url !== "/websocket" || !request.headers["sec-websocket-key"]) {
+        socket.destroy();
+        return;
+      }
+      const accept = createHash("sha1")
+        .update(`${request.headers["sec-websocket-key"]}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
+        .digest("base64");
+      socket.write(
+        [
+          "HTTP/1.1 101 Switching Protocols",
+          "Upgrade: websocket",
+          "Connection: Upgrade",
+          `Sec-WebSocket-Accept: ${accept}`,
+          "",
+          "",
+        ].join("\r\n"),
+      );
+      socket.on("data", (data) => {
+        const opcode = data[0]! & 0x0f;
+        if (opcode === 1) socket.write(this.webSocketTextFrame(`echo:${this.webSocketPayload(data)}`));
+        if (opcode === 8) socket.end(Buffer.from([0x88, 0x00]));
+      });
+    });
+  }
+
   async start(): Promise<string> {
     await new Promise<void>((resolve, reject) => {
       this.server.once("error", reject);
@@ -64,5 +92,24 @@ export class FixtureServer {
 
   async stop(): Promise<void> {
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
+  }
+
+  private webSocketPayload(frame: Buffer): string {
+    const flags = frame[1]!;
+    const masked = Boolean(flags & 0x80);
+    const length = flags & 0x7f;
+    const maskOffset = 2;
+    const payloadOffset = masked ? maskOffset + 4 : maskOffset;
+    const payload = Buffer.from(frame.subarray(payloadOffset, payloadOffset + length));
+    if (masked) {
+      const mask = frame.subarray(maskOffset, maskOffset + 4);
+      for (let index = 0; index < payload.length; index += 1) payload[index] = payload[index]! ^ mask[index % 4]!;
+    }
+    return payload.toString("utf8");
+  }
+
+  private webSocketTextFrame(payload: string): Buffer {
+    const body = Buffer.from(payload);
+    return Buffer.concat([Buffer.from([0x81, body.length]), body]);
   }
 }
