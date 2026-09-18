@@ -123,7 +123,7 @@ export class AndroidDeviceService {
           platformVersion,
           state: "Available",
           deviceKind: "emulator",
-          compatible: /^tag\.id=google_apis_playstore(?:_|$)/m.test(config),
+          compatible: this.hasGooglePlayTag(config),
           config: {
             name: "chrome-android",
             deviceKind: "emulator",
@@ -196,6 +196,11 @@ export class AndroidDeviceService {
 
   private static displayValue(value?: string): string | undefined {
     return value?.replaceAll("_", " ");
+  }
+
+  private static hasGooglePlayTag(config: string): boolean {
+    const tags = config.match(/^tag\.ids?=(.+)$/m)?.[1]?.split(",") ?? [];
+    return tags.some((tag) => /^google_apis_playstore(?:_|$)/.test(tag.trim()));
   }
 
   private static physicalDeviceAction(state?: string): string {
