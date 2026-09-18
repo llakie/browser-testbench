@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Chromium diagnostics now include WebSocket connection lifecycle, handshake, error, and sent/received frame events.
 
+### Fixed
+
+- Third-party license generation now honors explicit license replacements and no longer warns about known dual-license packages.
+
 ## [0.1.8] - 2026-09-18
 
 ### Fixed

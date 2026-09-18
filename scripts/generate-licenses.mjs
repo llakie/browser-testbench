@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getLicenseFileText } from "generate-license-file";
 
@@ -9,12 +9,17 @@ const CREDIT =
 const SEPARATOR = "-----------";
 
 export class ThirdPartyLicenseGenerator {
-  static async generate(packageJsonPath = "package.json", lockfilePath = "package-lock.json") {
+  static async generate(
+    packageJsonPath = "package.json",
+    lockfilePath = "package-lock.json",
+    configPath = ".glf.json",
+  ) {
     const lockfile = JSON.parse(await readFile(lockfilePath, "utf8"));
     const platformPackages = this.findPlatformPackages(lockfile);
     const generated = await getLicenseFileText(packageJsonPath, {
       lineEnding: "lf",
       exclude: platformPackages.map(({ identifier }) => identifier),
+      replace: await this.readReplacements(configPath),
     });
 
     const finalCreditPosition = generated.lastIndexOf(CREDIT);
@@ -24,6 +29,21 @@ export class ThirdPartyLicenseGenerator {
 
     const platformSections = this.formatPlatformSections(platformPackages);
     return generated.slice(0, finalCreditPosition) + platformSections + CREDIT + "\n";
+  }
+
+  static async readReplacements(configPath) {
+    const config = JSON.parse(await readFile(configPath, "utf8"));
+    if (typeof config.replace !== "object" || config.replace === null || Array.isArray(config.replace)) {
+      throw new Error(`${configPath} does not contain a replace object.`);
+    }
+    return Object.fromEntries(
+      Object.entries(config.replace).map(([packageName, replacementPath]) => {
+        if (typeof replacementPath !== "string" || replacementPath.length === 0) {
+          throw new Error(`Invalid license replacement for ${packageName} in ${configPath}.`);
+        }
+        return [packageName, resolve(dirname(configPath), replacementPath)];
+      }),
+    );
   }
 
   static findPlatformPackages(lockfile) {

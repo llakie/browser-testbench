@@ -1,7 +1,20 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ThirdPartyLicenseGenerator } from "../../scripts/generate-licenses.mjs";
 
 describe("ThirdPartyLicenseGenerator", () => {
+  it("resolves configured license replacements relative to the config file", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "browser-testbench-licenses-"));
+    const configPath = join(directory, ".glf.json");
+    await writeFile(configPath, JSON.stringify({ replace: { "dual-license": "licenses/MIT.txt" } }));
+
+    await expect(ThirdPartyLicenseGenerator.readReplacements(configPath)).resolves.toEqual({
+      "dual-license": join(directory, "licenses", "MIT.txt"),
+    });
+  });
+
   it("includes every platform package and its dependency closure from the lockfile", () => {
     const lockfile = {
       packages: {
