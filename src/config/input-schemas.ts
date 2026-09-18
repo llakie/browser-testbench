@@ -17,6 +17,7 @@ export class InputSchemas {
     downloadDir: z.string().min(1).optional(),
     videoPath: z.string().min(1).optional(),
     capabilities: z.record(z.string(), z.unknown()).optional(),
+    lockTimeoutMs: z.number().nonnegative().optional(),
   });
 
   static readonly verification = z.strictObject({
@@ -31,6 +32,50 @@ export class InputSchemas {
   static readonly mcpIntegration = z.strictObject({
     client: z.enum(["codex", "claude-code", "gemini-cli"]),
   });
+
+  static readonly remoteRole = z.enum(["control", "admin"]);
+  static readonly remoteInstance = z.strictObject({
+    instanceId: z.string().min(1),
+    name: z.string().min(1),
+    url: z.url(),
+    platform: z.enum([
+      "aix",
+      "android",
+      "darwin",
+      "freebsd",
+      "haiku",
+      "linux",
+      "openbsd",
+      "sunos",
+      "win32",
+      "cygwin",
+      "netbsd",
+    ]),
+    architecture: z.string().min(1),
+    version: z.string().min(1),
+    apiVersion: z.number().int().positive(),
+  });
+  static readonly remoteConnect = z.strictObject({
+    instance: this.remoteInstance,
+    role: this.remoteRole.default("control"),
+  });
+  static readonly remotePairingBegin = z.strictObject({
+    clientName: z.string().trim().min(1).max(100),
+    role: this.remoteRole.default("control"),
+  });
+  static readonly remotePairingComplete = z.strictObject({
+    pairingId: z.uuid(),
+    clientId: z.uuid(),
+    clientName: z.string().trim().min(1).max(100),
+    role: this.remoteRole,
+    clientPublicKey: z.string().min(1),
+    proof: z.string().min(1),
+  });
+  static readonly localPairingComplete = z.strictObject({
+    pairingId: z.uuid(),
+    code: z.string().regex(/^\d{6}$/),
+  });
+  static readonly remoteClientRole = z.strictObject({ role: this.remoteRole });
 
   static readonly navigate = z.strictObject({ url: z.url() });
   static readonly click = z.strictObject({ selector: z.string().min(1) });

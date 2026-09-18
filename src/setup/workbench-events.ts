@@ -1,6 +1,6 @@
 export interface WorkbenchEvent {
-  type: "environment.changed";
-  source: "android";
+  type: "environment.changed" | "connection.changed";
+  source: "android" | "remote";
   occurredAt: string;
 }
 

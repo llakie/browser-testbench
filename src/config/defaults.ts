@@ -16,6 +16,12 @@ export class TestbenchDefaults {
   static readonly TARGET_CACHE_TTL_MS = 30_000;
   static readonly ENVIRONMENT_POLL_INTERVAL_MS = 2_000;
   static readonly EVENT_HEARTBEAT_INTERVAL_MS = 15_000;
+  static readonly PAIRING_TTL_MS = 5 * 60_000;
+  static readonly REMOTE_REQUEST_MAX_AGE_MS = 30_000;
+  static readonly TARGET_LOCK_TIMEOUT_MS = 60_000;
+  static readonly REMOTE_CLEANUP_TIMEOUT_MS = 10_000;
+  static readonly REMOTE_HEARTBEAT_INTERVAL_MS = 30_000;
+  static readonly REMOTE_LEASE_TIMEOUT_MS = 90_000;
   static readonly ANDROID_ADB_COMMAND_TIMEOUT_MS = 120_000;
   static readonly ANDROID_UIAUTOMATOR_INSTALL_TIMEOUT_MS = 120_000;
   static readonly SCREENSHOT_SCROLL_SETTLE_MS = 250;

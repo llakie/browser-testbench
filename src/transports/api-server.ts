@@ -18,17 +18,35 @@ import { TargetVerificationService } from "../setup/target-verification-service.
 import { AndroidDeviceMonitor } from "../setup/android-device-monitor.js";
 import { WorkbenchEvents } from "../setup/workbench-events.js";
 import { WorkbenchEventStream } from "./workbench-event-stream.js";
+import { RemoteHostIdentityStore, AuthorizedRemoteClientStore } from "../remote/remote-client-store.js";
+import { RemotePairingService, PairingNotFoundError, PairingRejectedError } from "../remote/remote-pairing-service.js";
+import { RemoteRequestAuthentication } from "../remote/remote-request-authentication.js";
+import { RemoteDiscoveryBrowser, RemoteDiscoveryPublisher } from "../remote/remote-discovery-service.js";
+import { RemoteConnectionService } from "../remote/remote-connection-service.js";
+import { TestbenchDefaults } from "../config/defaults.js";
+import { RemoteLoopbackUrlError } from "../remote/remote-url-guard.js";
+import { RemoteApiError } from "../remote/remote-api-client.js";
+import { RemoteArtifactHost } from "../remote/remote-artifact-transfer.js";
+import { RemoteApiController } from "../remote/remote-api-controller.js";
 
 export interface ApiServerOptions {
   host: string;
   port: number;
   token?: string;
   liveReload?: boolean;
+  remote?: boolean;
 }
 
 export interface ApiServerDependencies {
   events?: WorkbenchEvents;
   androidMonitor?: AndroidDeviceMonitor;
+  identity?: RemoteHostIdentityStore;
+  clients?: AuthorizedRemoteClientStore;
+  pairing?: RemotePairingService;
+  remoteAuthentication?: RemoteRequestAuthentication;
+  discovery?: Pick<RemoteDiscoveryBrowser, "discover">;
+  publisher?: Pick<RemoteDiscoveryPublisher, "start" | "stop">;
+  connections?: RemoteConnectionService;
 }
 
 export class ApiServer {
@@ -41,15 +59,48 @@ export class ApiServer {
   private readonly events: WorkbenchEvents;
   private readonly eventStream: WorkbenchEventStream;
   private readonly androidMonitor: AndroidDeviceMonitor;
+  private readonly identity: RemoteHostIdentityStore;
+  private readonly clients: AuthorizedRemoteClientStore;
+  private readonly pairing: RemotePairingService;
+  private readonly remoteAuthentication: RemoteRequestAuthentication;
+  private readonly discovery: Pick<RemoteDiscoveryBrowser, "discover">;
+  private readonly publisher: Pick<RemoteDiscoveryPublisher, "start" | "stop">;
+  private readonly connections: RemoteConnectionService;
+  private readonly clientLeases = new Map<string, NodeJS.Timeout>();
+  private readonly artifactHost = new RemoteArtifactHost();
+  private readonly remoteApi: RemoteApiController;
 
   constructor(
     private readonly options: ApiServerOptions,
     dependencies: ApiServerDependencies = {},
   ) {
     this.events = dependencies.events ?? new WorkbenchEvents();
+    this.identity = dependencies.identity ?? new RemoteHostIdentityStore();
+    this.clients = dependencies.clients ?? new AuthorizedRemoteClientStore();
+    this.pairing = dependencies.pairing ?? new RemotePairingService(this.clients);
+    this.remoteAuthentication = dependencies.remoteAuthentication ?? new RemoteRequestAuthentication(this.clients);
+    this.discovery = dependencies.discovery ?? new RemoteDiscoveryBrowser();
+    this.publisher = dependencies.publisher ?? new RemoteDiscoveryPublisher(this.identity);
+    this.connections = dependencies.connections ?? new RemoteConnectionService();
+    this.remoteApi = new RemoteApiController({
+      remote: Boolean(options.remote),
+      identity: this.identity,
+      clients: this.clients,
+      pairing: this.pairing,
+      authentication: this.remoteAuthentication,
+      discovery: this.discovery,
+      connections: this.connections,
+      sessions: this.sessions,
+      notifyConnectionChanged: () => this.notifyConnectionChanged(),
+      closeOwned: (ownerId) => this.closeOwnedAndCleanup(ownerId),
+    });
     this.eventStream = new WorkbenchEventStream(this.events);
     this.androidMonitor =
       dependencies.androidMonitor ?? new AndroidDeviceMonitor(() => this.notifyEnvironmentChanged("android"));
+    this.remoteAuthentication.onActivity((clientId) => this.refreshClientLease(clientId));
+    this.connections.onEvent((type) =>
+      this.events.publish({ type, source: "remote", occurredAt: new Date().toISOString() }),
+    );
     if (options.liveReload) {
       this.liveReload = new UiLiveReload([
         join(TestbenchPaths.projectRoot, "templates", "ui"),
@@ -58,16 +109,36 @@ export class ApiServer {
     }
     this.app.disable("x-powered-by");
     this.registerPublicRoutes();
+    this.app.use("/v1/sessions/:id/upload", express.json({ limit: "70mb" }));
     this.app.use(express.json({ limit: "1mb" }));
-    this.app.use((request, response, next) => this.authorize(request, response, next));
+    this.remoteApi.registerPairingRoutes(this.app);
+    this.app.use((request, response, next) =>
+      options.remote
+        ? this.remoteAuthentication.middleware(request, response, next)
+        : this.authorize(request, response, next),
+    );
+    this.remoteApi.registerConnectionRoutes(this.app);
+    this.app.use((request, response, next) => this.remoteApi.proxy(request, response, next));
     this.registerRoutes();
     this.app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
       if (error instanceof ZodError) {
         response.status(400).json({ error: "Invalid request", issues: error.issues });
         return;
       }
-      if (error instanceof SessionNotFoundError) {
+      if (error instanceof SessionNotFoundError || error instanceof PairingNotFoundError) {
         response.status(404).json({ error: error.message });
+        return;
+      }
+      if (error instanceof PairingRejectedError) {
+        response.status(403).json({ error: error.message });
+        return;
+      }
+      if (error instanceof RemoteLoopbackUrlError) {
+        response.status(400).json({ error: error.message });
+        return;
+      }
+      if (error instanceof RemoteApiError) {
+        response.status(error.status).json({ error: error.message });
         return;
       }
       if (error instanceof UnknownTargetError) {
@@ -116,6 +187,7 @@ export class ApiServer {
     this.liveReload?.start();
     this.androidMonitor.start();
     const address = this.server.address() as AddressInfo;
+    if (this.options.remote) await this.publisher.start(address.port);
     return { host: this.options.host, port: address.port };
   }
 
@@ -125,7 +197,13 @@ export class ApiServer {
     for (const response of this.liveReloadResponses) response.end();
     this.liveReloadResponses.clear();
     this.eventStream.close();
+    for (const lease of this.clientLeases.values()) clearTimeout(lease);
+    this.clientLeases.clear();
+    await this.publisher.stop();
+    await this.connections.disconnect();
+    this.remoteApi.artifacts.clear();
     await this.sessions.closeAll();
+    await this.artifactHost.cleanup();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
   }
 
@@ -153,82 +231,167 @@ export class ApiServer {
   private registerRoutes(): void {
     this.app.get("/health", (_request, response) => response.json({ status: "ok" }));
     this.app.get("/v1/events", (_request, response) => this.eventStream.connect(response));
-    this.app.get("/v1/targets", async (_request, response) => response.json(await TargetCatalogService.publicList()));
+    this.app.get("/v1/targets", async (_request, response) =>
+      response.json(
+        (await TargetCatalogService.publicList()).map((target) => ({
+          ...target,
+          busy: target.serial && this.sessions.isTargetBusy(target.id),
+        })),
+      ),
+    );
     this.app.get("/v1/doctor", async (_request, response) => response.json(await DoctorService.inspect()));
     this.app.get("/v1/capabilities", async (_request, response) => response.json(await this.workbench.capabilities()));
     this.app.post("/v1/verify", async (request, response) => {
-      response.json(await TargetVerificationService.run(this.sessions, InputSchemas.verification.parse(request.body)));
+      response.json(
+        await TargetVerificationService.run(
+          this.sessions,
+          InputSchemas.verification.parse(request.body),
+          this.ownerId(request),
+        ),
+      );
     });
-    this.app.get("/v1/workbench", async (_request, response) => response.json(await this.workbench.state()));
+    this.app.get("/v1/workbench", async (request, response) => {
+      const state = await this.workbench.state();
+      response.json({
+        ...state,
+        testTargets: (state.testTargets as Array<{ id: string; serial: boolean }>).map((target) => ({
+          ...target,
+          busy: target.serial && this.sessions.isTargetBusy(target.id),
+        })),
+        ...(await this.remoteApi.workbenchContext(request)),
+      });
+    });
     this.app.post("/v1/workbench/setup", async (request, response) => {
+      if (!this.requireAdmin(request, response)) return;
       const input = InputSchemas.setup.parse(request.body);
       response.json(await SetupService.install(input.targets));
     });
     this.app.post("/v1/workbench/mcp", async (request, response) => {
+      if (!this.requireAdmin(request, response)) return;
       const input = InputSchemas.mcpIntegration.parse(request.body);
       response.json(await McpIntegrationService.register(input.client));
     });
-    this.app.get("/v1/sessions", (_request, response) => response.json(this.sessions.list()));
+    this.app.get("/v1/sessions", (request, response) => response.json(this.sessions.list(this.ownerId(request))));
     this.app.post("/v1/sessions", async (request, response) => {
-      response.status(201).json(await this.sessions.start(InputSchemas.startSession.parse(request.body)));
+      const raw = { ...(request.body as Record<string, unknown>) };
+      const transferArtifacts = raw.transferArtifacts === true;
+      delete raw.transferArtifacts;
+      const prepared = await this.artifactHost.prepareSession(InputSchemas.startSession.parse(raw), transferArtifacts);
+      try {
+        const session = await this.sessions.start(prepared.input, this.ownerId(request));
+        this.artifactHost.track(session.id, prepared.directory);
+        response.status(201).json(session);
+      } catch (error) {
+        if (prepared.directory) await this.artifactHost.discard(prepared.directory);
+        throw error;
+      }
     });
     this.app.delete("/v1/sessions/:id", async (request, response) => {
-      const result = await this.sessions.close(request.params.id);
-      response.json({ closed: true, ...result });
+      const result = await this.sessions.close(request.params.id, this.ownerId(request));
+      response.json({ closed: true, ...(await this.artifactHost.close(request.params.id, result)) });
     });
     this.app.get("/v1/sessions/:id/inspect", async (request, response) => {
       const { limit } = InputSchemas.inspect.parse(request.query);
-      response.json(await this.sessions.run(request.params.id, (session) => session.inspect(limit)));
+      response.json(
+        await this.sessions.run(request.params.id, (session) => session.inspect(limit), this.ownerId(request)),
+      );
     });
     this.app.get("/v1/sessions/:id/source", async (request, response) => {
       const { maxCharacters } = InputSchemas.pageSource.parse(request.query);
-      response.json(await this.sessions.run(request.params.id, (session) => session.source(maxCharacters)));
+      response.json(
+        await this.sessions.run(request.params.id, (session) => session.source(maxCharacters), this.ownerId(request)),
+      );
     });
     this.app.post("/v1/sessions/:id/navigate", async (request, response) => {
       const { url } = InputSchemas.navigate.parse(request.body);
-      response.json(await this.sessions.run(request.params.id, (session) => session.navigate(url)));
+      response.json(
+        await this.sessions.run(request.params.id, (session) => session.navigate(url), this.ownerId(request)),
+      );
     });
     this.app.post("/v1/sessions/:id/click", async (request, response) => {
       const { selector } = InputSchemas.click.parse(request.body);
-      await this.sessions.run(request.params.id, (session) => session.click(selector));
+      await this.sessions.run(request.params.id, (session) => session.click(selector), this.ownerId(request));
       response.json({ clicked: selector });
     });
     this.app.post("/v1/sessions/:id/type", async (request, response) => {
       const { selector, value, clear } = InputSchemas.type.parse(request.body);
-      await this.sessions.run(request.params.id, (session) => session.type(selector, value, clear));
+      await this.sessions.run(
+        request.params.id,
+        (session) => session.type(selector, value, clear),
+        this.ownerId(request),
+      );
       response.json({ typed: selector });
     });
     this.app.post("/v1/sessions/:id/element", async (request, response) => {
       const input = InputSchemas.elementAction.parse(request.body);
-      response.json(await this.sessions.run(request.params.id, (session) => session.elementAction(input)));
+      response.json(
+        await this.sessions.run(request.params.id, (session) => session.elementAction(input), this.ownerId(request)),
+      );
+    });
+    this.app.post("/v1/sessions/:id/upload", async (request, response) => {
+      const input = request.body as { selector?: unknown; files?: unknown };
+      if (typeof input.selector !== "string" || !Array.isArray(input.files)) {
+        response.status(400).json({ error: "Invalid upload request." });
+        return;
+      }
+      await this.sessions.run(
+        request.params.id,
+        (session) =>
+          this.artifactHost.upload(
+            session,
+            input.selector as string,
+            input.files as Array<{ name: string; base64: string }>,
+          ),
+        this.ownerId(request),
+      );
+      response.json({ uploaded: true });
     });
     this.app.post("/v1/sessions/:id/browser", async (request, response) => {
       const input = InputSchemas.browserAction.parse(request.body);
-      response.json(await this.sessions.run(request.params.id, (session) => session.browserAction(input)));
+      const result = await this.sessions.run(
+        request.params.id,
+        (session) => session.browserAction(input),
+        this.ownerId(request),
+      );
+      response.json(
+        input.action === "waitDownload" ? await this.artifactHost.transferFile(request.params.id, result) : result,
+      );
     });
     this.app.post("/v1/sessions/:id/screenshot", async (request, response) => {
       const { fullPage } = InputSchemas.screenshot.parse(request.body);
       response.json({
-        base64: await this.sessions.run(request.params.id, (session) => session.captureScreenshot(fullPage)),
+        base64: await this.sessions.run(
+          request.params.id,
+          (session) => session.captureScreenshot(fullPage),
+          this.ownerId(request),
+        ),
       });
     });
     this.app.post("/v1/sessions/:id/gesture", async (request, response) => {
       const input = InputSchemas.gesture.parse(request.body);
-      response.json(await this.sessions.run(request.params.id, (session) => session.gesture(input)));
+      response.json(
+        await this.sessions.run(request.params.id, (session) => session.gesture(input), this.ownerId(request)),
+      );
     });
     this.app.post("/v1/sessions/:id/wait", async (request, response) => {
-      await this.sessions.run(request.params.id, (session) => session.wait(InputSchemas.wait.parse(request.body)));
+      await this.sessions.run(
+        request.params.id,
+        (session) => session.wait(InputSchemas.wait.parse(request.body)),
+        this.ownerId(request),
+      );
       response.json({ ready: true });
     });
     this.app.get("/v1/sessions/:id/diagnostics", async (request, response) => {
-      response.json(await this.sessions.run(request.params.id, (session) => session.diagnostics()));
+      response.json(
+        await this.sessions.run(request.params.id, (session) => session.diagnostics(), this.ownerId(request)),
+      );
     });
     this.app.delete("/v1/sessions/:id/diagnostics", (request, response) => {
-      this.sessions.get(request.params.id).clearDiagnostics();
+      this.sessions.get(request.params.id, this.ownerId(request)).clearDiagnostics();
       response.json({ cleared: true });
     });
     this.app.get("/v1/sessions/:id/devtools", (request, response) => {
-      response.json(this.sessions.get(request.params.id).debugTools());
+      response.json(this.sessions.get(request.params.id, this.ownerId(request)).debugTools());
     });
     this.app.use((_request, response) => response.status(404).json({ error: "Not found" }));
   }
@@ -238,6 +401,18 @@ export class ApiServer {
     this.events.publish({ type: "environment.changed", source, occurredAt: new Date().toISOString() });
   }
 
+  private notifyConnectionChanged(): void {
+    this.events.publish({ type: "connection.changed", source: "remote", occurredAt: new Date().toISOString() });
+  }
+
+  private ownerId(request: Request): string {
+    return this.remoteApi.ownerId(request);
+  }
+
+  private requireAdmin(request: Request, response: Response): boolean {
+    return this.remoteApi.requireAdmin(request, response);
+  }
+
   private authorize(request: Request, response: Response, next: NextFunction): void {
     if (!this.options.token) return next();
     const supplied = request.headers.authorization?.replace(/^Bearer\s+/i, "") ?? "";
@@ -245,5 +420,21 @@ export class ApiServer {
     const received = Buffer.from(supplied);
     if (expected.length === received.length && timingSafeEqual(expected, received)) return next();
     response.status(401).json({ error: "Unauthorized" });
+  }
+
+  private refreshClientLease(clientId: string): void {
+    clearTimeout(this.clientLeases.get(clientId));
+    const lease = setTimeout(() => {
+      this.clientLeases.delete(clientId);
+      void this.closeOwnedAndCleanup(clientId);
+    }, TestbenchDefaults.REMOTE_LEASE_TIMEOUT_MS);
+    lease.unref();
+    this.clientLeases.set(clientId, lease);
+  }
+
+  private async closeOwnedAndCleanup(ownerId: string): Promise<void> {
+    const sessionIds = this.sessions.list(ownerId).map((session) => session.id);
+    await this.sessions.closeOwned(ownerId);
+    await Promise.all(sessionIds.map((sessionId) => this.artifactHost.discardSession(sessionId)));
   }
 }
