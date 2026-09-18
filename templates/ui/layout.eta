@@ -84,6 +84,13 @@
       ></button>
 
       <div class="app-content">
+        <div class="remote-banner" id="remote-banner" role="status" hidden>
+          <span
+            ><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i> <strong id="remote-banner-name"></strong
+            ><span id="remote-banner-detail"></span
+          ></span>
+          <button class="button button--secondary" id="remote-banner-disconnect" type="button">Disconnect</button>
+        </div>
         <header class="topbar">
           <button
             class="menu-toggle"

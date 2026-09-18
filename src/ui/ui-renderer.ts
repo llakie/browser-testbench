@@ -10,6 +10,7 @@ const navigation = [
 
 const documentationNavigation = [
   { href: "#start", label: "Quick start" },
+  { href: "#remote", label: "Remote Testbench" },
   { href: "#targets", label: "Target-IDs" },
   { href: "#automation", label: "Automated tests" },
   { href: "#debugging", label: "Interactive debugging" },

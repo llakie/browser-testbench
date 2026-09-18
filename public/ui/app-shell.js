@@ -19,6 +19,36 @@ class AppShell {
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") this.setMobileOpen(false);
     });
+    document.querySelector("#remote-banner-disconnect")?.addEventListener("click", () => this.disconnectRemote());
+    void this.refreshRemoteBanner();
+  }
+
+  static async refreshRemoteBanner() {
+    try {
+      const response = await fetch("/v1/connections/status");
+      if (!response.ok) return;
+      const status = await response.json();
+      const banner = document.querySelector("#remote-banner");
+      banner.hidden = status.mode !== "remote";
+      if (!status.remote) return;
+      document.querySelector("#remote-banner-name").textContent = status.remote.instanceName;
+      document.querySelector("#remote-banner-detail").textContent =
+        ` · ${status.remote.role} · ${status.reachable ? "connected" : "unreachable"} · ${status.remote.url}`;
+    } catch {
+      // The page itself communicates server availability; the banner stays unobtrusive.
+    }
+  }
+
+  static async disconnectRemote() {
+    const button = document.querySelector("#remote-banner-disconnect");
+    button.disabled = true;
+    try {
+      const response = await fetch("/v1/connections/active", { method: "DELETE" });
+      if (!response.ok) throw new Error("Disconnect failed.");
+      window.location.reload();
+    } finally {
+      button.disabled = false;
+    }
   }
 
   static setCollapsed(collapsed) {

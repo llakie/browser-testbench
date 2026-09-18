@@ -11,6 +11,52 @@
 
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 
+<section class="panel" id="remote-connection">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Remote Testbench</p>
+      <h2>Connect another machine</h2>
+      <p id="remote-connection-summary">Find a Testbench explicitly started with remote access.</p>
+    </div>
+    <button class="button button--secondary" id="discover-remotes" type="button">
+      <i class="fa-solid fa-satellite-dish" aria-hidden="true"></i> Discover
+    </button>
+  </div>
+  <div class="remote-discovery" id="remote-discovery" hidden></div>
+  <form class="remote-manual" id="remote-manual">
+    <label>
+      <span>Manual server URL</span>
+      <div class="input-with-icon">
+        <i class="fa-solid fa-link" aria-hidden="true"></i>
+        <input id="remote-server-url" type="url" placeholder="http://windows-pc:55808" />
+      </div>
+    </label>
+    <label class="remote-admin-option"><input id="remote-admin" type="checkbox" /> Request administrative access</label>
+    <button class="button button--secondary" type="submit">Connect</button>
+  </form>
+  <form class="pairing-form" id="pairing-form" hidden>
+    <label
+      ><span>Pairing code shown on the remote computer</span
+      ><input
+        id="pairing-code"
+        inputmode="numeric"
+        pattern="[0-9]{6}"
+        maxlength="6"
+        autocomplete="one-time-code"
+        required
+    /></label>
+    <button class="button" type="submit">Pair and connect</button>
+  </form>
+  <div class="pairing-requests" id="pairing-requests" hidden></div>
+  <div class="remote-clients" id="remote-clients" hidden>
+    <div class="subsection-heading">
+      <h3>Paired clients</h3>
+      <p>Change administrative access or revoke a client credential.</p>
+    </div>
+    <div class="remote-discovery" id="remote-client-list"></div>
+  </div>
+</section>
+
 <section class="panel" id="environment">
   <div class="section-heading">
     <div>

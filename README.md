@@ -59,11 +59,52 @@ The web interface has three sections:
 
 The project license and third-party license notices are included as `LICENSE.txt` and `THIRD_PARTY_LICENSES.txt` and linked from the interface footer.
 
-A bearer token is required when binding to an address other than loopback:
+A bearer token is required when binding a normal, non-discoverable server to an address other than loopback:
 
 ```bash
 browser-testbench start --host 0.0.0.0 --token "$BROWSER_TESTBENCH_TOKEN"
 ```
+
+## Remote Testbench
+
+A local Testbench can use the browsers and physical devices of another computer while the UI, CLI, Node client, and MCP server stay on the development computer. The local server always starts in local mode; a saved pairing is never activated automatically.
+
+On the Windows remote host, check out the same branch and start it explicitly in remote mode from PowerShell:
+
+```powershell
+git switch feat/remote-testbench
+git pull
+npm ci
+npm run dev -- start --remote
+```
+
+`--remote` binds to all network interfaces, advertises the service through DNS-SD/mDNS, and requires an individually paired client credential. Use it only on a trusted private LAN. Allow Node.js on private networks if Windows Firewall asks. No bearer token or IP address grants remote access.
+
+On the Mac, start the normal local gateway:
+
+```bash
+npm ci
+npm run dev -- start
+```
+
+Open `http://127.0.0.1:55808/setup`, choose **Discover**, and connect to the Windows computer. The first attempt creates a six-digit, five-minute pairing code shown in the Windows terminal and its local Testbench UI. Enter it on the Mac. Later explicit connections reuse the saved per-client credential without another code. Select “administrative access” only when remote setup and paired-client administration are needed.
+
+The same flow is available without the UI:
+
+```bash
+browser-testbench discover
+browser-testbench connect <name-or-instance-id>
+browser-testbench status
+browser-testbench disconnect
+```
+
+If multicast discovery is blocked by a firewall, VPN, or subnet boundary, use `browser-testbench connect --server http://WINDOWS-IP:55808`. Pairing credentials are stored in the platform-specific Browser Testbench user-data directory, never in the repository. Use `--gateway` only when the local gateway itself does not run at its default URL.
+
+While connected, the existing pages and commands show remote capabilities and targets. A control pairing can run tests, sessions, screenshots, and diagnostics; remote installation and configuration controls are disabled. An admin pairing additionally permits setup and management of paired clients. Multiple clients may use different targets concurrently. A serial device displays only `Busy`; requests wait FIFO for up to 60 seconds by default, or fail immediately with `lockTimeoutMs: 0`.
+
+Remote browsers cannot use a Mac URL such as `http://127.0.0.1:5173`: on Windows that address means Windows itself. Bind the application to a LAN interface and pass the Mac's explicit LAN URL, for example `http://192.168.1.20:5173`. Browser Testbench detects loopback URLs before starting a remote session and reports this requirement without rewriting the URL.
+
+Screenshots, uploads, downloads, PDFs, and mobile video results cross the gateway so project paths remain on the Mac. Individual transferred files are limited to 50 MiB. Disconnect closes this client's sessions and queued device requests; a heartbeat and server-side lease clean up a client that disappears unexpectedly.
 
 To avoid unexpected macOS permission dialogs, Safari is never launched automatically. Enable its driver once:
 
@@ -184,6 +225,7 @@ export BROWSER_TESTBENCH_NPX_CLI_PATH=/path/to/npx-cli.js
 
 Key tools:
 
+- Connection: `discover_testbenches`, `get_testbench_connection`, `connect_testbench`, `disconnect_testbench`
 - Environment: `list_targets`, `doctor`, `verify_target`
 - Session: `start_session`, `navigate`, `inspect_page`, `close_session`
 - Interaction: `click`, `type`, `element_action`, `browser_action`, `tap`, `swipe`, `pinch`
@@ -226,6 +268,11 @@ Multiple sessions can exist at the same time. Mobile targets typically remain se
 
 ```text
 browser-testbench start [--host 127.0.0.1] [--port 55808] [--token ...] [--no-open]
+browser-testbench start --remote [--port 55808] [--no-open]
+browser-testbench discover [--json]
+browser-testbench connect [name-or-id] [--server URL] [--gateway URL] [--admin] [--code ...] [--json]
+browser-testbench status [--json]
+browser-testbench disconnect [--json]
 browser-testbench targets [--server URL] [--token ...] [--json]
 browser-testbench doctor [--targets ...] [--json]
 browser-testbench setup [--targets ...] [--yes] [--json]

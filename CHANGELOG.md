@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Chromium diagnostics now include WebSocket connection lifecycle, handshake, error, and sent/received frame events.
+- Remote Testbench hosts can now be discovered through mDNS, paired with control or admin credentials, and used transparently through the existing UI, CLI, Node client, REST gateway, and MCP server.
+- Remote sessions support per-client ownership, FIFO serial-target locks, bounded cleanup leases, and project-side artifact transfer.
 
 ### Fixed
 
