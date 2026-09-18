@@ -118,6 +118,30 @@ emulator-5554 device product:sdk_gphone64_x86_64
       else process.env.ANDROID_AVD_HOME = previousAvdHome;
     }
   });
+
+  it("recognizes Google Play in a multi-tag AVD configuration", async () => {
+    const avdHome = await mkdtemp(join(tmpdir(), "browser-testbench-avd-home-"));
+    temporaryDirectories.push(avdHome);
+    const avdDirectory = join(avdHome, "Pixel_8_Pro_API_36.avd");
+    await mkdir(avdDirectory, { recursive: true });
+    await writeFile(join(avdHome, "Pixel_8_Pro_API_36.ini"), `path=${avdDirectory}\n`);
+    await writeFile(
+      join(avdDirectory, "config.ini"),
+      "image.sysdir.1=system-images\\android-36\\google_apis_playstore_16k\\x86_64\\\n" +
+        "tag.ids=page_size_16kx,google_apis_playstore\nPlayStore.enabled=true\n",
+    );
+    const previousAvdHome = process.env.ANDROID_AVD_HOME;
+    process.env.ANDROID_AVD_HOME = avdHome;
+
+    try {
+      await expect(AndroidDeviceService.avdOptions(["Pixel_8_Pro_API_36"])).resolves.toEqual([
+        expect.objectContaining({ platformVersion: "36", deviceKind: "emulator", compatible: true }),
+      ]);
+    } finally {
+      if (previousAvdHome === undefined) delete process.env.ANDROID_AVD_HOME;
+      else process.env.ANDROID_AVD_HOME = previousAvdHome;
+    }
+  });
 });
 
 async function temporarySdk(): Promise<string> {
