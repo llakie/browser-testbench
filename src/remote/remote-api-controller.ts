@@ -117,7 +117,7 @@ export class RemoteApiController {
       RemoteUrlGuard.assertReachableFromRemote((request.body as { url?: unknown } | undefined)?.url);
     const originalBody = request.body as Record<string, unknown> | undefined;
     let path = request.originalUrl;
-    let proxyBody: unknown = originalBody ?? {};
+    let proxyBody: unknown = originalBody && Object.keys(originalBody).length > 0 ? originalBody : undefined;
     if (request.method === "POST" && request.path === "/v1/sessions")
       proxyBody = this.artifacts.prepareSession(InputSchemas.startSession.parse(originalBody));
     const sessionMatch = request.path.match(/^\/v1\/sessions\/([^/]+)(?:\/(.+))?$/);
@@ -125,7 +125,7 @@ export class RemoteApiController {
       path = `/v1/sessions/${sessionMatch[1]}/upload`;
       proxyBody = await this.artifacts.uploadBody(originalBody as unknown as { selector: string; paths: string[] });
     }
-    const body = request.method === "GET" || request.method === "HEAD" ? undefined : JSON.stringify(proxyBody);
+    const body = proxyBody === undefined ? undefined : JSON.stringify(proxyBody);
     let result = await client.request(path, { method: request.method, body });
     if (request.method === "POST" && request.path === "/v1/sessions") {
       const sessionId = (result as { id: string }).id;

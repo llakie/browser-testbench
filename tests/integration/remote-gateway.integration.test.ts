@@ -72,6 +72,9 @@ describe("remote gateway", () => {
     const connected = await testbench.completePairing((pairing as { pairingId: string }).pairingId, code!);
     expect(connected).toMatchObject({ mode: "remote", remote: { instanceId: instance.instanceId, role: "control" } });
     expect((await testbench.targets()).map((target) => target.id)).toContain("edge");
+    await expect(testbench.request("/v1/sessions/missing", { method: "DELETE" })).rejects.toThrow(
+      "Session 'missing' was not found.",
+    );
     expect(await testbench.disconnectTestbench()).toEqual({ mode: "local" });
 
     const reconnected = await testbench.connectTestbench(discovered);
