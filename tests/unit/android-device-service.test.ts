@@ -119,7 +119,7 @@ emulator-5554 device product:sdk_gphone64_x86_64
     }
   });
 
-  it("recognizes Google Play in a multi-tag AVD configuration", async () => {
+  it("recognizes Google Play across all AVD tag configuration entries", async () => {
     const avdHome = await mkdtemp(join(tmpdir(), "browser-testbench-avd-home-"));
     temporaryDirectories.push(avdHome);
     const avdDirectory = join(avdHome, "Pixel_8_Pro_API_36.avd");
@@ -128,7 +128,7 @@ emulator-5554 device product:sdk_gphone64_x86_64
     await writeFile(
       join(avdDirectory, "config.ini"),
       "image.sysdir.1=system-images\\android-36\\google_apis_playstore_16k\\x86_64\\\n" +
-        "tag.ids=page_size_16kx,google_apis_playstore\nPlayStore.enabled=true\n",
+        "tag.id=google_apis\ntag.ids=page_size_16kx,google_apis_playstore\nPlayStore.enabled=true\n",
     );
     const previousAvdHome = process.env.ANDROID_AVD_HOME;
     process.env.ANDROID_AVD_HOME = avdHome;

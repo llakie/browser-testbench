@@ -199,7 +199,7 @@ export class AndroidDeviceService {
   }
 
   private static hasGooglePlayTag(config: string): boolean {
-    const tags = config.match(/^tag\.ids?=(.+)$/m)?.[1]?.split(",") ?? [];
+    const tags = [...config.matchAll(/^tag\.ids?=(.+)$/gm)].flatMap((match) => match[1]!.split(","));
     return tags.some((tag) => /^google_apis_playstore(?:_|$)/.test(tag.trim()));
   }
 
