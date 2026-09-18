@@ -18,6 +18,14 @@ import {
   type WaitRequest,
 } from "../config/input-schemas.js";
 import type { DoctorCheck, TargetDefinition, TestTargetInfo, VerificationResult } from "../config/types.js";
+import type { ConnectionStatus } from "../remote/remote-connection-service.js";
+import type { RemoteInstance, RemoteRole } from "../remote/remote-types.js";
+
+export interface PairingRequired {
+  pairingRequired: true;
+  pairingId: string;
+  expiresAt: string;
+}
 
 export { BrowserOrientation, PinchDirection, SwipeDirection };
 export type {
@@ -89,6 +97,50 @@ export class RemoteTestbench {
 
   async targets(): Promise<TestTargetInfo[]> {
     return this.request<TestTargetInfo[]>("/v1/targets");
+  }
+
+  connection(): Promise<ConnectionStatus> {
+    return this.request("/v1/connections/status");
+  }
+
+  discoverTestbenches(): Promise<RemoteInstance[]> {
+    return this.request("/v1/connections/discover");
+  }
+
+  async remoteIdentity(server: string): Promise<RemoteInstance> {
+    const normalized = server.replace(/\/$/, "");
+    let response: Response;
+    try {
+      response = await fetch(`${normalized}/v1/remote/identity`);
+    } catch (error) {
+      throw new Error(
+        `Remote Testbench is not reachable at ${normalized}: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+    const identity = (await response.json().catch(() => ({}))) as Omit<RemoteInstance, "url"> & { error?: string };
+    if (!response.ok) throw new Error(identity.error ?? `Remote Testbench responded with HTTP ${response.status}.`);
+    return InputSchemas.remoteInstance.parse({ ...identity, url: normalized });
+  }
+
+  connectTestbench(
+    instance: RemoteInstance,
+    role: RemoteRole = "control",
+  ): Promise<ConnectionStatus | PairingRequired> {
+    return this.request("/v1/connections/connect", {
+      method: "POST",
+      body: JSON.stringify({ instance, role }),
+    });
+  }
+
+  completePairing(pairingId: string, code: string): Promise<ConnectionStatus> {
+    return this.request("/v1/connections/pair", {
+      method: "POST",
+      body: JSON.stringify({ pairingId, code }),
+    });
+  }
+
+  disconnectTestbench(): Promise<ConnectionStatus> {
+    return this.request("/v1/connections/active", { method: "DELETE" });
   }
 
   async availableTargets(requested?: string[]): Promise<string[]> {

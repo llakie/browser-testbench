@@ -4,6 +4,8 @@ import { PackageMetadata } from "../config/package-metadata.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { InputSchemas } from "../config/input-schemas.js";
+import { z } from "zod";
+import type { RemoteInstance } from "../remote/remote-types.js";
 import { RemoteSession, RemoteTestbench, type RemoteTestbenchOptions } from "./testbench-client.js";
 
 export class McpServerHost {
@@ -27,6 +29,60 @@ export class McpServerHost {
           "Use list_targets to obtain concrete browser and device IDs before starting a session. Use the session tools as a remote control for exploration and debugging. Project-owned tests use the same remote controls through the Node client. Safari authorization is never probed automatically. Close sessions when finished.",
       },
     );
+    server.registerTool(
+      "discover_testbenches",
+      {
+        description: "Find remotely enabled Browser Testbench instances on the local network.",
+        annotations: { readOnlyHint: true },
+      },
+      async () => textResult(await testbench.discoverTestbenches()),
+    );
+
+    server.registerTool(
+      "get_testbench_connection",
+      {
+        description: "Show whether Browser Testbench currently uses local or remote targets.",
+        annotations: { readOnlyHint: true },
+      },
+      async () => textResult(await testbench.connection()),
+    );
+
+    server.registerTool(
+      "connect_testbench",
+      {
+        description:
+          "Connect to a remote Testbench. Use name or instanceId after discovery, or server for a manual URL. If pairing is required, ask the user for the six-digit code shown by the remote Testbench, then call this tool again with pairingId and code. Request role=admin only when the user explicitly asks for administrative access.",
+        inputSchema: {
+          nameOrId: z.string().min(1).optional(),
+          server: z.url().optional(),
+          role: InputSchemas.remoteRole.default("control"),
+          pairingId: z.uuid().optional(),
+          code: z
+            .string()
+            .regex(/^\d{6}$/)
+            .optional(),
+        },
+      },
+      async ({ nameOrId, server: remoteServer, role, pairingId, code }) => {
+        if (pairingId || code) {
+          if (!pairingId || !code) throw new Error("Both pairingId and code are required to complete pairing.");
+          return textResult(await testbench.completePairing(pairingId, code));
+        }
+        const instance = remoteServer
+          ? await testbench.remoteIdentity(remoteServer)
+          : selectRemoteInstance(await testbench.discoverTestbenches(), nameOrId);
+        return textResult(await testbench.connectTestbench(instance, role));
+      },
+    );
+
+    server.registerTool(
+      "disconnect_testbench",
+      {
+        description: "Close this client's remote sessions and return Browser Testbench to local mode.",
+      },
+      async () => textResult(await testbench.disconnectTestbench()),
+    );
+
     server.registerTool(
       "list_targets",
       {
@@ -343,4 +399,21 @@ export class McpServerHost {
 
 function textResult(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
+}
+
+function selectRemoteInstance(instances: RemoteInstance[], selector?: string): RemoteInstance {
+  if (!selector) {
+    if (instances.length === 1) return instances[0]!;
+    if (instances.length === 0) throw new Error("No remote Testbench was found. Provide server as a fallback.");
+    throw new Error("Multiple remote Testbenches were found. Provide nameOrId.");
+  }
+  const normalized = selector.toLocaleLowerCase();
+  const matches = instances.filter(
+    (instance) => instance.instanceId === selector || instance.name.toLocaleLowerCase() === normalized,
+  );
+  if (matches.length !== 1)
+    throw new Error(
+      matches.length ? `Remote Testbench '${selector}' is ambiguous.` : `Remote Testbench '${selector}' was not found.`,
+    );
+  return matches[0]!;
 }
