@@ -45,7 +45,7 @@
   "scripts": {
     "build": "npm run licenses && npm run clean && tsc -p tsconfig.json && node scripts/prepare-cli.mjs",
     "dev": "tsx src/cli.ts",
-    "check": "tsc -p tsconfig.json --noEmit",
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tests.json",
     "clean": "rimraf dist",
     "fixture:server": "node tests/fixtures/site-server.mjs",
     "format": "prettier --write . \"templates/**/*.eta\"",

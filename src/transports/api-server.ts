@@ -35,6 +35,7 @@ import { RemoteLoopbackUrlError } from "../remote/remote-url-guard.js";
 import { RemoteApiError } from "../remote/remote-api-client.js";
 import { RemoteArtifactHost } from "../remote/remote-artifact-transfer.js";
 import { RemoteApiController } from "../remote/remote-api-controller.js";
+import { RemoteSessionPolicy, RemoteSessionPolicyError } from "../remote/remote-session-policy.js";
 
 export interface ApiServerOptions {
   host: string;
@@ -153,6 +154,10 @@ export class ApiServer {
         return;
       }
       if (error instanceof RemoteApiError) {
+        response.status(error.status).json({ error: error.message });
+        return;
+      }
+      if (error instanceof RemoteSessionPolicyError) {
         response.status(error.status).json({ error: error.message });
         return;
       }
@@ -299,6 +304,10 @@ export class ApiServer {
       const input = InputSchemas.setup.parse(request.body);
       response.json(await SetupService.install(input.targets));
     });
+    this.app.post("/v1/workbench/plan", async (request, response) => {
+      const input = InputSchemas.setup.parse(request.body);
+      response.json(this.remoteApi.visibleHostDetails(request, await SetupService.plan(input.targets)));
+    });
     this.app.post("/v1/workbench/mcp", async (request, response) => {
       if (!this.requireAdmin(request, response)) return;
       const input = InputSchemas.mcpIntegration.parse(request.body);
@@ -309,7 +318,14 @@ export class ApiServer {
       const raw = { ...(request.body as Record<string, unknown>) };
       const transferArtifacts = raw.transferArtifacts === true;
       delete raw.transferArtifacts;
-      const prepared = await this.artifactHost.prepareSession(InputSchemas.startSession.parse(raw), transferArtifacts);
+      const input = InputSchemas.startSession.parse(raw);
+      RemoteSessionPolicy.assertStart(
+        input,
+        transferArtifacts,
+        Boolean(this.options.remote),
+        this.remoteAuthentication.principal(request),
+      );
+      const prepared = await this.artifactHost.prepareSession(input, transferArtifacts);
       try {
         const session = await this.sessions.start(prepared.input, this.ownerId(request));
         this.artifactHost.track(session.id, prepared.directory);
@@ -373,6 +389,11 @@ export class ApiServer {
     });
     this.app.post("/v1/sessions/:id/element", async (request, response) => {
       const input = InputSchemas.elementAction.parse(request.body);
+      RemoteSessionPolicy.assertElement(
+        input,
+        Boolean(this.options.remote),
+        this.remoteAuthentication.principal(request),
+      );
       response.json(
         await this.sessions.run(request.params.id, (session) => session.elementAction(input), this.ownerId(request)),
       );

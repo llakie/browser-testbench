@@ -56,6 +56,16 @@ describe("ApiServer", () => {
     );
   });
 
+  it("does not expose a remote identity unless remote mode is enabled", async () => {
+    server = new ApiServer({ host: "127.0.0.1", port: 0 });
+    const address = await server.start();
+
+    const response = await fetch(`http://${address.host}:${address.port}/v1/remote/identity`);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "Remote mode is not enabled." });
+  });
+
   it("closes an already listening server when remote discovery startup fails", async () => {
     const publisher = {
       start: vi.fn().mockRejectedValue(new Error("mDNS unavailable")),

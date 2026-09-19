@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { z } from "zod";
 import { TestbenchDefaults } from "./defaults.js";
 import { BrowserOrientation, PinchDirection, SwipeDirection } from "./interaction-values.js";
@@ -172,7 +173,10 @@ export class InputSchemas {
     }),
     z.strictObject({
       action: z.literal("waitDownload"),
-      filename: z.string().min(1),
+      filename: z
+        .string()
+        .min(1)
+        .refine((value) => basename(value.replaceAll("\\", "/")) === value, "Expected a filename without directories."),
       timeoutMs: z.number().positive().default(TestbenchDefaults.WAIT_TIMEOUT_MS),
     }),
     z.strictObject({

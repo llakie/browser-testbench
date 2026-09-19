@@ -130,7 +130,7 @@ describe("AndroidAvdService", () => {
     await installImage(sdkRoot, "37.1", "google_apis_playstore", architecture);
     vi.spyOn(AndroidSdk, "root").mockResolvedValue(sdkRoot);
     vi.spyOn(AndroidDeviceService, "avdOptions").mockResolvedValue([]);
-    const run = vi.spyOn(CommandRunner, "run").mockImplementation(async (command, arguments_) => {
+    const run = vi.spyOn(CommandRunner, "run").mockImplementation(async (command, arguments_ = []) => {
       if (command === emulator) return { code: 0, stdout: "", stderr: "" };
       if (arguments_.includes("--compact")) return { code: 0, stdout: "pixel_9\npixel_10\n", stderr: "" };
       return { code: 0, stdout: "Created AVD", stderr: "" };

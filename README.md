@@ -69,11 +69,11 @@ browser-testbench start --host 0.0.0.0 --token "$BROWSER_TESTBENCH_TOKEN"
 
 A local Testbench can use the browsers and physical devices of another computer while the UI, CLI, Node client, and MCP server stay on the development computer. The local server always starts in local mode; a saved pairing is never activated automatically.
 
-On the Windows remote host, check out the same branch and start it explicitly in remote mode from PowerShell:
+On the Windows remote host, update the same checkout or install the same published version and start it explicitly
+in remote mode from PowerShell:
 
 ```powershell
-git switch feat/remote-testbench
-git pull
+git pull --ff-only
 npm ci
 npm run dev -- start --remote
 ```
@@ -84,8 +84,7 @@ For a headless Windows host, the following PowerShell workflow keeps the process
 $runtime = Join-Path $env:LOCALAPPDATA "BrowserTestbench"
 New-Item -ItemType Directory -Force $runtime | Out-Null
 
-# Update
-git switch feat/remote-testbench
+# Update the current checkout
 git pull --ff-only
 npm ci
 
@@ -200,7 +199,10 @@ For parallel execution, use `forEachTarget()`. Different devices can run in para
 
 ## Node client
 
-`RemoteTestbench` connects to `http://127.0.0.1:55808` by default. Set a different address through `BROWSER_TESTBENCH_URL` or the constructor. The client provides:
+`RemoteTestbench` connects to `http://127.0.0.1:55808` by default. Set a different address through
+`BROWSER_TESTBENCH_URL` or the constructor. Requests time out after 120 seconds by default; use
+`requestTimeoutMs` in the constructor or `timeoutMs` on `request()` to override this, and pass an `AbortSignal` to
+cancel an individual request. The client provides:
 
 - `targets()`, `capabilities()`, and `availableTargets([...])`
 - `open({ target, url, ... })`
@@ -224,7 +226,8 @@ A `RemoteSession` provides:
 
 All element methods accept standards-compliant CSS selectors only. Prefer stable attributes such as IDs, `name`, or `data-testid` for robust tests, for example `#login`, `input[name="email"]`, or `[data-testid="terms"]`. For open shadow roots, use `evaluate()` with `shadowRoot.querySelector()` when needed.
 
-Screenshots are saved by the client inside the project. For downloads, provide a `downloadDir` on the Browser Testbench machine when opening the session.
+Screenshots are saved by the client inside the project. For downloads, provide the project-side `downloadDir` when
+opening the session; the gateway transfers remote downloads into it.
 
 `mockFetch()` replaces fetch responses in the currently loaded page. `blockUrls()`, network conditions, geolocation, permissions, PDF, and the native accessibility tree use Chromium DevTools and are therefore intended for Chrome and Edge. WebDriver-based forms, navigation, and state operations remain available on other targets. For mobile videos, set `videoPath` when opening the session; recording is finalized when the session closes.
 
@@ -271,6 +274,7 @@ POST   /v1/verify
 GET    /v1/doctor
 GET    /v1/workbench
 POST   /v1/workbench/setup
+POST   /v1/workbench/plan
 POST   /v1/workbench/mcp
 GET    /v1/sessions
 POST   /v1/sessions
@@ -302,8 +306,8 @@ browser-testbench connect [name-or-id] [--server URL] [--gateway URL] [--admin] 
 browser-testbench status [--json]
 browser-testbench disconnect [--json]
 browser-testbench targets [--server URL] [--token ...] [--json]
-browser-testbench doctor [--targets ...] [--json]
-browser-testbench setup [--targets ...] [--yes] [--json]
+browser-testbench doctor [--targets ...] [--server URL] [--token ...] [--json]
+browser-testbench setup [--targets ...] [--yes] [--server URL] [--token ...] [--json]
 browser-testbench verify <target-id> [--headless] [--server URL] [--token ...]
 browser-testbench open --target <target> --url <url>
 browser-testbench screenshot --target <target> --url <url> [--output file]

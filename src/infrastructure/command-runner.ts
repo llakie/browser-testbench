@@ -1,5 +1,9 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { extname } from "node:path";
+import { ProcessTerminator } from "./process-terminator.js";
+
+const COMMAND_STOP_GRACE_MS = 1_000;
+const COMMAND_OUTPUT_MAX_LENGTH = 1024 * 1024;
 
 export interface CommandResult {
   code: number;
@@ -24,6 +28,7 @@ export class CommandRunner {
             cwd: options.cwd,
             env: options.env ?? process.env,
             shell: requiresWindowsShell,
+            detached: process.platform !== "win32",
             stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
             windowsHide: true,
           },
@@ -34,18 +39,43 @@ export class CommandRunner {
       }
       let stdout = "";
       let stderr = "";
-      const timer = options.timeoutMs ? setTimeout(() => child.kill("SIGTERM"), options.timeoutMs) : undefined;
+      let settled = false;
+      let timedOut = false;
+      const finish = (result: CommandResult): void => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(result);
+      };
+      const timer = options.timeoutMs
+        ? setTimeout(() => {
+            timedOut = true;
+            void ProcessTerminator.stop(child, { graceMs: COMMAND_STOP_GRACE_MS, group: true })
+              .catch((error) => {
+                stderr = this.appendOutput(stderr, error instanceof Error ? error.message : String(error));
+              })
+              .finally(() =>
+                finish({
+                  code: -1,
+                  stdout,
+                  stderr: this.appendOutput(stderr, `Command timed out after ${options.timeoutMs} ms.`),
+                }),
+              );
+          }, options.timeoutMs)
+        : undefined;
 
-      child.stdout?.on("data", (chunk) => (stdout += String(chunk)));
-      child.stderr?.on("data", (chunk) => (stderr += String(chunk)));
+      child.stdout?.on("data", (chunk) => (stdout = this.appendOutput(stdout, String(chunk))));
+      child.stderr?.on("data", (chunk) => (stderr = this.appendOutput(stderr, String(chunk))));
       if (options.input !== undefined) child.stdin?.end(options.input);
       child.on("error", (error) => {
-        if (timer) clearTimeout(timer);
-        resolve({ code: -1, stdout, stderr: `${stderr}${error.message}` });
+        finish({ code: -1, stdout, stderr: this.appendOutput(stderr, error.message) });
       });
       child.on("close", (code) => {
-        if (timer) clearTimeout(timer);
-        resolve({ code: code ?? -1, stdout, stderr });
+        finish({
+          code: timedOut ? -1 : (code ?? -1),
+          stdout,
+          stderr: timedOut ? this.appendOutput(stderr, `Command timed out after ${options.timeoutMs} ms.`) : stderr,
+        });
       });
     });
   }
@@ -58,6 +88,10 @@ export class CommandRunner {
 
   private static windowsShellCommand(command: string, args: string[]): string {
     return [command, ...args].map((value) => `"${value.replaceAll('"', '""')}"`).join(" ");
+  }
+
+  private static appendOutput(current: string, value: string): string {
+    return `${current}${value}`.slice(-COMMAND_OUTPUT_MAX_LENGTH);
   }
 
   static spawnShell(command: string, options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): ChildProcess {

@@ -45,4 +45,20 @@ describe("SessionManager", () => {
     expect(sessions.list("client-b")).toHaveLength(1);
     await sessions.closeOwned("client-b");
   });
+
+  it("releases a serial target when both startup and cleanup fail", async () => {
+    vi.spyOn(TargetCatalogService, "sessionOptions").mockResolvedValue({
+      target: { id: "device-a", serial: true },
+      options: {},
+    } as never);
+    vi.spyOn(InteractiveController.prototype, "start").mockRejectedValue(new Error("start failed"));
+    vi.spyOn(InteractiveController.prototype, "close").mockRejectedValue(new Error("cleanup failed"));
+    const sessions = new SessionManager();
+
+    await expect(sessions.start({ target: "device-a", lockTimeoutMs: 0 })).rejects.toThrow(
+      "Session startup failed and cleanup also failed",
+    );
+
+    expect(sessions.isTargetBusy("device-a")).toBe(false);
+  });
 });

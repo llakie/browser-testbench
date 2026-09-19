@@ -43,8 +43,15 @@ export class SessionManager {
       this.sessions.set(id, session);
       return this.publicSession(session);
     } catch (error) {
-      await controller.close();
-      release();
+      try {
+        await controller.close();
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], "Session startup failed and cleanup also failed.", {
+          cause: error,
+        });
+      } finally {
+        release();
+      }
       throw error;
     }
   }

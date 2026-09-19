@@ -132,7 +132,10 @@ describe("MCP browser control", () => {
   );
 });
 
-function textPayload<T>(result: { content: Array<{ type: string; text?: string }> }): T {
+function textPayload<T>(result: unknown): T {
+  if (!result || typeof result !== "object" || !("content" in result) || !Array.isArray(result.content)) {
+    throw new Error("MCP result did not contain content.");
+  }
   const content = result.content.find((item) => item.type === "text");
   if (!content?.text) throw new Error("MCP result did not contain text.");
   return JSON.parse(content.text) as T;

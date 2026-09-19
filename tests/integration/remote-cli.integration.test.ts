@@ -68,6 +68,12 @@ describe("remote CLI lifecycle", () => {
       expect(JSON.parse(status.stdout)).toMatchObject({ mode: "remote", reachable: true });
       const targets = await runCli("targets", "--server", gatewayUrl, "--json");
       expect(JSON.parse(targets.stdout)).toEqual(expect.arrayContaining([expect.objectContaining({ id: "edge" })]));
+      const doctor = await runCli("doctor", "--server", gatewayUrl, "--targets", "edge", "--json");
+      expect(JSON.parse(doctor.stdout)).toEqual([
+        expect.objectContaining({ id: "edge", detail: "edge is installed on the remote host." }),
+      ]);
+      const setup = await runCli("setup", "--server", gatewayUrl, "--targets", "edge", "--json");
+      expect(JSON.parse(setup.stdout)).toEqual([]);
 
       const disconnected = await runCli("disconnect", "--server", gatewayUrl, "--json");
       expect(JSON.parse(disconnected.stdout)).toEqual({ mode: "local" });

@@ -21,6 +21,7 @@ describe("RemoteRequestAuthentication", () => {
       ...authorized,
       instanceId: "remote",
       instanceName: "windows",
+      clientName: authorized.name,
       platform: "win32" as const,
       architecture: "x64",
       version: "0.1.8",
@@ -54,6 +55,7 @@ describe("RemoteRequestAuthentication", () => {
       ...authorized,
       instanceId: "remote",
       instanceName: "windows",
+      clientName: authorized.name,
       platform: "win32" as const,
       architecture: "x64",
       version: "0.1.8",
@@ -88,8 +90,8 @@ async function authenticate(
     is: () => false,
   } as unknown as Request;
   const response = { status: vi.fn().mockReturnThis(), json: vi.fn() } as unknown as Response;
-  const next = vi.fn() as NextFunction;
-  authentication.middleware(request, response, next);
+  const next = vi.fn();
+  authentication.middleware(request, response, next as unknown as NextFunction);
   await vi.waitFor(() =>
     expect(next.mock.calls.length + (response.status as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1),
   );

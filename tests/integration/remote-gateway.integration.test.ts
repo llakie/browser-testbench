@@ -92,6 +92,25 @@ describe("remote gateway", () => {
     expect(JSON.stringify(await testbench.request("/v1/doctor"))).not.toContain("Program Files");
     expect(JSON.stringify(await testbench.capabilities())).not.toContain("Program Files");
     expect(JSON.stringify(await testbench.targets())).not.toContain("Program Files");
+    const signedRemote = connections.client()!;
+    await expect(
+      signedRemote.request("/v1/sessions", {
+        method: "POST",
+        body: JSON.stringify({ target: "edge", capabilities: { "ms:edgeOptions": { binary: "host.exe" } } }),
+      }),
+    ).rejects.toThrow("Administrative access is required");
+    await expect(
+      signedRemote.request("/v1/sessions", {
+        method: "POST",
+        body: JSON.stringify({ target: "edge", downloadDir: "C:\\host-downloads" }),
+      }),
+    ).rejects.toThrow("artifact transfer protocol");
+    await expect(
+      signedRemote.request("/v1/sessions/missing/element", {
+        method: "POST",
+        body: JSON.stringify({ action: "upload", selector: "input", paths: ["C:\\host\\secret.txt"] }),
+      }),
+    ).rejects.toThrow("artifact transfer protocol");
     await fetch(`http://127.0.0.1:${remoteAddress.port}/v1/remote/clients/${connected.remote!.clientId}`, {
       method: "PUT",
       headers: { "content-type": "application/json" },

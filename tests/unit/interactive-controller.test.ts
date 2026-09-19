@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { InteractiveController } from "../../src/automation/interactive-controller.js";
+import { IosSimulatorCleanup } from "../../src/automation/ios-simulator-cleanup.js";
 
 describe("InteractiveController", () => {
   it("rejects unsupported Android full-page screenshots explicitly", async () => {
@@ -58,6 +59,23 @@ describe("InteractiveController", () => {
     );
     controller.clearDiagnostics();
     await expect(controller.diagnostics()).resolves.toEqual([]);
+  });
+
+  it("reports cleanup failures after clearing every managed resource", async () => {
+    const controller = new InteractiveController();
+    const stopAppium = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(IosSimulatorCleanup, "run").mockResolvedValue(undefined);
+    Object.assign(controller, {
+      session: { close: vi.fn().mockRejectedValue(new Error("browser close failed")) },
+      video: { recorder: { stop: vi.fn().mockRejectedValue(new Error("video close failed")) }, path: "video.mp4" },
+      appium: { process: { stop: stopAppium }, port: 1234 },
+      target: { name: "chrome-android" },
+    });
+
+    await expect(controller.close()).rejects.toThrow("Session cleanup failed");
+
+    expect(stopAppium).toHaveBeenCalledOnce();
+    expect(controller).toMatchObject({ video: undefined, appium: undefined, target: undefined });
   });
 });
 

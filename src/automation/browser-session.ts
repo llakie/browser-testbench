@@ -375,7 +375,7 @@ export class BrowserHandle {
     await this.$(selector).waitForDisplayed({ timeout: timeoutMs });
   }
 
-  async waitForText(text: string, timeoutMs: number): Promise<void> {
+  async waitForText(text: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
     await this.driver.wait(
       async () => this.execute<boolean>("return (document.body?.innerText ?? '').includes(arguments[0])", text),
       timeoutMs,
@@ -518,9 +518,12 @@ export class BrowserSession {
     try {
       if (current) await current.deleteSession();
     } finally {
-      await this.androidUsbNetwork?.close();
-      this.androidUsbNetwork = undefined;
-      this.target = undefined;
+      try {
+        await this.androidUsbNetwork?.close();
+      } finally {
+        this.androidUsbNetwork = undefined;
+        this.target = undefined;
+      }
     }
   }
 

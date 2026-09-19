@@ -81,7 +81,9 @@ describe("remote artifact transfer", () => {
 });
 
 function artifactResponse(name: string, content: Buffer): Response {
-  return new Response(content, {
+  const body = new Uint8Array(content.byteLength);
+  body.set(content);
+  return new Response(body, {
     headers: {
       "content-length": String(content.byteLength),
       "content-type": "application/octet-stream",

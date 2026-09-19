@@ -556,14 +556,23 @@ export class InteractiveController {
 
   private async appiumCommand(path: string, body: Record<string, unknown>): Promise<void> {
     if (!this.appium) throw new Error("This command requires an active mobile session.");
-    const response = await fetch(
-      `http://${TestbenchDefaults.LOOPBACK_HOST}:${this.appium.port}/session/${this.session.active.sessionId}/${path}`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    );
+    let response: Response;
+    try {
+      response = await fetch(
+        `http://${TestbenchDefaults.LOOPBACK_HOST}:${this.appium.port}/session/${this.session.active.sessionId}/${path}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS),
+        },
+      );
+    } catch (error) {
+      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+        throw new Error(`Appium command timed out after ${TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS} ms.`);
+      }
+      throw error;
+    }
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as { value?: { message?: string } };
       throw new Error(payload.value?.message ?? `Appium command failed with HTTP ${response.status}.`);
@@ -579,23 +588,31 @@ export class InteractiveController {
 
   async close(): Promise<{ videoPath?: string }> {
     const target = this.target;
-    await this.session.close().catch(() => undefined);
+    const failures: unknown[] = [];
+    await this.session.close().catch((error) => failures.push(error));
     let videoPath: string | undefined;
     if (this.video) {
-      const recorded = await this.video.recorder.stop().catch(() => undefined);
-      if (recorded) {
+      try {
+        const recorded = await this.video.recorder.stop();
         if (recorded !== this.video.path) await rename(recorded, this.video.path);
         videoPath = this.video.path;
+      } catch (error) {
+        failures.push(error);
       }
     }
-    await this.appium?.process.stop().catch(() => undefined);
-    await IosSimulatorCleanup.run(target);
+    await this.appium?.process.stop().catch((error) => failures.push(error));
+    await IosSimulatorCleanup.run(target).catch((error) => failures.push(error));
+    this.clearState();
+    if (failures.length > 0) throw new AggregateError(failures, "Session cleanup failed.");
+    return { videoPath };
+  }
+
+  private clearState(): void {
     this.video = undefined;
     this.appium = undefined;
     this.target = undefined;
     this.diagnosticEvents.length = 0;
     this.requestTimestamps.clear();
     this.webSocketUrls.clear();
-    return { videoPath };
   }
 }

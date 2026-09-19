@@ -20,6 +20,9 @@ import {
 import type { DoctorCheck, TargetDefinition, TestTargetInfo, VerificationResult } from "../config/types.js";
 import type { ConnectionStatus } from "../remote/remote-connection-service.js";
 import type { RemoteInstance, RemoteRole } from "../remote/remote-types.js";
+import type { SetupAction } from "../setup/setup-types.js";
+
+export type { SetupAction } from "../setup/setup-types.js";
 
 export interface PairingRequired {
   pairingRequired: true;
@@ -37,6 +40,11 @@ export type {
 export interface RemoteTestbenchOptions {
   server?: string;
   token?: string;
+  requestTimeoutMs?: number;
+}
+
+export interface TestbenchRequestInit extends RequestInit {
+  timeoutMs?: number;
 }
 
 export interface TestbenchCapabilities {
@@ -97,6 +105,28 @@ export class RemoteTestbench {
 
   async targets(): Promise<TestTargetInfo[]> {
     return this.request<TestTargetInfo[]>("/v1/targets");
+  }
+
+  async doctor(targets?: string[]): Promise<DoctorCheck[]> {
+    const checks = (await this.capabilities()).checks;
+    if (!targets) return checks;
+    const requested = new Set(targets);
+    return checks.filter((check) => requested.has(check.id));
+  }
+
+  setup(targets: string[]): Promise<SetupAction[]> {
+    return this.request("/v1/workbench/setup", {
+      method: "POST",
+      body: JSON.stringify({ targets }),
+      timeoutMs: TestbenchDefaults.SETUP_REQUEST_TIMEOUT_MS,
+    });
+  }
+
+  planSetup(targets: string[]): Promise<SetupAction[]> {
+    return this.request("/v1/workbench/plan", {
+      method: "POST",
+      body: JSON.stringify({ targets }),
+    });
   }
 
   connection(): Promise<ConnectionStatus> {
@@ -177,18 +207,28 @@ export class RemoteTestbench {
     );
   }
 
-  async request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T = unknown>(path: string, init: TestbenchRequestInit = {}): Promise<T> {
+    const { timeoutMs = this.options.requestTimeoutMs ?? TestbenchDefaults.REMOTE_REQUEST_TIMEOUT_MS, ...requestInit } =
+      init;
+    const timeoutSignal = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined;
+    const signal =
+      requestInit.signal && timeoutSignal
+        ? AbortSignal.any([requestInit.signal, timeoutSignal])
+        : (requestInit.signal ?? timeoutSignal);
     let response: Response;
     try {
       response = await fetch(`${this.server}${path}`, {
-        ...init,
+        ...requestInit,
+        signal,
         headers: {
-          ...(init.body ? { "content-type": "application/json" } : {}),
+          ...(requestInit.body ? { "content-type": "application/json" } : {}),
           ...(this.options.token ? { authorization: `Bearer ${this.options.token}` } : {}),
-          ...init.headers,
+          ...requestInit.headers,
         },
       });
     } catch (error) {
+      if (timeoutSignal?.aborted)
+        throw new Error(`Browser Testbench at ${this.server} timed out after ${timeoutMs} ms.`);
       throw new Error(
         `Browser Testbench is not reachable at ${this.server}: ${error instanceof Error ? error.message : error}`,
       );

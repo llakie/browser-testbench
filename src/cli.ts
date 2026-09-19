@@ -10,7 +10,6 @@ import { TargetRegistry } from "./config/target-registry.js";
 import { TARGET_NAMES, type TargetName } from "./config/types.js";
 import { DoctorService } from "./setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "./setup/mcp-integration-service.js";
-import { SetupService } from "./setup/setup-service.js";
 import { ApiServer } from "./transports/api-server.js";
 import { McpServerHost } from "./transports/mcp-server.js";
 import { RemoteTestbench } from "./transports/testbench-client.js";
@@ -117,10 +116,12 @@ program
   .command("doctor")
   .description("Inspect prerequisites without triggering permission dialogs")
   .option("-t, --targets <names>", "Comma-separated targets")
+  .option("--server <url>", "Testbench server URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
   .option("--json", "Output JSON")
   .action(async (options) => {
     const targets = parseTargets(options.targets);
-    const checks = await DoctorService.inspect(targets);
+    const checks = await new RemoteTestbench({ server: options.server, token: options.token }).doctor(targets);
     console.log(options.json ? JSON.stringify(checks, null, 2) : OutputFormatter.doctor(checks));
     if (DoctorService.hasBlockingChecks(checks)) process.exitCode = 2;
   });
@@ -130,14 +131,13 @@ program
   .description("Prepare local Appium drivers and print guided system steps")
   .option("-t, --targets <names>", "Comma-separated targets")
   .option("--yes", "Perform automatic downloads and installations")
+  .option("--server <url>", "Testbench server URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
   .option("--json", "Output JSON")
   .action(async (options) => {
     const targets = parseTargets(options.targets) ?? defaultTargets();
-    const actions = options.yes
-      ? await SetupService.install(targets, {
-          onOutput: (line) => !options.json && console.error(line),
-        })
-      : await SetupService.plan(targets);
+    const testbench = new RemoteTestbench({ server: options.server, token: options.token });
+    const actions = options.yes ? await testbench.setup(targets) : await testbench.planSetup(targets);
     console.log(
       options.json
         ? JSON.stringify(actions, null, 2)

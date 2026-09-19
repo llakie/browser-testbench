@@ -24,6 +24,7 @@ export class TestbenchDefaults {
   static readonly REMOTE_CLEANUP_TIMEOUT_MS = 10_000;
   static readonly REMOTE_CONNECT_TIMEOUT_MS = 10_000;
   static readonly REMOTE_REQUEST_TIMEOUT_MS = 120_000;
+  static readonly SETUP_REQUEST_TIMEOUT_MS = 11 * 60_000;
   static readonly REMOTE_HEARTBEAT_INTERVAL_MS = 30_000;
   static readonly REMOTE_LEASE_TIMEOUT_MS = 90_000;
   static readonly ANDROID_ADB_COMMAND_TIMEOUT_MS = 120_000;

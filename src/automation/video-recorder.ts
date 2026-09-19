@@ -1,10 +1,10 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
 import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { TargetConfig } from "../config/types.js";
 import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
+import { ProcessTerminator } from "../infrastructure/process-terminator.js";
 
 const ADB_COMMAND_TIMEOUT_MS = 5_000;
 const RECORDER_STOP_TIMEOUT_MS = 10_000;
@@ -55,23 +55,32 @@ export class VideoRecorder {
         timeoutMs: ADB_COMMAND_TIMEOUT_MS,
       });
     } else {
-      this.child.kill("SIGINT");
+      await ProcessTerminator.stop(this.child, { gracefulSignal: "SIGINT", graceMs: RECORDER_STOP_TIMEOUT_MS });
     }
-    await Promise.race([
-      once(this.child, "close"),
-      new Promise((resolve) => setTimeout(resolve, RECORDER_STOP_TIMEOUT_MS)),
-    ]);
-    if (this.child.exitCode === null) this.child.kill("SIGTERM");
     if (this.android) {
+      if (!(await ProcessTerminator.wait(this.child, RECORDER_STOP_TIMEOUT_MS))) {
+        const forced = await CommandRunner.run(
+          this.android.adb,
+          ["-s", this.android.serial, "shell", "pkill", "-9", "screenrecord"],
+          { timeoutMs: ADB_COMMAND_TIMEOUT_MS },
+        );
+        await ProcessTerminator.stop(this.child, { graceMs: RECORDER_STOP_TIMEOUT_MS });
+        if (forced.code !== 0)
+          throw new Error(`Could not stop Android video recording: ${forced.stderr || forced.stdout}`);
+      }
       const pulled = await CommandRunner.run(
         this.android.adb,
         ["-s", this.android.serial, "pull", this.android.remotePath, this.outputPath],
         { timeoutMs: VIDEO_PULL_TIMEOUT_MS },
       );
-      await CommandRunner.run(this.android.adb, ["-s", this.android.serial, "shell", "rm", this.android.remotePath], {
-        timeoutMs: ADB_COMMAND_TIMEOUT_MS,
-      });
+      const removed = await CommandRunner.run(
+        this.android.adb,
+        ["-s", this.android.serial, "shell", "rm", this.android.remotePath],
+        { timeoutMs: ADB_COMMAND_TIMEOUT_MS },
+      );
       if (pulled.code !== 0) throw new Error(`Could not retrieve Android video: ${pulled.stderr || pulled.stdout}`);
+      if (removed.code !== 0)
+        throw new Error(`Could not remove the temporary Android video: ${removed.stderr || removed.stdout}`);
     }
     const file = await stat(this.outputPath);
     if (file.size === 0) throw new Error("Video recorder produced an empty file.");
@@ -97,15 +106,19 @@ export class VideoRecorder {
 
   private static async ensureStarted(child: ChildProcess, label: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(resolve, RECORDER_START_GRACE_PERIOD_MS);
-      child.once("error", (error) => {
+      const complete = (error?: Error): void => {
         clearTimeout(timer);
-        reject(error);
-      });
-      child.once("exit", (code) => {
-        clearTimeout(timer);
-        reject(new Error(`${label} exited immediately with code ${code ?? "unknown"}.`));
-      });
+        child.off("error", onError);
+        child.off("exit", onExit);
+        if (error) reject(error);
+        else resolve();
+      };
+      const onError = (error: Error): void => complete(error);
+      const onExit = (code: number | null): void =>
+        complete(new Error(`${label} exited immediately with code ${code ?? "unknown"}.`));
+      const timer = setTimeout(() => complete(), RECORDER_START_GRACE_PERIOD_MS);
+      child.once("error", onError);
+      child.once("exit", onExit);
     });
   }
 }

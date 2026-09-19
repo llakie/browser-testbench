@@ -7,21 +7,14 @@ import { InputSchemas } from "../config/input-schemas.js";
 import { z } from "zod";
 import type { RemoteInstance } from "../remote/remote-types.js";
 import { RemoteSession, RemoteTestbench, type RemoteTestbenchOptions } from "./testbench-client.js";
+import { McpSessionCoordinator } from "./mcp-session-coordinator.js";
 
 export class McpServerHost {
   static async start(options: RemoteTestbenchOptions = {}): Promise<void> {
     const testbench = new RemoteTestbench(options);
-    let currentSession: RemoteSession | undefined;
-    const active = (): RemoteSession => {
-      if (!currentSession) throw new Error("No interactive session is active.");
-      return currentSession;
-    };
-    const closeSession = async () => {
-      if (!currentSession) return {};
-      const session = currentSession;
-      currentSession = undefined;
-      return session.close();
-    };
+    const sessions = new McpSessionCoordinator();
+    const active = (): RemoteSession => sessions.active();
+    const closeSession = (): Promise<{ videoPath?: string }> => sessions.close();
     const server = new McpServer(
       { name: PackageMetadata.NAME, version: PackageMetadata.VERSION },
       {
@@ -67,14 +60,12 @@ export class McpServerHost {
       async ({ nameOrId, server: remoteServer, role, pairingId, code }) => {
         if (pairingId || code) {
           if (!pairingId || !code) throw new Error("Both pairingId and code are required to complete pairing.");
-          await closeSession();
-          return textResult(await testbench.completePairing(pairingId, code));
+          return textResult(await sessions.transition(() => testbench.completePairing(pairingId, code)));
         }
         const instance = remoteServer
           ? await testbench.remoteIdentity(remoteServer)
           : selectRemoteInstance(await testbench.discoverTestbenches(), nameOrId);
-        await closeSession();
-        return textResult(await testbench.connectTestbench(instance, role));
+        return textResult(await sessions.transition(() => testbench.connectTestbench(instance, role)));
       },
     );
 
@@ -85,8 +76,7 @@ export class McpServerHost {
         annotations: { readOnlyHint: false, destructiveHint: true },
       },
       async () => {
-        await closeSession().catch(() => undefined);
-        return textResult(await testbench.disconnectTestbench());
+        return textResult(await sessions.transition(() => testbench.disconnectTestbench(), { ignoreCloseError: true }));
       },
     );
 
@@ -130,8 +120,7 @@ export class McpServerHost {
         inputSchema: InputSchemas.startSession.shape,
       },
       async (input) => {
-        await closeSession();
-        currentSession = await testbench.open(input);
+        const currentSession = await sessions.replace(() => testbench.open(input));
         return textResult({
           id: currentSession.id,
           target: currentSession.target,
@@ -395,8 +384,11 @@ export class McpServerHost {
     );
 
     const shutdown = async () => {
-      await closeSession();
-      await server.close();
+      try {
+        await closeSession();
+      } finally {
+        await server.close();
+      }
     };
     process.once("SIGINT", () => void shutdown());
     process.once("SIGTERM", () => void shutdown());

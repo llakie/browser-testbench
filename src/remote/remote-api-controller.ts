@@ -1,5 +1,6 @@
 import type { Express, NextFunction, Request, Response } from "express";
 import { InputSchemas, type StartSessionInput } from "../config/input-schemas.js";
+import { TestbenchDefaults } from "../config/defaults.js";
 import { PackageMetadata } from "../config/package-metadata.js";
 import { McpIntegrationService } from "../setup/mcp-integration-service.js";
 import { RemoteArtifactGateway } from "./remote-artifact-transfer.js";
@@ -30,6 +31,7 @@ export class RemoteApiController {
 
   registerPairingRoutes(app: Express): void {
     app.get("/v1/remote/identity", async (_request, response) => {
+      if (!this.options.remote) return this.remoteDisabled(response);
       response.json({
         instanceId: await this.options.identity.instanceId(),
         name: process.env.COMPUTERNAME ?? process.env.HOSTNAME ?? "Browser Testbench",
@@ -135,6 +137,7 @@ export class RemoteApiController {
       body: upload ? (upload.body as unknown as BodyInit) : body,
       bodyHash: upload?.bodyHash,
       headers: upload ? { "content-type": "application/octet-stream" } : undefined,
+      ...(request.path === "/v1/workbench/setup" ? { timeoutMs: TestbenchDefaults.SETUP_REQUEST_TIMEOUT_MS } : {}),
     };
     if (sessionMatch?.[2] === "browser" && originalBody?.action === "waitDownload") {
       const remoteResponse = await client.response(path, remoteRequest);
@@ -244,6 +247,7 @@ export class RemoteApiController {
         "/v1/capabilities",
         "/v1/verify",
         "/v1/workbench/setup",
+        "/v1/workbench/plan",
         "/v1/sessions",
       ].includes(path) || path.startsWith("/v1/sessions/")
     );

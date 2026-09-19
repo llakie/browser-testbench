@@ -1,4 +1,3 @@
-import { once } from "node:events";
 import { createServer } from "node:net";
 import { mkdir } from "node:fs/promises";
 import type { ChildProcess } from "node:child_process";
@@ -6,6 +5,7 @@ import { TestbenchDefaults } from "../config/defaults.js";
 import { AndroidSdk } from "./android-sdk.js";
 import { CommandRunner } from "./command-runner.js";
 import { TestbenchPaths } from "./paths.js";
+import { ProcessTerminator } from "./process-terminator.js";
 
 const PROCESS_STOP_TIMEOUT_MS = 5_000;
 const APPIUM_START_TIMEOUT_MS = 30_000;
@@ -19,8 +19,8 @@ export class ManagedProcess {
 
   constructor(command: string, cwd?: string, env?: Record<string, string>) {
     this.child = CommandRunner.spawnShell(command, { cwd, env: { ...process.env, ...env } });
-    this.child.stdout?.on("data", (chunk) => (this.output += String(chunk)));
-    this.child.stderr?.on("data", (chunk) => (this.output += String(chunk)));
+    this.child.stdout?.on("data", (chunk) => this.appendOutput(chunk));
+    this.child.stderr?.on("data", (chunk) => this.appendOutput(chunk));
   }
 
   get recentOutput(): string {
@@ -28,35 +28,11 @@ export class ManagedProcess {
   }
 
   async stop(): Promise<void> {
-    if (this.child.exitCode !== null || this.child.killed) return;
-    if (process.platform === "win32") {
-      await CommandRunner.run("taskkill", ["/PID", String(this.child.pid), "/T"], {
-        timeoutMs: PROCESS_STOP_TIMEOUT_MS,
-      });
-    } else if (this.child.pid) {
-      try {
-        process.kill(-this.child.pid, "SIGTERM");
-      } catch {
-        this.child.kill("SIGTERM");
-      }
-    }
-    await Promise.race([
-      once(this.child, "close"),
-      new Promise((resolve) => setTimeout(resolve, PROCESS_STOP_TIMEOUT_MS)),
-    ]);
-    if (this.child.exitCode === null) {
-      if (process.platform !== "win32" && this.child.pid) {
-        try {
-          process.kill(-this.child.pid, "SIGKILL");
-        } catch {
-          this.child.kill("SIGKILL");
-        }
-      } else {
-        await CommandRunner.run("taskkill", ["/PID", String(this.child.pid), "/T", "/F"], {
-          timeoutMs: PROCESS_STOP_TIMEOUT_MS,
-        });
-      }
-    }
+    await ProcessTerminator.stop(this.child, { graceMs: PROCESS_STOP_TIMEOUT_MS, group: true });
+  }
+
+  private appendOutput(chunk: unknown): void {
+    this.output = `${this.output}${String(chunk)}`.slice(-RECENT_OUTPUT_MAX_LENGTH);
   }
 }
 
