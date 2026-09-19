@@ -275,6 +275,7 @@ describe("workbench UI browser flow", () => {
         );
 
         await browser.navigate(`${baseUrl}/targets`);
+        await browser.active.$("#debug-url").waitForDisplayed({ timeout: 15_000 });
         expect(await browser.active.execute("return document.querySelector('#debug-url').placeholder")).toBe(
           "http://127.0.0.1:3000",
         );

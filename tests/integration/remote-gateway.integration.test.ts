@@ -148,7 +148,14 @@ describe("remote gateway", () => {
 
   it.runIf(nonLoopbackAddress)("authenticates a non-loopback control client and enforces revocation", async () => {
     directory = await mkdtemp(join(tmpdir(), "browser-testbench-remote-auth-integration-"));
-    vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
+    vi.spyOn(DoctorService, "inspect").mockResolvedValue([
+      {
+        id: "edge",
+        label: TargetRegistry.definitions.edge.label,
+        status: "ready",
+        detail: "Remote integration test",
+      },
+    ]);
     const clients = new AuthorizedRemoteClientStore(join(directory, "clients.json"));
     const announcements: string[] = [];
     const remote = new ApiServer(
