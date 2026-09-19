@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -10,6 +10,8 @@ import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-int
 import { SetupService } from "../../src/setup/setup-service.js";
 import { WorkbenchEvents } from "../../src/setup/workbench-events.js";
 import { ApiServer } from "../../src/transports/api-server.js";
+import { AuthorizedRemoteClientStore, RemoteHostIdentityStore } from "../../src/remote/remote-client-store.js";
+import { RemotePairingService } from "../../src/remote/remote-pairing-service.js";
 
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
 const platformLabel = process.platform === "darwin" ? "macOS" : process.platform === "win32" ? "Windows" : "Linux";
@@ -500,5 +502,59 @@ describe("workbench UI browser flow", () => {
       }
     },
     60_000,
+  );
+
+  browserTest(
+    "presents remote host administration instead of connection controls",
+    async () => {
+      vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
+      vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue([
+        {
+          id: "codex",
+          label: "Codex",
+          installed: true,
+          automatic: true,
+          registered: false,
+          current: false,
+          command: "test command",
+          format: "command",
+          detail: "Browser integration fixture",
+          instruction: "Browser integration fixture",
+        },
+      ]);
+      const directory = await mkdtemp(join(tmpdir(), "browser-testbench-remote-ui-"));
+      const clients = new AuthorizedRemoteClientStore(join(directory, "clients.json"));
+      const api = new ApiServer(
+        { host: "127.0.0.1", port: 0, remote: true },
+        {
+          identity: new RemoteHostIdentityStore(join(directory, "identity.json")),
+          clients,
+          pairing: new RemotePairingService(clients, () => {}),
+          publisher: { start: async () => {}, stop: async () => {} },
+        },
+      );
+      const address = await api.start();
+      const browser = new BrowserSession();
+
+      try {
+        await browser.start({ name: "chrome", headless: true });
+        await browser.navigate(`http://${address.host}:${address.port}/setup`);
+        await browser.active.waitForText("Connected test clients", 15_000);
+        const panelText = await browser.active.$("#remote-connection").getText();
+        expect(panelText).not.toContain("Connect to a central Testbench");
+        expect(panelText).toContain("Pair and manage clients that use this Testbench over the network.");
+        expect(
+          await browser.active.execute(
+            "return { manual: document.querySelector('#remote-manual').hidden, discovery: document.querySelector('#discover-remotes').hidden }",
+          ),
+        ).toEqual({ manual: true, discovery: true });
+      } finally {
+        await browser.close();
+        await api.stop();
+        await rm(directory, { recursive: true, force: true });
+        vi.restoreAllMocks();
+      }
+    },
+    30_000,
   );
 });
