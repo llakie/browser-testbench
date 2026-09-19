@@ -17,7 +17,10 @@ export class RemoteApiError extends Error {
 }
 
 export class RemoteApiClient {
-  constructor(private readonly credential: RemoteClientCredential) {}
+  constructor(
+    private readonly credential: RemoteClientCredential,
+    private readonly onUnauthorized?: () => Promise<void>,
+  ) {}
 
   async response(path: string, init: RemoteApiRequestInit = {}): Promise<Response> {
     const { timeoutMs = TestbenchDefaults.REMOTE_REQUEST_TIMEOUT_MS, bodyHash, ...requestInit } = init;
@@ -29,7 +32,7 @@ export class RemoteApiClient {
         ? AbortSignal.any([requestInit.signal, timeoutSignal])
         : (requestInit.signal ?? timeoutSignal);
     try {
-      return await fetch(`${this.credential.url}${path}`, {
+      const response = await fetch(`${this.credential.url}${path}`, {
         ...requestInit,
         signal,
         headers: {
@@ -39,6 +42,8 @@ export class RemoteApiClient {
         },
         ...(requestInit.body && typeof requestInit.body !== "string" ? { duplex: "half" } : {}),
       } as RequestInit);
+      if (response.status === 401) await this.onUnauthorized?.();
+      return response;
     } catch (error) {
       if (timeoutSignal?.aborted)
         throw new Error(`Remote Testbench '${this.credential.instanceName}' timed out after ${timeoutMs} ms.`);

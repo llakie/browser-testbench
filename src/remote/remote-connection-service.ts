@@ -47,7 +47,7 @@ export class RemoteConnectionService {
   }
 
   client(): RemoteApiClient | undefined {
-    return this.activeCredential ? new RemoteApiClient(this.activeCredential) : undefined;
+    return this.activeCredential ? this.remoteClient(this.activeCredential) : undefined;
   }
 
   async probe(): Promise<ConnectionStatus> {
@@ -215,6 +215,7 @@ export class RemoteConnectionService {
       this.activeCredential = undefined;
       this.reachable = undefined;
       await this.credentials.remove(instanceId);
+      this.eventHandler?.("connection.changed");
     }
   }
 
@@ -282,7 +283,7 @@ export class RemoteConnectionService {
   private async consumeEvents(credential: RemoteClientCredential, signal: AbortSignal): Promise<void> {
     while (!signal.aborted && this.activeCredential?.clientId === credential.clientId) {
       try {
-        const response = await new RemoteApiClient(credential).response("/v1/events", { signal, timeoutMs: 0 });
+        const response = await this.remoteClient(credential).response("/v1/events", { signal, timeoutMs: 0 });
         if (!response.ok || !response.body) throw new Error(`Remote event stream returned HTTP ${response.status}.`);
         this.setReachable(true);
         const reader = response.body.getReader();
@@ -342,7 +343,7 @@ export class RemoteConnectionService {
   private async checkConnection(): Promise<void> {
     const credential = this.activeCredential;
     if (!credential) return;
-    const principal = await new RemoteApiClient(credential).request<{ clientId: string; role: RemoteRole }>(
+    const principal = await this.remoteClient(credential).request<{ clientId: string; role: RemoteRole }>(
       "/v1/remote/me",
       { timeoutMs: TestbenchDefaults.REMOTE_CONNECT_TIMEOUT_MS },
     );
@@ -364,6 +365,10 @@ export class RemoteConnectionService {
   private assertPrincipal(credential: RemoteClientCredential, clientId: string): void {
     if (clientId !== credential.clientId)
       throw new RemoteApiError("The remote Testbench rejected the saved client credential.", 401);
+  }
+
+  private remoteClient(credential: RemoteClientCredential): RemoteApiClient {
+    return new RemoteApiClient(credential, () => this.revokeActive(credential.clientId));
   }
 
   private prunePending(): void {

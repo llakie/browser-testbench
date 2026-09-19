@@ -59,12 +59,13 @@
         <h3>Paired clients</h3>
         <p>Change administrative access or revoke a client credential.</p>
       </div>
+      <p class="remote-clients__empty" id="remote-clients-empty" hidden>No clients have connected yet.</p>
       <div class="remote-discovery" id="remote-client-list"></div>
     </div>
   </div>
 </details>
 
-<details class="panel accordion-panel" id="environment" name="overview-panel" open>
+<details class="panel accordion-panel" id="environment" name="overview-panel" aria-busy="true" open>
   <summary class="accordion-panel__summary">
     <div>
       <p class="eyebrow">Local test environment</p>
@@ -73,7 +74,7 @@
     </div>
     <i class="fa-solid fa-chevron-down accordion-panel__icon" aria-hidden="true"></i>
   </summary>
-  <div class="accordion-panel__body">
+  <div class="accordion-panel__body environment-panel__body">
     <div class="accordion-panel__toolbar">
       <button class="button button--secondary" id="refresh-environment" type="button">
         <i class="fa-solid fa-rotate" aria-hidden="true"></i> Check again
@@ -119,6 +120,13 @@
         <p class="integration-status" id="mcp-status">Checking connection …</p>
         <p id="mcp-instruction"></p>
         <div id="mcp-command"></div>
+      </div>
+    </div>
+    <div class="environment-analysis" id="environment-analysis" role="status" aria-live="polite">
+      <div class="environment-analysis__content">
+        <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+        <strong>Please wait</strong>
+        <span>Analyzing the system environment …</span>
       </div>
     </div>
   </div>

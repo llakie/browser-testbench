@@ -10,8 +10,15 @@ import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-int
 import { SetupService } from "../../src/setup/setup-service.js";
 import { WorkbenchEvents } from "../../src/setup/workbench-events.js";
 import { ApiServer } from "../../src/transports/api-server.js";
-import { AuthorizedRemoteClientStore, RemoteHostIdentityStore } from "../../src/remote/remote-client-store.js";
+import {
+  AuthorizedRemoteClientStore,
+  RemoteCredentialStore,
+  RemoteHostIdentityStore,
+} from "../../src/remote/remote-client-store.js";
+import { RemoteConnectionService } from "../../src/remote/remote-connection-service.js";
 import { RemotePairingService } from "../../src/remote/remote-pairing-service.js";
+import type { RemoteInstance } from "../../src/remote/remote-types.js";
+import { RemoteTestbench } from "../../src/transports/testbench-client.js";
 
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
 const platformLabel = process.platform === "darwin" ? "macOS" : process.platform === "win32" ? "Windows" : "Linux";
@@ -507,7 +514,11 @@ describe("workbench UI browser flow", () => {
   browserTest(
     "presents remote host administration instead of connection controls",
     async () => {
-      vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
+      let finishInspection!: (checks: []) => void;
+      const inspection = new Promise<[]>((resolve) => {
+        finishInspection = resolve;
+      });
+      vi.spyOn(DoctorService, "inspect").mockReturnValue(inspection);
       vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue([
         {
           id: "codex",
@@ -524,37 +535,118 @@ describe("workbench UI browser flow", () => {
       ]);
       const directory = await mkdtemp(join(tmpdir(), "browser-testbench-remote-ui-"));
       const clients = new AuthorizedRemoteClientStore(join(directory, "clients.json"));
-      const api = new ApiServer(
+      const announcements: string[] = [];
+      const remote = new ApiServer(
         { host: "127.0.0.1", port: 0, remote: true },
         {
           identity: new RemoteHostIdentityStore(join(directory, "identity.json")),
           clients,
-          pairing: new RemotePairingService(clients, () => {}),
+          pairing: new RemotePairingService(clients, (message) => announcements.push(message)),
           publisher: { start: async () => {}, stop: async () => {} },
         },
       );
-      const address = await api.start();
+      const remoteAddress = await remote.start();
       const browser = new BrowserSession();
+      let gateway: ApiServer | undefined;
 
       try {
         await browser.start({ name: "chrome", headless: true });
-        await browser.navigate(`http://${address.host}:${address.port}/setup`);
+        await browser.navigate(`http://${remoteAddress.host}:${remoteAddress.port}/setup`);
+        const loadingState = await browser.active.execute<{
+          busy: string | null;
+          exists: boolean;
+          fills: boolean;
+          height: number;
+          hidden?: boolean;
+        }>(`
+          const overlay = document.querySelector("#environment-analysis");
+          const body = document.querySelector("#environment .accordion-panel__body");
+          const overlayRect = overlay?.getBoundingClientRect();
+          const bodyRect = body.getBoundingClientRect();
+          return {
+            busy: document.querySelector("#environment").getAttribute("aria-busy"),
+            exists: Boolean(overlay),
+            fills: Boolean(overlayRect && Math.abs(overlayRect.top - bodyRect.top) <= 1 && Math.abs(overlayRect.right - bodyRect.right) <= 1 && Math.abs(overlayRect.bottom - bodyRect.bottom) <= 1 && Math.abs(overlayRect.left - bodyRect.left) <= 1),
+            height: bodyRect.height,
+            hidden: overlay?.hidden
+          };
+        `);
+        finishInspection([]);
         await browser.active.waitForText("Connected test clients", 15_000);
+        const loadedState = await browser.active.execute<{ busy: string | null; height: number; hidden?: boolean }>(`
+          const overlay = document.querySelector("#environment-analysis");
+          return {
+            busy: document.querySelector("#environment").getAttribute("aria-busy"),
+            height: document.querySelector("#environment .accordion-panel__body").getBoundingClientRect().height,
+            hidden: overlay?.hidden
+          };
+        `);
+        expect.soft(loadingState).toMatchObject({ busy: "true", exists: true, fills: true, hidden: false });
+        expect.soft(loadedState).toMatchObject({ busy: "false", hidden: true });
+        expect.soft(loadingState.height).toBeGreaterThanOrEqual(loadedState.height);
+        await browser.active.$("#remote-connection > summary").click();
         const panelText = await browser.active.$("#remote-connection").getText();
         expect(panelText).not.toContain("Connect to a central Testbench");
         expect(panelText).toContain("Pair and manage clients that use this Testbench over the network.");
+        expect(panelText).toContain("No clients have connected yet.");
         expect(
           await browser.active.execute(
             "return { manual: document.querySelector('#remote-manual').hidden, discovery: document.querySelector('#discover-remotes').hidden }",
           ),
         ).toEqual({ manual: true, discovery: true });
+
+        const remoteUrl = `http://${remoteAddress.host}:${remoteAddress.port}`;
+        const identity = (await fetch(`${remoteUrl}/v1/remote/identity`).then((response) => response.json())) as Omit<
+          RemoteInstance,
+          "url"
+        >;
+        const discovered = { ...identity, url: remoteUrl };
+        const connections = new RemoteConnectionService(new RemoteCredentialStore(join(directory, "credentials.json")));
+        gateway = new ApiServer(
+          { host: "127.0.0.1", port: 0 },
+          { discovery: { discover: async () => [discovered] }, connections },
+        );
+        const gatewayAddress = await gateway.start();
+        const testbench = new RemoteTestbench({ server: `http://${gatewayAddress.host}:${gatewayAddress.port}` });
+        const pairing = await testbench.connectTestbench(discovered);
+        const code = announcements[0]!.match(/\d{6}$/)?.[0];
+        const connected = await testbench.completePairing((pairing as { pairingId: string }).pairingId, code!);
+
+        await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/setup`);
+        await browser.active.waitForText(identity.name, 15_000);
+        await vi.waitFor(
+          async () =>
+            expect(
+              await browser.active.execute<boolean>("return document.querySelector('#remote-connection').hidden"),
+            ).toBe(true),
+          { timeout: 15_000 },
+        );
+        expect(await browser.active.execute("return document.querySelector('#remote-connection').hidden")).toBe(true);
+
+        await browser.active.execute(`
+          window.__promptCalls = 0;
+          window.prompt = () => {
+            window.__promptCalls += 1;
+            return null;
+          };
+        `);
+        await fetch(`http://127.0.0.1:${remoteAddress.port}/v1/remote/clients/${connected.remote!.clientId}`, {
+          method: "DELETE",
+        });
+        await browser.active.waitForText("Connect to a central Testbench", 15_000);
+        expect(
+          await browser.active.execute(
+            "return { bannerHidden: document.querySelector('#remote-banner').hidden, panelHidden: document.querySelector('#remote-connection').hidden, promptCalls: window.__promptCalls }",
+          ),
+        ).toEqual({ bannerHidden: true, panelHidden: false, promptCalls: 0 });
       } finally {
         await browser.close();
-        await api.stop();
+        await gateway?.stop();
+        await remote.stop();
         await rm(directory, { recursive: true, force: true });
         vi.restoreAllMocks();
       }
     },
-    30_000,
+    45_000,
   );
 });

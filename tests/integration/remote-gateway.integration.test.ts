@@ -183,7 +183,8 @@ describe("remote gateway", () => {
     await fetch(`http://127.0.0.1:${remoteAddress.port}/v1/remote/clients/${connected.remote!.clientId}`, {
       method: "DELETE",
     });
-    await expect(testbench.connection()).resolves.toMatchObject({ mode: "remote", reachable: false });
-    await expect(testbench.targets()).rejects.toThrow("Remote authentication required");
+    await vi.waitFor(async () => expect(await testbench.connection()).toEqual({ mode: "local" }));
+    await expect(testbench.targets()).resolves.not.toHaveLength(0);
+    await expect(testbench.connectTestbench(discovered)).resolves.toMatchObject({ pairingRequired: true });
   });
 });

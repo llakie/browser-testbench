@@ -10,6 +10,7 @@ const elements = {
   mcpClient: document.querySelector("#mcp-client"),
   debugUrl: document.querySelector("#debug-url"),
   debugTarget: document.querySelector("#debug-target"),
+  remotePanel: document.querySelector("#remote-connection"),
   remoteDiscovery: document.querySelector("#remote-discovery"),
   remoteTitle: document.querySelector("#remote-connection-title"),
   remoteSummary: document.querySelector("#remote-connection-summary"),
@@ -20,7 +21,10 @@ const elements = {
   pairingCode: document.querySelector("#pairing-code"),
   pairingRequests: document.querySelector("#pairing-requests"),
   remoteClients: document.querySelector("#remote-clients"),
+  remoteClientsEmpty: document.querySelector("#remote-clients-empty"),
   remoteClientList: document.querySelector("#remote-client-list"),
+  environment: document.querySelector("#environment"),
+  environmentAnalysis: document.querySelector("#environment-analysis"),
 };
 
 const defaultApplicationUrl = "http://127.0.0.1:3000";
@@ -60,7 +64,10 @@ class WorkbenchUi {
 
   static async refresh(trigger, { background = false } = {}) {
     const restoreTrigger = this.buttonProgress(trigger, "Checking \u2026");
-    if (!background) this.busy(true);
+    if (!background) {
+      this.busy(true);
+      this.analyzing(true);
+    }
     try {
       state = await this.request("/v1/workbench");
       elements.hostBadge?.replaceChildren(
@@ -87,7 +94,10 @@ class WorkbenchUi {
       if (!background) this.notice(this.message(error), "error");
     } finally {
       restoreTrigger();
-      if (!background) this.busy(false);
+      if (!background) {
+        this.analyzing(false);
+        this.busy(false);
+      }
     }
   }
 
@@ -257,9 +267,12 @@ for (const target of targets) {
   static renderRemoteConnection() {
     if (!elements.remoteSummary) return;
     const connection = state.connection ?? { mode: "local" };
+    const connectedControl = connection.mode === "remote" && !state.permissions.configure;
+    elements.remotePanel.hidden = connectedControl;
+    if (connectedControl) return;
     if (connection.mode === "remote") {
-      elements.remoteTitle.textContent = "Connected to a central Testbench";
-      elements.remoteSummary.textContent = `Connected to ${connection.remote.instanceName} with ${connection.remote.role} access.`;
+      elements.remoteTitle.textContent = "Connected test clients";
+      elements.remoteSummary.textContent = `Manage clients paired with ${connection.remote.instanceName}.`;
       elements.remoteManual.hidden = true;
       document.querySelector("#discover-remotes").hidden = true;
     } else if (state.remoteMode) {
@@ -277,7 +290,8 @@ for (const target of targets) {
     elements.pairingRequests.hidden = requests.length === 0;
     elements.pairingRequests.replaceChildren(...requests.map((request) => this.pairingRequest(request)));
     const clients = state.authorizedClients ?? [];
-    elements.remoteClients.hidden = clients.length === 0;
+    elements.remoteClients.hidden = !state.remoteMode && connection.mode !== "remote";
+    elements.remoteClientsEmpty.hidden = clients.length > 0;
     elements.remoteClientList.replaceChildren(...clients.map((client) => this.remoteClient(client)));
   }
 
@@ -712,7 +726,8 @@ for (const target of targets) {
     const headers = { ...(options.body ? { "content-type": "application/json" } : {}) };
     if (authorization) headers.authorization = `Bearer ${authorization}`;
     const response = await fetch(path, { ...options, headers: { ...headers, ...options.headers } });
-    if (response.status === 401 && retry) {
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 401 && payload.error === "Unauthorized" && retry) {
       const token = window.prompt("Browser Testbench bearer token:");
       if (token) {
         authorization = token;
@@ -721,7 +736,6 @@ for (const target of targets) {
         return this.request(path, options, false);
       }
     }
-    const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
     return payload;
   }
@@ -732,6 +746,12 @@ for (const target of targets) {
       control.disabled = value;
     });
     if (!value && state) this.renderTestTargets();
+  }
+
+  static analyzing(value) {
+    if (!elements.environmentAnalysis) return;
+    elements.environment.setAttribute("aria-busy", String(value));
+    elements.environmentAnalysis.hidden = !value;
   }
 
   static buttonProgress(button, label) {
