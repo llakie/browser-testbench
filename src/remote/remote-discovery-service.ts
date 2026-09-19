@@ -54,7 +54,7 @@ export class RemoteDiscoveryBrowser {
       await new Promise((resolve) => setTimeout(resolve, timeoutMs));
       if (found.size === 0 && discoveryError)
         throw new Error(
-          `mDNS discovery failed: ${discoveryError.message}. Check multicast UDP 5353, VPN settings, and the Windows private-network firewall rule for Node.js.`,
+          `mDNS discovery failed: ${discoveryError.message}. Check multicast UDP 5353, VPN settings, and the remote host's firewall rules.`,
         );
       return [...found.values()].sort((left, right) => left.name.localeCompare(right.name));
     } finally {

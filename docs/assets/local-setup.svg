@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="470" viewBox="0 0 1000 470" role="img" aria-labelledby="title description">
+  <title id="title">Local Browser Testbench setup</title>
+  <desc id="description">A user, test code, or AI agent sends commands to Browser Testbench, which controls a local browser or device. The test target loads the application URL.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6"/>
+    </marker>
+    <style>
+      .canvas { fill: #0f172a; }
+      .host { fill: #172033; stroke: #64748b; stroke-width: 2; }
+      .client { fill: #3b2147; stroke: #c026d3; stroke-width: 2; }
+      .app { fill: #25264d; stroke: #6366f1; stroke-width: 2; }
+      .gateway { fill: #162b4d; stroke: #2563eb; stroke-width: 2; }
+      .target { fill: #10372f; stroke: #059669; stroke-width: 2; }
+      .label { fill: #f8fafc; font: 600 18px system-ui, sans-serif; }
+      .heading { fill: #f8fafc; font: 700 25px system-ui, sans-serif; }
+      .muted { fill: #cbd5e1; font: 15px system-ui, sans-serif; }
+      .caption { fill: #cbd5e1; font: 600 14px system-ui, sans-serif; }
+      .line { fill: none; stroke: #94a3b8; stroke-width: 2.5; marker-end: url(#arrow); }
+      .url { fill: none; stroke: #8b5cf6; stroke-width: 2.5; stroke-dasharray: 8 6; marker-end: url(#arrow-purple); }
+    </style>
+  </defs>
+
+  <rect class="canvas" width="1000" height="470" rx="18"/>
+  <text class="heading" x="40" y="42">Local setup</text>
+  <rect class="host" x="30" y="62" width="940" height="366" rx="18"/>
+  <text class="caption" x="55" y="93">Development machine</text>
+
+  <rect class="client" x="70" y="120" width="250" height="105" rx="14"/>
+  <text class="label" x="195" y="153" text-anchor="middle">Control clients</text>
+  <text class="muted" x="195" y="178" text-anchor="middle">you · test code · AI agent</text>
+  <text class="muted" x="195" y="202" text-anchor="middle">Web UI · CLI · Node client · MCP</text>
+
+  <rect class="app" x="70" y="295" width="250" height="86" rx="14"/>
+  <text class="label" x="195" y="332" text-anchor="middle">Your application</text>
+  <text class="muted" x="195" y="357" text-anchor="middle">localhost works here</text>
+
+  <rect class="gateway" x="390" y="132" width="220" height="104" rx="14"/>
+  <text class="label" x="500" y="173" text-anchor="middle">Browser Testbench</text>
+  <text class="muted" x="500" y="198" text-anchor="middle">local gateway</text>
+
+  <rect class="target" x="700" y="121" width="240" height="126" rx="14"/>
+  <text class="label" x="820" y="160" text-anchor="middle">Test targets</text>
+  <text class="muted" x="820" y="187" text-anchor="middle">browsers</text>
+  <text class="muted" x="820" y="210" text-anchor="middle">simulators · devices</text>
+
+  <path class="line" d="M 320 173 L 390 173"/>
+  <text class="caption" x="355" y="153" text-anchor="middle">commands</text>
+
+  <path class="line" d="M 610 173 L 700 173"/>
+  <text class="caption" x="655" y="153" text-anchor="middle">controls</text>
+
+  <path class="url" d="M 760 247 C 690 333, 430 373, 320 338"/>
+  <rect x="433" y="326" width="204" height="31" rx="8" fill="#172033"/>
+  <text class="caption" x="535" y="350" text-anchor="middle">loads the application URL</text>
+
+  <text class="muted" x="500" y="412" text-anchor="middle">Everything runs on the same computer.</text>
+</svg>

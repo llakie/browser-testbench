@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="440" viewBox="0 0 1000 440" role="img" aria-labelledby="title description">
+  <title id="title">Remote Browser Testbench setup</title>
+  <desc id="description">A development machine connects its local Browser Testbench gateway to a paired remote host that controls browsers and physical devices.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6"/>
+    </marker>
+    <style>
+      .canvas { fill: #0f172a; }
+      .host { fill: #172033; stroke: #64748b; stroke-width: 2; }
+      .app { fill: #25264d; stroke: #6366f1; stroke-width: 2; }
+      .gateway { fill: #162b4d; stroke: #2563eb; stroke-width: 2; }
+      .remote { fill: #462617; stroke: #ea580c; stroke-width: 2; }
+      .target { fill: #10372f; stroke: #059669; stroke-width: 2; }
+      .label { fill: #f8fafc; font: 600 18px system-ui, sans-serif; }
+      .heading { fill: #f8fafc; font: 700 25px system-ui, sans-serif; }
+      .muted { fill: #cbd5e1; font: 15px system-ui, sans-serif; }
+      .caption { fill: #cbd5e1; font: 600 14px system-ui, sans-serif; }
+      .line { fill: none; stroke: #94a3b8; stroke-width: 2.5; marker-end: url(#arrow); }
+      .paired { fill: none; stroke: #3b82f6; stroke-width: 3; marker-start: url(#arrow-blue); marker-end: url(#arrow-blue); }
+      .url { fill: none; stroke: #8b5cf6; stroke-width: 2.5; stroke-dasharray: 8 6; marker-end: url(#arrow-purple); }
+    </style>
+  </defs>
+
+  <rect class="canvas" width="1000" height="440" rx="18"/>
+  <text class="heading" x="40" y="42">Remote setup</text>
+
+  <rect class="host" x="30" y="62" width="410" height="300" rx="18"/>
+  <text class="caption" x="55" y="93">Development machine</text>
+  <rect class="app" x="70" y="122" width="330" height="76" rx="14"/>
+  <text class="label" x="235" y="155" text-anchor="middle">Your application</text>
+  <text class="muted" x="235" y="180" text-anchor="middle">served on the local network</text>
+  <rect class="gateway" x="70" y="236" width="330" height="86" rx="14"/>
+  <text class="label" x="235" y="271" text-anchor="middle">Local Testbench gateway</text>
+  <text class="muted" x="235" y="297" text-anchor="middle">Web UI · CLI · MCP · project files</text>
+
+  <rect class="host" x="560" y="62" width="410" height="300" rx="18"/>
+  <text class="caption" x="585" y="93">Remote host</text>
+  <rect class="target" x="600" y="122" width="330" height="76" rx="14"/>
+  <text class="label" x="765" y="155" text-anchor="middle">Test targets</text>
+  <text class="muted" x="765" y="180" text-anchor="middle">browsers · simulators · physical devices</text>
+  <rect class="remote" x="600" y="236" width="330" height="86" rx="14"/>
+  <text class="label" x="765" y="271" text-anchor="middle">Remote Testbench</text>
+  <text class="muted" x="765" y="297" text-anchor="middle">started with --remote</text>
+
+  <path class="line" d="M 765 236 L 765 198"/>
+  <path class="paired" d="M 400 279 L 600 279"/>
+  <text class="caption" x="500" y="264" text-anchor="middle">paired LAN connection</text>
+
+  <path class="url" d="M 600 159 L 400 159"/>
+  <text class="caption" x="500" y="142" text-anchor="middle">loads the LAN URL</text>
+
+  <text class="muted" x="500" y="404" text-anchor="middle">Control and project files stay local; browsers and devices stay on the remote host.</text>
+</svg>

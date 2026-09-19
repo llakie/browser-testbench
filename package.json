@@ -37,6 +37,7 @@
   },
   "files": [
     "dist",
+    "docs/assets",
     "public",
     "templates",
     "LICENSE.txt",

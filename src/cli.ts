@@ -34,7 +34,7 @@ program
         ? JSON.stringify(instances, null, 2)
         : instances.length
           ? instances.map(formatRemoteInstance).join("\n")
-          : "No remote Testbench was found. Check --remote, multicast UDP 5353, VPN settings, and the Windows private-network firewall, or use connect --server <url>.",
+          : "No remote Testbench was found. Check --remote, multicast UDP 5353, VPN settings, and the remote host's firewall, or use connect --server <url>.",
     );
   });
 
