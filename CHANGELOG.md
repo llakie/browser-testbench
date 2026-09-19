@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Remote authentication, artifact transfer, session ownership, process cleanup, and MCP lifecycle transitions are hardened against invalid or interrupted requests.
 - Remote control clients no longer receive host-specific browser installation paths or set unrestricted host capabilities.
 - Cold Android emulators receive sufficient launch and boot time, including when verification runs through a remote gateway.
+- An unavailable Remote Testbench can be disconnected directly from the recovery banner without leaving a stale connection error behind.
 
 ## [0.1.8] - 2026-09-18
 

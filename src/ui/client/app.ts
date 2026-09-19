@@ -117,6 +117,7 @@ const RootApp = defineComponent({
       this.shellBusy = true;
       try {
         await ApiClient.request<ConnectionStatus>("/v1/connections/active", { method: "DELETE" });
+        this.store.clearNotice();
         await (this.page === "docs" ? this.store.refreshConnection() : this.store.refresh({ analyze: true }));
       } catch (error) {
         this.store.setNotice(this.store.message(error), "error");

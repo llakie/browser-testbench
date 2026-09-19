@@ -79,6 +79,7 @@ export class WorkbenchStore {
       this.state.workbench = workbench;
       this.state.connection = workbench.connection ?? { mode: "local", reachable: true };
     } catch (error) {
+      await this.refreshConnection();
       if (!background) this.setNotice(this.message(error), "error");
     } finally {
       if (!background) {

@@ -706,4 +706,72 @@ describe("workbench UI browser flow", () => {
     },
     45_000,
   );
+
+  browserTest("can disconnect when the configured remote Testbench is offline", async () => {
+    vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
+    vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue([]);
+    const api = new ApiServer({ host: "127.0.0.1", port: 0 });
+    const address = await api.start();
+    const browser = new BrowserSession();
+
+    try {
+      await browser.start({ name: "chrome", headless: true });
+      await browser.active.devtools("Page.addScriptToEvaluateOnNewDocument", {
+        source: `
+          window.__offlineRemote = true;
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = async (path, options = {}) => {
+            const requestPath = String(path);
+            if (window.__offlineRemote && requestPath === "/v1/workbench") {
+              return new Response(JSON.stringify({ error: "Remote Testbench 'LLAKIE-ROG' is not reachable: fetch failed." }), {
+                status: 502,
+                headers: { "content-type": "application/json" }
+              });
+            }
+            if (requestPath === "/v1/connections/status") {
+              return new Response(JSON.stringify(window.__offlineRemote ? {
+                mode: "remote",
+                reachable: false,
+                remote: {
+                  instanceName: "LLAKIE-ROG",
+                  platform: "win32",
+                  role: "control",
+                  url: "http://llakie-rog:55808"
+                }
+              } : { mode: "local", reachable: true }), {
+                headers: { "content-type": "application/json" }
+              });
+            }
+            if (requestPath === "/v1/connections/active" && options.method === "DELETE") {
+              window.__offlineRemote = false;
+              return new Response(JSON.stringify({ mode: "local" }), {
+                headers: { "content-type": "application/json" }
+              });
+            }
+            return originalFetch(path, options);
+          };
+        `,
+      });
+
+      await browser.navigate(`http://${address.host}:${address.port}/setup`);
+      await browser.active.waitForText("LLAKIE-ROG", 15_000);
+      await browser.active.waitForText("is not reachable: fetch failed", 15_000);
+      expect(await browser.active.execute("return document.querySelector('#notice').textContent")).toContain(
+        "is not reachable: fetch failed",
+      );
+      expect(await browser.active.$("#remote-banner").getText()).toContain("unreachable");
+      await browser.active.$("#remote-banner-disconnect").click();
+      await browser.active.waitForText("Connect to a central Testbench", 15_000);
+      expect(
+        await browser.active.execute(
+          "return { connected: window.__offlineRemote, bannerHidden: document.querySelector('#remote-banner').hidden, panelHidden: document.querySelector('#remote-connection').hidden }",
+        ),
+      ).toEqual({ connected: false, bannerHidden: true, panelHidden: false });
+      expect(await browser.active.execute("return document.querySelector('#notice')")).toBeNull();
+    } finally {
+      await browser.close();
+      await api.stop();
+      vi.restoreAllMocks();
+    }
+  });
 });
