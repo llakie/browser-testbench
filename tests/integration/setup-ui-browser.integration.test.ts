@@ -113,6 +113,18 @@ describe("workbench UI browser flow", () => {
         );
         expect(checkboxMetrics.width).toBeLessThanOrEqual(checkboxMetrics.fontSize * 1.25);
         expect(checkboxMetrics.height).toBeLessThanOrEqual(checkboxMetrics.fontSize * 1.25);
+        const stickyHeader = await browser.active.execute<{
+          position: string;
+          headerTop: number;
+          bannerTop: number;
+          bannerBottom: number;
+          topbarTop: number;
+        }>(
+          "const banner = document.querySelector('#remote-banner'); banner.hidden = false; window.scrollTo(0, document.body.scrollHeight); const header = document.querySelector('.app-header').getBoundingClientRect(); const bannerRect = banner.getBoundingClientRect(); const topbar = document.querySelector('.topbar').getBoundingClientRect(); return { position: getComputedStyle(document.querySelector('.app-header')).position, headerTop: header.top, bannerTop: bannerRect.top, bannerBottom: bannerRect.bottom, topbarTop: topbar.top }",
+        );
+        expect(stickyHeader).toMatchObject({ position: "sticky", headerTop: 0, bannerTop: 0 });
+        expect(stickyHeader.topbarTop).toBe(stickyHeader.bannerBottom);
+        await browser.active.execute("document.querySelector('#remote-banner').hidden = true; window.scrollTo(0, 0)");
         expect(
           await browser.active.execute(
             "const card = [...document.querySelectorAll('.check-card')].find(candidate => candidate.textContent.includes('Google Chrome')); const detail = card.querySelector('.check-card__detail'); const style = getComputedStyle(detail); return { overflow: style.overflow, textOverflow: style.textOverflow, whiteSpace: style.whiteSpace, truncated: detail.scrollWidth > detail.clientWidth, title: detail.title }",
