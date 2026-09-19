@@ -11,6 +11,7 @@ const elements = {
   debugUrl: document.querySelector("#debug-url"),
   debugTarget: document.querySelector("#debug-target"),
   remoteDiscovery: document.querySelector("#remote-discovery"),
+  remoteTitle: document.querySelector("#remote-connection-title"),
   remoteSummary: document.querySelector("#remote-connection-summary"),
   remoteManual: document.querySelector("#remote-manual"),
   remoteServerUrl: document.querySelector("#remote-server-url"),
@@ -257,15 +258,17 @@ for (const target of targets) {
     if (!elements.remoteSummary) return;
     const connection = state.connection ?? { mode: "local" };
     if (connection.mode === "remote") {
+      elements.remoteTitle.textContent = "Connected to a central Testbench";
       elements.remoteSummary.textContent = `Connected to ${connection.remote.instanceName} with ${connection.remote.role} access.`;
       elements.remoteManual.hidden = true;
       document.querySelector("#discover-remotes").hidden = true;
     } else if (state.remoteMode) {
-      elements.remoteSummary.textContent =
-        "Remote access is enabled. Pairing requests appear below and in this terminal.";
+      elements.remoteTitle.textContent = "Connected test clients";
+      elements.remoteSummary.textContent = "Pair and manage clients that use this Testbench over the network.";
       elements.remoteManual.hidden = true;
       document.querySelector("#discover-remotes").hidden = true;
     } else {
+      elements.remoteTitle.textContent = "Connect to a central Testbench";
       elements.remoteSummary.textContent = "Use browsers and devices provided by another computer on your network.";
       elements.remoteManual.hidden = false;
       document.querySelector("#discover-remotes").hidden = false;

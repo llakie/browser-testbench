@@ -15,7 +15,7 @@
   <summary class="accordion-panel__summary">
     <div>
       <p class="eyebrow">Remote Testbench</p>
-      <h2>Connect to a central Testbench</h2>
+      <h2 id="remote-connection-title">Connect to a central Testbench</h2>
       <p id="remote-connection-summary">Use browsers and devices provided by another computer on your network.</p>
     </div>
     <i class="fa-solid fa-chevron-down accordion-panel__icon" aria-hidden="true"></i>
