@@ -266,7 +266,7 @@ for (const target of targets) {
       elements.remoteManual.hidden = true;
       document.querySelector("#discover-remotes").hidden = true;
     } else {
-      elements.remoteSummary.textContent = "Find a Testbench explicitly started with remote access.";
+      elements.remoteSummary.textContent = "Use browsers and devices provided by another computer on your network.";
       elements.remoteManual.hidden = false;
       document.querySelector("#discover-remotes").hidden = false;
     }
@@ -352,7 +352,7 @@ for (const target of targets) {
           ? instances.map((instance) => this.remoteInstance(instance))
           : [
               Object.assign(this.element("p"), {
-                textContent: "No remote Testbench was found. You can enter its URL below.",
+                textContent: "No central Testbench was found. You can enter its URL below.",
               }),
             ]),
       );

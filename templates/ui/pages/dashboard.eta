@@ -15,17 +15,17 @@
   <div class="section-heading">
     <div>
       <p class="eyebrow">Remote Testbench</p>
-      <h2>Connect another machine</h2>
-      <p id="remote-connection-summary">Find a Testbench explicitly started with remote access.</p>
+      <h2>Connect to a central Testbench</h2>
+      <p id="remote-connection-summary">Use browsers and devices provided by another computer on your network.</p>
     </div>
     <button class="button button--secondary" id="discover-remotes" type="button">
-      <i class="fa-solid fa-satellite-dish" aria-hidden="true"></i> Discover
+      <i class="fa-solid fa-satellite-dish" aria-hidden="true"></i> Find Testbenches
     </button>
   </div>
   <div class="remote-discovery" id="remote-discovery" hidden></div>
   <form class="remote-manual" id="remote-manual">
     <label>
-      <span>Manual server URL</span>
+      <span>Testbench URL</span>
       <div class="input-with-icon">
         <i class="fa-solid fa-link" aria-hidden="true"></i>
         <input id="remote-server-url" type="url" placeholder="http://windows-pc:55808" />
