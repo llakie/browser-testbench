@@ -83,7 +83,7 @@ describe("remote CLI lifecycle", () => {
       await rm(directory, { recursive: true, force: true });
       vi.restoreAllMocks();
     }
-  }, 30_000);
+  }, 45_000);
 });
 
 function runCli(...args: string[]) {

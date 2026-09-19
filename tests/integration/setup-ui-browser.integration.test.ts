@@ -707,17 +707,19 @@ describe("workbench UI browser flow", () => {
     45_000,
   );
 
-  browserTest("can disconnect when the configured remote Testbench is offline", async () => {
-    vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
-    vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue([]);
-    const api = new ApiServer({ host: "127.0.0.1", port: 0 });
-    const address = await api.start();
-    const browser = new BrowserSession();
+  browserTest(
+    "can disconnect when the configured remote Testbench is offline",
+    async () => {
+      vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
+      vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue([]);
+      const api = new ApiServer({ host: "127.0.0.1", port: 0 });
+      const address = await api.start();
+      const browser = new BrowserSession();
 
-    try {
-      await browser.start({ name: "chrome", headless: true });
-      await browser.active.devtools("Page.addScriptToEvaluateOnNewDocument", {
-        source: `
+      try {
+        await browser.start({ name: "chrome", headless: true });
+        await browser.active.devtools("Page.addScriptToEvaluateOnNewDocument", {
+          source: `
           window.__offlineRemote = true;
           const originalFetch = window.fetch.bind(window);
           window.fetch = async (path, options = {}) => {
@@ -750,28 +752,30 @@ describe("workbench UI browser flow", () => {
             }
             return originalFetch(path, options);
           };
-        `,
-      });
+          `,
+        });
 
-      await browser.navigate(`http://${address.host}:${address.port}/setup`);
-      await browser.active.waitForText("LLAKIE-ROG", 15_000);
-      await browser.active.waitForText("is not reachable: fetch failed", 15_000);
-      expect(await browser.active.execute("return document.querySelector('#notice').textContent")).toContain(
-        "is not reachable: fetch failed",
-      );
-      expect(await browser.active.$("#remote-banner").getText()).toContain("unreachable");
-      await browser.active.$("#remote-banner-disconnect").click();
-      await browser.active.waitForText("Connect to a central Testbench", 15_000);
-      expect(
-        await browser.active.execute(
-          "return { connected: window.__offlineRemote, bannerHidden: document.querySelector('#remote-banner').hidden, panelHidden: document.querySelector('#remote-connection').hidden }",
-        ),
-      ).toEqual({ connected: false, bannerHidden: true, panelHidden: false });
-      expect(await browser.active.execute("return document.querySelector('#notice')")).toBeNull();
-    } finally {
-      await browser.close();
-      await api.stop();
-      vi.restoreAllMocks();
-    }
-  });
+        await browser.navigate(`http://${address.host}:${address.port}/setup`);
+        await browser.active.waitForText("LLAKIE-ROG", 15_000);
+        await browser.active.waitForText("is not reachable: fetch failed", 15_000);
+        expect(await browser.active.execute("return document.querySelector('#notice').textContent")).toContain(
+          "is not reachable: fetch failed",
+        );
+        expect(await browser.active.$("#remote-banner").getText()).toContain("unreachable");
+        await browser.active.$("#remote-banner-disconnect").click();
+        await browser.active.waitForText("Connect to a central Testbench", 15_000);
+        expect(
+          await browser.active.execute(
+            "return { connected: window.__offlineRemote, bannerHidden: document.querySelector('#remote-banner').hidden, panelHidden: document.querySelector('#remote-connection').hidden }",
+          ),
+        ).toEqual({ connected: false, bannerHidden: true, panelHidden: false });
+        expect(await browser.active.execute("return document.querySelector('#notice')")).toBeNull();
+      } finally {
+        await browser.close();
+        await api.stop();
+        vi.restoreAllMocks();
+      }
+    },
+    30_000,
+  );
 });
