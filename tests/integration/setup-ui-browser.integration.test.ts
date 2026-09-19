@@ -560,6 +560,11 @@ describe("workbench UI browser flow", () => {
       try {
         await browser.start({ name: "chrome", headless: true });
         await browser.navigate(`http://${remoteAddress.host}:${remoteAddress.port}/setup`);
+        await browser.active.waitForScript(
+          "return document.querySelector('#app').hasAttribute('data-v-app')",
+          [],
+          15_000,
+        );
         const loadingState = await browser.active.execute<{
           busy: string | null;
           exists: boolean;
