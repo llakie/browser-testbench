@@ -108,6 +108,11 @@ describe("workbench UI browser flow", () => {
         ).toBe(true);
 
         expect(await browser.active.$("#host-badge").getText()).toContain(platformLabel);
+        const checkboxMetrics = await browser.active.execute<{ width: number; height: number; fontSize: number }>(
+          "const input = document.querySelector('#remote-admin'); const label = input.closest('label'); const rect = input.getBoundingClientRect(); return { width: rect.width, height: rect.height, fontSize: parseFloat(getComputedStyle(label).fontSize) }",
+        );
+        expect(checkboxMetrics.width).toBeLessThanOrEqual(checkboxMetrics.fontSize * 1.25);
+        expect(checkboxMetrics.height).toBeLessThanOrEqual(checkboxMetrics.fontSize * 1.25);
         expect(
           await browser.active.execute(
             "const card = [...document.querySelectorAll('.check-card')].find(candidate => candidate.textContent.includes('Google Chrome')); const detail = card.querySelector('.check-card__detail'); const style = getComputedStyle(detail); return { overflow: style.overflow, textOverflow: style.textOverflow, whiteSpace: style.whiteSpace, truncated: detail.scrollWidth > detail.clientWidth, title: detail.title }",
@@ -275,7 +280,7 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.execute("return document.querySelector('.docs-toc')")).toBeNull();
         expect(
           await browser.active.execute("return document.querySelectorAll('.sidebar__subnav .sidebar__sublink').length"),
-        ).toBe(5);
+        ).toBe(6);
         expect(
           await browser.active.execute(
             "return document.querySelector('.sidebar__subnav .sidebar__sublink').getAttribute('href')",

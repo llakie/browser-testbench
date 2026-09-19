@@ -124,6 +124,16 @@ body {
   padding-bottom: 0.7rem;
 }
 
+.remote-admin-option > input {
+  width: 1em;
+  height: 1em;
+  min-height: 0;
+  flex: 0 0 1em;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
 .remote-discovery,
 .pairing-requests,
 .remote-clients {
@@ -910,7 +920,7 @@ label > small {
   font-size: 0.75rem;
 }
 
-input,
+input:not([type="checkbox"]),
 select {
   width: 100%;
   border: 1px solid var(--color-line);
@@ -923,7 +933,7 @@ select {
     box-shadow var(--transition);
 }
 
-input,
+input:not([type="checkbox"]),
 select {
   min-height: 2.8rem;
   padding: 0.65rem 0.8rem;
