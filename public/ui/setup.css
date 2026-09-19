@@ -508,6 +508,53 @@ h3 {
   box-shadow: var(--shadow-panel);
 }
 
+.accordion-panel__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  list-style: none;
+  cursor: pointer;
+}
+
+.accordion-panel__summary::-webkit-details-marker {
+  display: none;
+}
+
+.accordion-panel__summary p {
+  max-width: 46rem;
+  margin-bottom: 0;
+  color: var(--color-ink-muted);
+}
+
+.accordion-panel__summary:focus-visible {
+  border-radius: var(--radius-small);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.accordion-panel__icon {
+  flex: 0 0 auto;
+  color: var(--color-ink-muted);
+  transition: transform var(--transition);
+}
+
+.accordion-panel[open] > .accordion-panel__summary .accordion-panel__icon {
+  transform: rotate(180deg);
+}
+
+.accordion-panel__body {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-line);
+}
+
+.accordion-panel__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
 .docs-content a {
   color: var(--color-primary);
 }
@@ -1264,6 +1311,10 @@ select:focus {
   }
 
   .section-heading > .button {
+    width: 100%;
+  }
+
+  .accordion-panel__toolbar > .button {
     width: 100%;
   }
 

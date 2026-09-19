@@ -109,11 +109,28 @@ describe("workbench UI browser flow", () => {
 
         expect(await browser.active.$("#host-badge").getText()).toContain(platformLabel);
         expect(await browser.active.$("#remote-connection").getText()).toContain("Connect to a central Testbench");
+        expect(
+          await browser.active.execute(
+            "return { remote: document.querySelector('#remote-connection').open, environment: document.querySelector('#environment').open }",
+          ),
+        ).toEqual({ remote: false, environment: true });
+        await browser.active.$("#remote-connection > summary").click();
+        expect(
+          await browser.active.execute(
+            "return { remote: document.querySelector('#remote-connection').open, environment: document.querySelector('#environment').open }",
+          ),
+        ).toEqual({ remote: true, environment: false });
         const checkboxMetrics = await browser.active.execute<{ width: number; height: number; fontSize: number }>(
           "const input = document.querySelector('#remote-admin'); const label = input.closest('label'); const rect = input.getBoundingClientRect(); return { width: rect.width, height: rect.height, fontSize: parseFloat(getComputedStyle(label).fontSize) }",
         );
         expect(checkboxMetrics.width).toBeLessThanOrEqual(checkboxMetrics.fontSize * 1.25);
         expect(checkboxMetrics.height).toBeLessThanOrEqual(checkboxMetrics.fontSize * 1.25);
+        await browser.active.$("#environment > summary").click();
+        expect(
+          await browser.active.execute(
+            "return { remote: document.querySelector('#remote-connection').open, environment: document.querySelector('#environment').open }",
+          ),
+        ).toEqual({ remote: false, environment: true });
         const stickyHeader = await browser.active.execute<{
           position: string;
           headerTop: number;
