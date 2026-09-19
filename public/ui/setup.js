@@ -8,6 +8,7 @@ const elements = {
   testTargetList: document.querySelector("#test-target-list"),
   verifyAllTargets: document.querySelector("#verify-all-targets"),
   mcpClient: document.querySelector("#mcp-client"),
+  refreshEnvironment: document.querySelector("#refresh-environment"),
   debugUrl: document.querySelector("#debug-url"),
   debugTarget: document.querySelector("#debug-target"),
   remotePanel: document.querySelector("#remote-connection"),
@@ -23,7 +24,7 @@ const elements = {
   remoteClients: document.querySelector("#remote-clients"),
   remoteClientsEmpty: document.querySelector("#remote-clients-empty"),
   remoteClientList: document.querySelector("#remote-client-list"),
-  environment: document.querySelector("#environment"),
+  content: document.querySelector(".page-content"),
   environmentAnalysis: document.querySelector("#environment-analysis"),
 };
 
@@ -40,9 +41,7 @@ let pendingPairingId;
 
 class WorkbenchUi {
   static async initialize() {
-    document
-      .querySelector("#refresh-environment")
-      ?.addEventListener("click", (event) => this.refresh(event.currentTarget));
+    elements.refreshEnvironment?.addEventListener("click", (event) => this.refresh(event.currentTarget));
     document
       .querySelector("#register-mcp")
       ?.addEventListener("click", (event) => this.registerMcp(event.currentTarget));
@@ -745,12 +744,13 @@ for (const target of targets) {
     document.querySelectorAll(".page-content button, .page-content input, .page-content select").forEach((control) => {
       control.disabled = value;
     });
+    if (elements.refreshEnvironment) elements.refreshEnvironment.disabled = value;
     if (!value && state) this.renderTestTargets();
   }
 
   static analyzing(value) {
     if (!elements.environmentAnalysis) return;
-    elements.environment.setAttribute("aria-busy", String(value));
+    elements.content.setAttribute("aria-busy", String(value));
     elements.environmentAnalysis.hidden = !value;
   }
 

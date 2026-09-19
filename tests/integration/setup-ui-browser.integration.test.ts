@@ -556,16 +556,19 @@ describe("workbench UI browser flow", () => {
           busy: string | null;
           exists: boolean;
           fills: boolean;
+          refreshInHeader: boolean;
           hidden?: boolean;
         }>(`
           const overlay = document.querySelector("#environment-analysis");
-          const body = document.querySelector("#environment .accordion-panel__body");
+          const content = document.querySelector(".page-content");
           const overlayRect = overlay?.getBoundingClientRect();
-          const bodyRect = body.getBoundingClientRect();
+          const contentRect = content.getBoundingClientRect();
+          const headerRect = document.querySelector(".app-header").getBoundingClientRect();
           return {
-            busy: document.querySelector("#environment").getAttribute("aria-busy"),
+            busy: content.getAttribute("aria-busy"),
             exists: Boolean(overlay),
-            fills: Boolean(overlayRect && Math.abs(overlayRect.top - bodyRect.top) <= 1 && Math.abs(overlayRect.right - bodyRect.right) <= 1 && Math.abs(overlayRect.bottom - bodyRect.bottom) <= 1 && Math.abs(overlayRect.left - bodyRect.left) <= 1),
+            fills: Boolean(overlayRect && Math.abs(overlayRect.top - contentRect.top) <= 1 && Math.abs(overlayRect.right - contentRect.right) <= 1 && Math.abs(overlayRect.bottom - contentRect.bottom) <= 1 && Math.abs(overlayRect.left - contentRect.left) <= 1 && overlayRect.top >= headerRect.bottom),
+            refreshInHeader: Boolean(document.querySelector(".topbar > .topbar__actions > #refresh-environment")),
             hidden: overlay?.hidden
           };
         `);
@@ -574,11 +577,17 @@ describe("workbench UI browser flow", () => {
         const loadedState = await browser.active.execute<{ busy: string | null; hidden?: boolean }>(`
           const overlay = document.querySelector("#environment-analysis");
           return {
-            busy: document.querySelector("#environment").getAttribute("aria-busy"),
+            busy: document.querySelector(".page-content").getAttribute("aria-busy"),
             hidden: overlay?.hidden
           };
         `);
-        expect.soft(loadingState).toMatchObject({ busy: "true", exists: true, fills: true, hidden: false });
+        expect.soft(loadingState).toMatchObject({
+          busy: "true",
+          exists: true,
+          fills: true,
+          refreshInHeader: true,
+          hidden: false,
+        });
         expect.soft(loadedState).toMatchObject({ busy: "false", hidden: true });
         await browser.active.$("#remote-connection > summary").click();
         const panelText = await browser.active.$("#remote-connection").getText();

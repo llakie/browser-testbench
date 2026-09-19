@@ -31,7 +31,7 @@ export class UiRenderer {
     return this.page(
       "dashboard",
       "Overview",
-      { scripts: ["/ui-assets/environment-events.js", "/ui-assets/setup.js"] },
+      { refreshEnvironment: true, scripts: ["/ui-assets/environment-events.js", "/ui-assets/setup.js"] },
       liveReload,
     );
   }

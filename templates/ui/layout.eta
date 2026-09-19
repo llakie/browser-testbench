@@ -107,8 +107,16 @@
               <i class="fa-solid fa-bars" aria-hidden="true"></i><span class="visually-hidden">Open menu</span>
             </button>
             <a class="mobile-brand" href="/setup">Browser Testbench</a>
-            <div class="host-badge" id="host-badge" aria-live="polite">
-              <i class="fa-solid <%= it.badgeIcon %>" aria-hidden="true"></i> <%= it.badgeLabel %>
+            <div class="topbar__actions">
+              <div class="host-badge" id="host-badge" aria-live="polite">
+                <i class="fa-solid <%= it.badgeIcon %>" aria-hidden="true"></i> <%= it.badgeLabel %>
+              </div>
+              <% if (it.refreshEnvironment) { %>
+              <button class="button button--secondary topbar__refresh" id="refresh-environment" type="button">
+                <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+                <span class="topbar__refresh-label">Check again</span>
+              </button>
+              <% } %>
             </div>
           </header>
         </div>
