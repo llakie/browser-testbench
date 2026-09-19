@@ -78,6 +78,34 @@ npm ci
 npm run dev -- start --remote
 ```
 
+For a headless Windows host, the following PowerShell workflow keeps the process ID and logs outside the repository:
+
+```powershell
+$runtime = Join-Path $env:LOCALAPPDATA "BrowserTestbench"
+New-Item -ItemType Directory -Force $runtime | Out-Null
+
+# Update
+git switch feat/remote-testbench
+git pull --ff-only
+npm ci
+
+# Start in the background
+$process = Start-Process -FilePath "cmd.exe" `
+  -ArgumentList "/d", "/s", "/c", "npm run dev -- start --remote --no-open" `
+  -RedirectStandardOutput (Join-Path $runtime "server.log") `
+  -RedirectStandardError (Join-Path $runtime "server-error.log") `
+  -PassThru
+Set-Content (Join-Path $runtime "server.pid") $process.Id
+
+# Follow logs
+Get-Content (Join-Path $runtime "server.log") -Wait
+
+# Stop cmd.exe and its Node.js child process
+$serverPid = Get-Content (Join-Path $runtime "server.pid")
+taskkill /PID $serverPid /T /F
+Remove-Item (Join-Path $runtime "server.pid")
+```
+
 `--remote` binds to all network interfaces, advertises the service through DNS-SD/mDNS, and requires an individually paired client credential. Use it only on a trusted private LAN. Allow Node.js on private networks if Windows Firewall asks. No bearer token or IP address grants remote access.
 
 On the Mac, start the normal local gateway:

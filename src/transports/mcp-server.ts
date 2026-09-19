@@ -62,15 +62,18 @@ export class McpServerHost {
             .regex(/^\d{6}$/)
             .optional(),
         },
+        annotations: { readOnlyHint: false },
       },
       async ({ nameOrId, server: remoteServer, role, pairingId, code }) => {
         if (pairingId || code) {
           if (!pairingId || !code) throw new Error("Both pairingId and code are required to complete pairing.");
+          await closeSession();
           return textResult(await testbench.completePairing(pairingId, code));
         }
         const instance = remoteServer
           ? await testbench.remoteIdentity(remoteServer)
           : selectRemoteInstance(await testbench.discoverTestbenches(), nameOrId);
+        await closeSession();
         return textResult(await testbench.connectTestbench(instance, role));
       },
     );
@@ -79,8 +82,12 @@ export class McpServerHost {
       "disconnect_testbench",
       {
         description: "Close this client's remote sessions and return Browser Testbench to local mode.",
+        annotations: { readOnlyHint: false, destructiveHint: true },
       },
-      async () => textResult(await testbench.disconnectTestbench()),
+      async () => {
+        await closeSession().catch(() => undefined);
+        return textResult(await testbench.disconnectTestbench());
+      },
     );
 
     server.registerTool(

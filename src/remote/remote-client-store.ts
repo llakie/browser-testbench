@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { JsonFileStore } from "./json-file-store.js";
 import type { AuthorizedRemoteClient, RemoteClientCredential, RemoteRole } from "./remote-types.js";
+import { TestbenchDefaults } from "../config/defaults.js";
 
 interface HostIdentityData {
   instanceId: string;
@@ -18,12 +19,21 @@ interface RemoteCredentialsData {
 
 export class RemoteHostIdentityStore {
   private readonly store: JsonFileStore<HostIdentityData>;
+  private pendingId?: Promise<string>;
 
   constructor(path = TestbenchPaths.data("remote", "identity.json")) {
     this.store = new JsonFileStore(path, () => ({ instanceId: randomUUID() }));
   }
 
   async instanceId(): Promise<string> {
+    this.pendingId ??= this.loadInstanceId().catch((error) => {
+      this.pendingId = undefined;
+      throw error;
+    });
+    return this.pendingId;
+  }
+
+  private async loadInstanceId(): Promise<string> {
     const identity = await this.store.read();
     await this.store.write(identity);
     return identity.instanceId;
@@ -32,6 +42,7 @@ export class RemoteHostIdentityStore {
 
 export class AuthorizedRemoteClientStore {
   private readonly store: JsonFileStore<AuthorizedClientsData>;
+  private readonly lastTouches = new Map<string, number>();
 
   constructor(path = TestbenchPaths.data("remote", "clients.json")) {
     this.store = new JsonFileStore(path, () => ({ clients: [] }));
@@ -50,6 +61,7 @@ export class AuthorizedRemoteClientStore {
     await this.store.update((data) => ({
       clients: [...data.clients.filter((candidate) => candidate.clientId !== clientId), client],
     }));
+    this.lastTouches.set(clientId, Date.now());
     return client;
   }
 
@@ -62,10 +74,18 @@ export class AuthorizedRemoteClientStore {
   }
 
   async touch(clientId: string): Promise<void> {
-    await this.store.update((data) => {
-      const client = data.clients.find((candidate) => candidate.clientId === clientId);
-      if (client) client.lastUsedAt = new Date().toISOString();
-    });
+    const now = Date.now();
+    if (now - (this.lastTouches.get(clientId) ?? 0) < TestbenchDefaults.REMOTE_CLIENT_TOUCH_INTERVAL_MS) return;
+    this.lastTouches.set(clientId, now);
+    try {
+      await this.store.update((data) => {
+        const client = data.clients.find((candidate) => candidate.clientId === clientId);
+        if (client) client.lastUsedAt = new Date(now).toISOString();
+      });
+    } catch (error) {
+      this.lastTouches.delete(clientId);
+      throw error;
+    }
   }
 
   async setRole(clientId: string, role: RemoteRole): Promise<boolean> {
@@ -86,6 +106,7 @@ export class AuthorizedRemoteClientStore {
       revoked = clients.length !== data.clients.length;
       return { clients };
     });
+    this.lastTouches.delete(clientId);
     return revoked;
   }
 }

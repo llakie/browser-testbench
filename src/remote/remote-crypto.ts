@@ -23,11 +23,16 @@ export class RemoteCrypto {
     return { ecdh, publicKey: ecdh.getPublicKey().toString("base64url") };
   }
 
-  static pairingKey(ecdh: ECDH, remotePublicKey: string, code: string, pairingId: string): Buffer {
+  static pairingKey(ecdh: ECDH, remotePublicKey: string, pairingId: string): Buffer {
     const sharedSecret = ecdh.computeSecret(Buffer.from(remotePublicKey, "base64url"));
     return Buffer.from(
-      hkdfSync("sha256", sharedSecret, Buffer.from(code), Buffer.from(`browser-testbench:${pairingId}`), 32),
+      hkdfSync("sha256", sharedSecret, Buffer.from(pairingId), Buffer.from("browser-testbench:pairing"), 32),
     );
+  }
+
+  static pairingCode(key: Buffer, pairingId: string): string {
+    const value = createHmac("sha256", key).update(`pairing-code:${pairingId}`).digest().readUInt32BE();
+    return (value % 1_000_000).toString().padStart(6, "0");
   }
 
   static proof(key: Buffer, clientId: string, role: string): string {
@@ -74,8 +79,9 @@ export class RemoteCrypto {
     timestamp: string,
     nonce: string,
     body: string,
+    bodyHash = this.bodyHash(body),
   ): string {
-    const canonical = [method.toUpperCase(), path, timestamp, nonce, this.bodyHash(body)].join("\n");
+    const canonical = [method.toUpperCase(), path, timestamp, nonce, bodyHash].join("\n");
     return createHmac("sha256", Buffer.from(secret, "base64url")).update(canonical).digest("base64url");
   }
 }

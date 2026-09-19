@@ -8,11 +8,15 @@ export interface RemoteInstance {
   architecture: string;
   version: string;
   apiVersion: number;
+  authentication: "pairing";
 }
 
 export interface RemoteClientCredential {
   instanceId: string;
   instanceName: string;
+  platform: NodeJS.Platform;
+  architecture: string;
+  version: string;
   url: string;
   clientId: string;
   clientName: string;
@@ -47,7 +51,6 @@ export interface PairingCompletion {
   clientId: string;
   clientName: string;
   role: RemoteRole;
-  clientPublicKey: string;
   proof: string;
 }
 

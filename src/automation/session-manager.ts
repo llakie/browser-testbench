@@ -87,7 +87,7 @@ export class SessionManager {
   async closeAll(): Promise<void> {
     const sessions = [...this.sessions.values()];
     this.sessions.clear();
-    await Promise.all(
+    const results = await Promise.allSettled(
       sessions.map(async (session) => {
         try {
           await session.controller.close();
@@ -96,12 +96,14 @@ export class SessionManager {
         }
       }),
     );
+    this.throwCloseFailure(results);
   }
 
   async closeOwned(ownerId: string): Promise<void> {
     this.locks.cancelOwner(ownerId);
     const sessions = [...this.sessions.values()].filter((session) => session.ownerId === ownerId);
-    await Promise.all(sessions.map((session) => this.close(session.id, ownerId)));
+    const results = await Promise.allSettled(sessions.map((session) => this.close(session.id, ownerId)));
+    this.throwCloseFailure(results);
   }
 
   isTargetBusy(targetId: string): boolean {
@@ -137,5 +139,10 @@ export class SessionManager {
       createdAt: session.createdAt,
       runtime: session.runtime,
     };
+  }
+
+  private throwCloseFailure(results: PromiseSettledResult<unknown>[]): void {
+    const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failure) throw failure.reason;
   }
 }

@@ -90,7 +90,10 @@
               ><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i> <strong id="remote-banner-name"></strong
               ><span id="remote-banner-detail"></span
             ></span>
-            <button class="button button--secondary" id="remote-banner-disconnect" type="button">Disconnect</button>
+            <span class="remote-banner__actions">
+              <button class="button button--secondary" id="remote-banner-retry" type="button" hidden>Retry</button>
+              <button class="button button--secondary" id="remote-banner-disconnect" type="button">Disconnect</button>
+            </span>
           </div>
           <header class="topbar">
             <button

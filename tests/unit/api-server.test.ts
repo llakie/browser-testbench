@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TARGET_NAMES } from "../../src/config/types.js";
+import { TestbenchDefaults } from "../../src/config/defaults.js";
+import { SessionManager } from "../../src/automation/session-manager.js";
+import { RemoteRequestAuthentication } from "../../src/remote/remote-request-authentication.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
 import { SetupService } from "../../src/setup/setup-service.js";
@@ -38,6 +41,7 @@ describe("ApiServer", () => {
   afterEach(async () => {
     await server?.stop();
     server = undefined;
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -50,6 +54,35 @@ describe("ApiServer", () => {
     expect((await targets.json()) as Array<{ id: string }>).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "chrome" })]),
     );
+  });
+
+  it("closes an already listening server when remote discovery startup fails", async () => {
+    const publisher = {
+      start: vi.fn().mockRejectedValue(new Error("mDNS unavailable")),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    const failedServer = new ApiServer({ host: "127.0.0.1", port: 0, remote: true }, { publisher });
+
+    await expect(failedServer.start()).rejects.toThrow("mDNS unavailable");
+    expect(publisher.stop).toHaveBeenCalledOnce();
+  });
+
+  it("cleans up sessions when a remote client lease expires", async () => {
+    vi.useFakeTimers();
+    const sessions = new SessionManager();
+    const closeOwned = vi.spyOn(sessions, "closeOwned").mockResolvedValue();
+    let reportActivity: ((clientId: string) => void) | undefined;
+    const authentication = {
+      onActivity: (handler: (clientId: string) => void) => {
+        reportActivity = handler;
+      },
+    } as unknown as RemoteRequestAuthentication;
+
+    new ApiServer({ host: "127.0.0.1", port: 0, remote: true }, { sessions, remoteAuthentication: authentication });
+    reportActivity!("remote-client");
+    await vi.advanceTimersByTimeAsync(TestbenchDefaults.REMOTE_LEASE_TIMEOUT_MS);
+
+    expect(closeOwned).toHaveBeenCalledWith("remote-client");
   });
 
   it("serves the environment UI and project-facing capabilities", async () => {

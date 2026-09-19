@@ -107,19 +107,8 @@ export class RemoteTestbench {
     return this.request("/v1/connections/discover");
   }
 
-  async remoteIdentity(server: string): Promise<RemoteInstance> {
-    const normalized = server.replace(/\/$/, "");
-    let response: Response;
-    try {
-      response = await fetch(`${normalized}/v1/remote/identity`);
-    } catch (error) {
-      throw new Error(
-        `Remote Testbench is not reachable at ${normalized}: ${error instanceof Error ? error.message : error}`,
-      );
-    }
-    const identity = (await response.json().catch(() => ({}))) as Omit<RemoteInstance, "url"> & { error?: string };
-    if (!response.ok) throw new Error(identity.error ?? `Remote Testbench responded with HTTP ${response.status}.`);
-    return InputSchemas.remoteInstance.parse({ ...identity, url: normalized });
+  remoteIdentity(server: string): Promise<RemoteInstance> {
+    return this.request(`/v1/connections/identity?server=${encodeURIComponent(server)}`);
   }
 
   connectTestbench(

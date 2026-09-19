@@ -1,7 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type Server } from "node:http";
+import { createReadStream } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
+import { pipeline } from "node:stream/promises";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { ZodError } from "zod";
 import { SessionManager, SessionNotFoundError } from "../automation/session-manager.js";
@@ -19,7 +21,12 @@ import { AndroidDeviceMonitor } from "../setup/android-device-monitor.js";
 import { WorkbenchEvents } from "../setup/workbench-events.js";
 import { WorkbenchEventStream } from "./workbench-event-stream.js";
 import { RemoteHostIdentityStore, AuthorizedRemoteClientStore } from "../remote/remote-client-store.js";
-import { RemotePairingService, PairingNotFoundError, PairingRejectedError } from "../remote/remote-pairing-service.js";
+import {
+  RemotePairingService,
+  PairingNotFoundError,
+  PairingRejectedError,
+  PairingRateLimitError,
+} from "../remote/remote-pairing-service.js";
 import { RemoteRequestAuthentication } from "../remote/remote-request-authentication.js";
 import { RemoteDiscoveryBrowser, RemoteDiscoveryPublisher } from "../remote/remote-discovery-service.js";
 import { RemoteConnectionService } from "../remote/remote-connection-service.js";
@@ -38,6 +45,7 @@ export interface ApiServerOptions {
 }
 
 export interface ApiServerDependencies {
+  sessions?: SessionManager;
   events?: WorkbenchEvents;
   androidMonitor?: AndroidDeviceMonitor;
   identity?: RemoteHostIdentityStore;
@@ -50,7 +58,7 @@ export interface ApiServerDependencies {
 }
 
 export class ApiServer {
-  private readonly sessions = new SessionManager();
+  private readonly sessions: SessionManager;
   private readonly app = express();
   private readonly server: Server;
   private readonly workbench = new WorkbenchService();
@@ -74,6 +82,7 @@ export class ApiServer {
     private readonly options: ApiServerOptions,
     dependencies: ApiServerDependencies = {},
   ) {
+    this.sessions = dependencies.sessions ?? new SessionManager();
     this.events = dependencies.events ?? new WorkbenchEvents();
     this.identity = dependencies.identity ?? new RemoteHostIdentityStore();
     this.clients = dependencies.clients ?? new AuthorizedRemoteClientStore();
@@ -90,7 +99,6 @@ export class ApiServer {
       authentication: this.remoteAuthentication,
       discovery: this.discovery,
       connections: this.connections,
-      sessions: this.sessions,
       notifyConnectionChanged: () => this.notifyConnectionChanged(),
       closeOwned: (ownerId) => this.closeOwnedAndCleanup(ownerId),
     });
@@ -109,7 +117,6 @@ export class ApiServer {
     }
     this.app.disable("x-powered-by");
     this.registerPublicRoutes();
-    this.app.use("/v1/sessions/:id/upload", express.json({ limit: "70mb" }));
     this.app.use(express.json({ limit: "1mb" }));
     this.remoteApi.registerPairingRoutes(this.app);
     this.app.use((request, response, next) =>
@@ -120,7 +127,11 @@ export class ApiServer {
     this.remoteApi.registerConnectionRoutes(this.app);
     this.app.use((request, response, next) => this.remoteApi.proxy(request, response, next));
     this.registerRoutes();
-    this.app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
+    this.app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
+      if (response.headersSent) {
+        next(error);
+        return;
+      }
       if (error instanceof ZodError) {
         response.status(400).json({ error: "Invalid request", issues: error.issues });
         return;
@@ -131,6 +142,10 @@ export class ApiServer {
       }
       if (error instanceof PairingRejectedError) {
         response.status(403).json({ error: error.message });
+        return;
+      }
+      if (error instanceof PairingRateLimitError) {
+        response.status(429).json({ error: error.message });
         return;
       }
       if (error instanceof RemoteLoopbackUrlError) {
@@ -187,7 +202,12 @@ export class ApiServer {
     this.liveReload?.start();
     this.androidMonitor.start();
     const address = this.server.address() as AddressInfo;
-    if (this.options.remote) await this.publisher.start(address.port);
+    try {
+      if (this.options.remote) await this.publisher.start(address.port);
+    } catch (error) {
+      await this.stop();
+      throw error;
+    }
     return { host: this.options.host, port: address.port };
   }
 
@@ -199,12 +219,16 @@ export class ApiServer {
     this.eventStream.close();
     for (const lease of this.clientLeases.values()) clearTimeout(lease);
     this.clientLeases.clear();
-    await this.publisher.stop();
-    await this.connections.disconnect();
     this.remoteApi.artifacts.clear();
-    await this.sessions.closeAll();
-    await this.artifactHost.cleanup();
+    const cleanup = await Promise.allSettled([
+      this.publisher.stop(),
+      this.connections.disconnect(),
+      this.sessions.closeAll(),
+      this.artifactHost.cleanup(),
+    ]);
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
+    const failure = cleanup.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failure) throw failure.reason;
   }
 
   private sendUi(response: Response, html: string): void {
@@ -231,16 +255,23 @@ export class ApiServer {
   private registerRoutes(): void {
     this.app.get("/health", (_request, response) => response.json({ status: "ok" }));
     this.app.get("/v1/events", (_request, response) => this.eventStream.connect(response));
-    this.app.get("/v1/targets", async (_request, response) =>
+    this.app.get("/v1/targets", async (request, response) =>
       response.json(
-        (await TargetCatalogService.publicList()).map((target) => ({
-          ...target,
-          busy: target.serial && this.sessions.isTargetBusy(target.id),
-        })),
+        this.remoteApi.visibleHostDetails(
+          request,
+          (await TargetCatalogService.publicList()).map((target) => ({
+            ...target,
+            busy: target.serial && this.sessions.isTargetBusy(target.id),
+          })),
+        ),
       ),
     );
-    this.app.get("/v1/doctor", async (_request, response) => response.json(await DoctorService.inspect()));
-    this.app.get("/v1/capabilities", async (_request, response) => response.json(await this.workbench.capabilities()));
+    this.app.get("/v1/doctor", async (request, response) =>
+      response.json(this.remoteApi.visibleHostDetails(request, await DoctorService.inspect())),
+    );
+    this.app.get("/v1/capabilities", async (request, response) =>
+      response.json(this.remoteApi.visibleHostDetails(request, await this.workbench.capabilities())),
+    );
     this.app.post("/v1/verify", async (request, response) => {
       response.json(
         await TargetVerificationService.run(
@@ -252,14 +283,16 @@ export class ApiServer {
     });
     this.app.get("/v1/workbench", async (request, response) => {
       const state = await this.workbench.state();
-      response.json({
-        ...state,
-        testTargets: (state.testTargets as Array<{ id: string; serial: boolean }>).map((target) => ({
-          ...target,
-          busy: target.serial && this.sessions.isTargetBusy(target.id),
-        })),
-        ...(await this.remoteApi.workbenchContext(request)),
-      });
+      response.json(
+        this.remoteApi.visibleHostDetails(request, {
+          ...state,
+          testTargets: (state.testTargets as Array<{ id: string; serial: boolean }>).map((target) => ({
+            ...target,
+            busy: target.serial && this.sessions.isTargetBusy(target.id),
+          })),
+          ...(await this.remoteApi.workbenchContext(request)),
+        }),
+      );
     });
     this.app.post("/v1/workbench/setup", async (request, response) => {
       if (!this.requireAdmin(request, response)) return;
@@ -287,8 +320,24 @@ export class ApiServer {
       }
     });
     this.app.delete("/v1/sessions/:id", async (request, response) => {
-      const result = await this.sessions.close(request.params.id, this.ownerId(request));
-      response.json({ closed: true, ...(await this.artifactHost.close(request.params.id, result)) });
+      let result: { videoPath?: string };
+      try {
+        result = await this.sessions.close(request.params.id, this.ownerId(request));
+      } catch (error) {
+        await this.artifactHost.discardSession(request.params.id);
+        throw error;
+      }
+      const artifact = await this.artifactHost.completeSession(request.params.id, result);
+      if ("path" in artifact) {
+        try {
+          await this.sendArtifact(response, artifact);
+        } finally {
+          if (artifact.directory) await this.artifactHost.discard(artifact.directory);
+        }
+      } else {
+        if (artifact.directory) await this.artifactHost.discard(artifact.directory);
+        response.json({ closed: true, ...result });
+      }
     });
     this.app.get("/v1/sessions/:id/inspect", async (request, response) => {
       const { limit } = InputSchemas.inspect.parse(request.query);
@@ -329,19 +378,14 @@ export class ApiServer {
       );
     });
     this.app.post("/v1/sessions/:id/upload", async (request, response) => {
-      const input = request.body as { selector?: unknown; files?: unknown };
-      if (typeof input.selector !== "string" || !Array.isArray(input.files)) {
-        response.status(400).json({ error: "Invalid upload request." });
+      if (!request.is("application/octet-stream")) {
+        response.status(415).json({ error: "Remote uploads require application/octet-stream." });
         return;
       }
       await this.sessions.run(
         request.params.id,
         (session) =>
-          this.artifactHost.upload(
-            session,
-            input.selector as string,
-            input.files as Array<{ name: string; base64: string }>,
-          ),
+          this.artifactHost.upload(session, request, request.header("x-browser-testbench-body-sha256") ?? ""),
         this.ownerId(request),
       );
       response.json({ uploaded: true });
@@ -353,9 +397,14 @@ export class ApiServer {
         (session) => session.browserAction(input),
         this.ownerId(request),
       );
-      response.json(
-        input.action === "waitDownload" ? await this.artifactHost.transferFile(request.params.id, result) : result,
-      );
+      if (input.action === "waitDownload") {
+        const artifact = await this.artifactHost.download(request.params.id, result);
+        if (artifact) {
+          await this.sendArtifact(response, artifact);
+          return;
+        }
+      }
+      response.json(result);
     });
     this.app.post("/v1/sessions/:id/screenshot", async (request, response) => {
       const { fullPage } = InputSchemas.screenshot.parse(request.body);
@@ -426,7 +475,9 @@ export class ApiServer {
     clearTimeout(this.clientLeases.get(clientId));
     const lease = setTimeout(() => {
       this.clientLeases.delete(clientId);
-      void this.closeOwnedAndCleanup(clientId);
+      void this.closeOwnedAndCleanup(clientId).catch((error) =>
+        console.error(`Remote client cleanup failed: ${error instanceof Error ? error.message : error}`),
+      );
     }, TestbenchDefaults.REMOTE_LEASE_TIMEOUT_MS);
     lease.unref();
     this.clientLeases.set(clientId, lease);
@@ -434,7 +485,29 @@ export class ApiServer {
 
   private async closeOwnedAndCleanup(ownerId: string): Promise<void> {
     const sessionIds = this.sessions.list(ownerId).map((session) => session.id);
-    await this.sessions.closeOwned(ownerId);
-    await Promise.all(sessionIds.map((sessionId) => this.artifactHost.discardSession(sessionId)));
+    let closeError: unknown;
+    try {
+      await this.sessions.closeOwned(ownerId);
+    } catch (error) {
+      closeError = error;
+    }
+    const cleanup = await Promise.allSettled(
+      sessionIds.map((sessionId) => this.artifactHost.discardSession(sessionId)),
+    );
+    if (closeError) throw closeError;
+    const failure = cleanup.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failure) throw failure.reason;
+  }
+
+  private async sendArtifact(
+    response: Response,
+    artifact: { path: string; size: number; name: string },
+  ): Promise<void> {
+    response.status(200).set({
+      "Content-Length": String(artifact.size),
+      "Content-Type": "application/octet-stream",
+      "X-Browser-Testbench-Artifact-Name": encodeURIComponent(artifact.name),
+    });
+    await pipeline(createReadStream(artifact.path), response);
   }
 }

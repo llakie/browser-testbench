@@ -54,6 +54,7 @@ export class InputSchemas {
     architecture: z.string().min(1),
     version: z.string().min(1),
     apiVersion: z.number().int().positive(),
+    authentication: z.literal("pairing"),
   });
   static readonly remoteConnect = z.strictObject({
     instance: this.remoteInstance,
@@ -62,13 +63,14 @@ export class InputSchemas {
   static readonly remotePairingBegin = z.strictObject({
     clientName: z.string().trim().min(1).max(100),
     role: this.remoteRole.default("control"),
+    clientId: z.uuid(),
+    clientPublicKey: z.string().min(1),
   });
   static readonly remotePairingComplete = z.strictObject({
     pairingId: z.uuid(),
     clientId: z.uuid(),
     clientName: z.string().trim().min(1).max(100),
     role: this.remoteRole,
-    clientPublicKey: z.string().min(1),
     proof: z.string().min(1),
   });
   static readonly localPairingComplete = z.strictObject({

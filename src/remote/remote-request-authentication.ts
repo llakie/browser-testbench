@@ -9,6 +9,7 @@ const CLIENT_HEADER = "x-browser-testbench-client";
 const TIMESTAMP_HEADER = "x-browser-testbench-timestamp";
 const NONCE_HEADER = "x-browser-testbench-nonce";
 const SIGNATURE_HEADER = "x-browser-testbench-signature";
+const BODY_HASH_HEADER = "x-browser-testbench-body-sha256";
 
 export class RemoteRequestSigner {
   static headers(
@@ -16,6 +17,7 @@ export class RemoteRequestSigner {
     method: string,
     path: string,
     body: string,
+    bodyHash = RemoteCrypto.bodyHash(body),
   ): Record<string, string> {
     const timestamp = String(Date.now());
     const nonce = randomBytes(16).toString("base64url");
@@ -23,7 +25,16 @@ export class RemoteRequestSigner {
       [CLIENT_HEADER]: credential.clientId,
       [TIMESTAMP_HEADER]: timestamp,
       [NONCE_HEADER]: nonce,
-      [SIGNATURE_HEADER]: RemoteCrypto.requestSignature(credential.secret, method, path, timestamp, nonce, body),
+      [BODY_HASH_HEADER]: bodyHash,
+      [SIGNATURE_HEADER]: RemoteCrypto.requestSignature(
+        credential.secret,
+        method,
+        path,
+        timestamp,
+        nonce,
+        body,
+        bodyHash,
+      ),
     };
   }
 }
@@ -41,7 +52,7 @@ export class RemoteRequestAuthentication {
   }
 
   middleware(request: Request, response: Response, next: NextFunction): void {
-    if (this.isLoopback(request.socket.remoteAddress)) {
+    if (this.isLoopback(request.socket.remoteAddress) && !request.header(CLIENT_HEADER)) {
       this.principals.set(request, { clientId: "local", name: "Local user", role: "admin", local: true });
       next();
       return;
@@ -75,7 +86,8 @@ export class RemoteRequestAuthentication {
     const timestamp = request.header(TIMESTAMP_HEADER);
     const nonce = request.header(NONCE_HEADER);
     const suppliedSignature = request.header(SIGNATURE_HEADER);
-    if (!clientId || !timestamp || !nonce || !suppliedSignature) return undefined;
+    const suppliedBodyHash = request.header(BODY_HASH_HEADER);
+    if (!clientId || !timestamp || !nonce || !suppliedSignature || !suppliedBodyHash) return undefined;
     const requestTime = Number(timestamp);
     if (
       !Number.isFinite(requestTime) ||
@@ -86,7 +98,9 @@ export class RemoteRequestAuthentication {
     if (this.nonces.has(nonceKey)) return undefined;
     const client = await this.clients.find(clientId);
     if (!client) return undefined;
-    const body = request.body && Object.keys(request.body as object).length > 0 ? JSON.stringify(request.body) : "";
+    const body = request.body === undefined ? "" : JSON.stringify(request.body);
+    if (!request.is("application/octet-stream") && !RemoteCrypto.equal(RemoteCrypto.bodyHash(body), suppliedBodyHash))
+      return undefined;
     const expected = RemoteCrypto.requestSignature(
       client.secret,
       request.method,
@@ -94,10 +108,15 @@ export class RemoteRequestAuthentication {
       timestamp,
       nonce,
       body,
+      suppliedBodyHash,
     );
     if (!RemoteCrypto.equal(expected, suppliedSignature)) return undefined;
     this.nonces.set(nonceKey, Date.now());
-    void this.clients.touch(clientId);
+    void this.clients
+      .touch(clientId)
+      .catch((error) =>
+        console.error(`Could not update remote client activity: ${error instanceof Error ? error.message : error}`),
+      );
     this.activityHandler?.(clientId);
     return { clientId, name: client.name, role: client.role, local: false };
   }

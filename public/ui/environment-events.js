@@ -45,6 +45,7 @@ class EnvironmentEventStream {
       .trim();
     if (event === "connected") document.documentElement.dataset.environmentStream = "connected";
     if (event === "environment.changed" || event === "connection.changed") onEnvironmentChanged();
+    if (event === "connection.changed") window.dispatchEvent(new Event("browser-testbench:connection-changed"));
   }
 }
 

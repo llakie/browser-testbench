@@ -352,7 +352,8 @@ for (const target of targets) {
           ? instances.map((instance) => this.remoteInstance(instance))
           : [
               Object.assign(this.element("p"), {
-                textContent: "No central Testbench was found. You can enter its URL below.",
+                textContent:
+                  "No central Testbench was found. Check that remote mode is running on the same LAN and that multicast UDP 5353 and Node.js private-network access are allowed, or enter its URL below.",
               }),
             ]),
       );
@@ -369,7 +370,7 @@ for (const target of targets) {
     const title = this.element("strong");
     title.textContent = instance.name;
     const detail = this.element("small");
-    detail.textContent = `${instance.platform}/${instance.architecture} · ${instance.url}`;
+    detail.textContent = `${instance.platform}/${instance.architecture} · ${instance.authentication} · ${instance.url}`;
     const connect = this.element("button", "button button--secondary");
     connect.type = "button";
     connect.textContent = "Connect";
@@ -713,6 +714,7 @@ for (const target of targets) {
       if (token) {
         authorization = token;
         sessionStorage.setItem(authorizationStorageKey, token);
+        window.dispatchEvent(new Event("browser-testbench:authorization-changed"));
         return this.request(path, options, false);
       }
     }
@@ -726,6 +728,7 @@ for (const target of targets) {
     document.querySelectorAll(".page-content button, .page-content input, .page-content select").forEach((control) => {
       control.disabled = value;
     });
+    if (!value && state) this.renderTestTargets();
   }
 
   static buttonProgress(button, label) {

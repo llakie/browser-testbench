@@ -1,9 +1,9 @@
 import type { Express, NextFunction, Request, Response } from "express";
-import type { SessionManager } from "../automation/session-manager.js";
 import { InputSchemas, type StartSessionInput } from "../config/input-schemas.js";
 import { PackageMetadata } from "../config/package-metadata.js";
 import { McpIntegrationService } from "../setup/mcp-integration-service.js";
 import { RemoteArtifactGateway } from "./remote-artifact-transfer.js";
+import { RemoteApiError } from "./remote-api-client.js";
 import { AuthorizedRemoteClientStore, RemoteHostIdentityStore } from "./remote-client-store.js";
 import { RemoteConnectionService } from "./remote-connection-service.js";
 import type { RemoteDiscoveryBrowser } from "./remote-discovery-service.js";
@@ -19,7 +19,6 @@ interface RemoteApiControllerOptions {
   authentication: RemoteRequestAuthentication;
   discovery: Pick<RemoteDiscoveryBrowser, "discover">;
   connections: RemoteConnectionService;
-  sessions: SessionManager;
   notifyConnectionChanged: () => void;
   closeOwned: (ownerId: string) => Promise<void>;
 }
@@ -38,12 +37,13 @@ export class RemoteApiController {
         architecture: process.arch,
         version: PackageMetadata.VERSION,
         apiVersion: 1,
+        authentication: "pairing",
       });
     });
     app.post("/v1/remote/pairing", (request, response) => {
       if (!this.options.remote) return this.remoteDisabled(response);
       const input = InputSchemas.remotePairingBegin.parse(request.body);
-      const pairing = this.options.pairing.begin(input.clientName, input.role);
+      const pairing = this.options.pairing.begin(input.clientName, input.role, input.clientId, input.clientPublicKey);
       this.options.notifyConnectionChanged();
       response.status(201).json(pairing);
     });
@@ -71,6 +71,7 @@ export class RemoteApiController {
     app.post("/v1/connections/connect", async (request, response) => {
       if (!this.requireAdmin(request, response)) return;
       const input = InputSchemas.remoteConnect.parse(request.body);
+      await this.closeLocalSessions();
       const result = await this.options.connections.connect(input.instance, input.role);
       this.options.notifyConnectionChanged();
       response.json(result);
@@ -78,6 +79,7 @@ export class RemoteApiController {
     app.post("/v1/connections/pair", async (request, response) => {
       if (!this.requireAdmin(request, response)) return;
       const input = InputSchemas.localPairingComplete.parse(request.body);
+      await this.closeLocalSessions();
       const result = await this.options.connections.completePairing(input.pairingId, input.code);
       this.options.notifyConnectionChanged();
       response.json(result);
@@ -121,20 +123,41 @@ export class RemoteApiController {
     if (request.method === "POST" && request.path === "/v1/sessions")
       proxyBody = this.artifacts.prepareSession(InputSchemas.startSession.parse(originalBody));
     const sessionMatch = request.path.match(/^\/v1\/sessions\/([^/]+)(?:\/(.+))?$/);
+    let upload: Awaited<ReturnType<RemoteArtifactGateway["uploadRequest"]>> | undefined;
     if (request.method === "POST" && sessionMatch?.[2] === "element" && originalBody?.action === "upload") {
       path = `/v1/sessions/${sessionMatch[1]}/upload`;
-      proxyBody = await this.artifacts.uploadBody(originalBody as unknown as { selector: string; paths: string[] });
+      upload = await this.artifacts.uploadRequest(originalBody as unknown as { selector: string; paths: string[] });
+      proxyBody = undefined;
     }
     const body = proxyBody === undefined ? undefined : JSON.stringify(proxyBody);
-    let result = await client.request(path, { method: request.method, body });
+    const remoteRequest = {
+      method: request.method,
+      body: upload ? (upload.body as unknown as BodyInit) : body,
+      bodyHash: upload?.bodyHash,
+      headers: upload ? { "content-type": "application/octet-stream" } : undefined,
+    };
+    if (sessionMatch?.[2] === "browser" && originalBody?.action === "waitDownload") {
+      const remoteResponse = await client.response(path, remoteRequest);
+      await this.assertRemoteResponse(remoteResponse);
+      response.json(await this.artifacts.receiveDownload(sessionMatch[1]!, remoteResponse));
+      return;
+    }
+    if (request.method === "DELETE" && sessionMatch && !sessionMatch[2]) {
+      try {
+        const remoteResponse = await client.response(path, remoteRequest);
+        await this.assertRemoteResponse(remoteResponse);
+        response.json(await this.artifacts.receiveClose(sessionMatch[1]!, remoteResponse));
+        return;
+      } finally {
+        this.artifacts.forgetSession(sessionMatch[1]!);
+      }
+    }
+    const result = await client.request(path, remoteRequest);
+    this.artifacts.assertInlineArtifact(result);
     if (request.method === "POST" && request.path === "/v1/sessions") {
       const sessionId = (result as { id: string }).id;
       this.artifacts.trackSession(sessionId, originalBody as unknown as StartSessionInput);
     }
-    if (sessionMatch?.[2] === "browser" && originalBody?.action === "waitDownload")
-      result = await this.artifacts.receiveDownload(sessionMatch[1]!, result);
-    if (request.method === "DELETE" && sessionMatch && !sessionMatch[2])
-      result = await this.artifacts.receiveClose(sessionMatch[1]!, result);
     response.status(request.method === "POST" && request.path === "/v1/sessions" ? 201 : 200).json(result);
   }
 
@@ -147,6 +170,11 @@ export class RemoteApiController {
       pairingRequests: this.options.remote && principal.local ? this.options.pairing.list() : [],
       authorizedClients: principal.role === "admin" ? await this.options.clients.list() : [],
     };
+  }
+
+  visibleHostDetails(request: Request, value: unknown): unknown {
+    const principal = this.options.authentication.principal(request);
+    return this.options.remote && principal.role === "control" ? this.redactInstallationPaths(value) : value;
   }
 
   ownerId(request: Request): string {
@@ -181,6 +209,7 @@ export class RemoteApiController {
         response.status(404).json({ error: `Remote client '${request.params.id}' was not found.` });
         return;
       }
+      this.options.notifyConnectionChanged();
       response.json({ updated: true, role });
     });
     app.delete("/v1/remote/clients/:id", async (request, response) => {
@@ -197,6 +226,7 @@ export class RemoteApiController {
         response.status(404).json({ error: `Remote client '${request.params.id}' was not found.` });
         return;
       }
+      this.options.notifyConnectionChanged();
       response.json({ revoked: true });
     });
     app.delete("/v1/client/sessions", async (request, response) => {
@@ -217,6 +247,35 @@ export class RemoteApiController {
         "/v1/sessions",
       ].includes(path) || path.startsWith("/v1/sessions/")
     );
+  }
+
+  private async assertRemoteResponse(response: globalThis.Response): Promise<void> {
+    if (response.ok) return;
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new RemoteApiError(
+      payload.error ?? `Remote Testbench responded with HTTP ${response.status}.`,
+      response.status,
+    );
+  }
+
+  private async closeLocalSessions(): Promise<void> {
+    if (this.options.connections.status().mode === "local") await this.options.closeOwned("local");
+  }
+
+  private redactInstallationPaths(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map((item) => this.redactInstallationPaths(item));
+    if (!value || typeof value !== "object") return value;
+    const result = Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, this.redactInstallationPaths(item)]),
+    );
+    if (
+      typeof result.id === "string" &&
+      ["chrome", "firefox", "edge"].includes(result.id) &&
+      result.status === "ready" &&
+      typeof result.detail === "string"
+    )
+      result.detail = `${typeof result.label === "string" ? result.label : "Browser"} is installed on the remote host.`;
+    return result;
   }
 
   private remoteDisabled(response: Response): void {

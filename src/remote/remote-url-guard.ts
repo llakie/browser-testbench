@@ -22,7 +22,14 @@ export class RemoteUrlGuard {
   }
 
   private static isLoopback(hostname: string): boolean {
-    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+    const normalized = hostname.toLowerCase().replace(/\.$/, "");
+    return (
+      normalized === "localhost" ||
+      normalized === "::1" ||
+      normalized === "[::1]" ||
+      normalized === "0.0.0.0" ||
+      normalized.startsWith("127.")
+    );
   }
 
   private static lanAddress(): string | undefined {

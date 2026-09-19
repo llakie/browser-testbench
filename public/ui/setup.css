@@ -108,6 +108,12 @@ body {
   flex: 0 0 auto;
 }
 
+.remote-banner__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+}
+
 .remote-manual,
 .pairing-form {
   display: flex;

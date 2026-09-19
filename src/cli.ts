@@ -35,7 +35,7 @@ program
         ? JSON.stringify(instances, null, 2)
         : instances.length
           ? instances.map(formatRemoteInstance).join("\n")
-          : "No remote Testbench was found.",
+          : "No remote Testbench was found. Check --remote, multicast UDP 5353, VPN settings, and the Windows private-network firewall, or use connect --server <url>.",
     );
   });
 
@@ -298,7 +298,7 @@ function defaultServerUrl(): string {
 }
 
 function formatRemoteInstance(instance: RemoteInstance): string {
-  return `${instance.name} — ${instance.platform}/${instance.architecture} — ${instance.url} — ${instance.instanceId}`;
+  return `${instance.name} — ${instance.platform}/${instance.architecture} — ${instance.authentication} — ${instance.url} — ${instance.instanceId}`;
 }
 
 function selectRemote(instances: RemoteInstance[], selector?: string): RemoteInstance {

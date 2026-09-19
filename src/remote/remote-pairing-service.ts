@@ -1,21 +1,23 @@
-import { randomInt, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { AuthorizedRemoteClientStore } from "./remote-client-store.js";
-import { RemoteCrypto, type EphemeralKeyPair } from "./remote-crypto.js";
+import { RemoteCrypto } from "./remote-crypto.js";
 import type { EncryptedCredential, PairingChallenge, PairingCompletion, RemoteRole } from "./remote-types.js";
 
 interface PendingPairing {
   pairingId: string;
-  code: string;
   clientName: string;
   role: RemoteRole;
-  keys: EphemeralKeyPair;
+  serverPublicKey: string;
+  clientId: string;
+  key: Buffer;
   expiresAt: number;
   failedAttempts: number;
 }
 
 export class PairingNotFoundError extends Error {}
 export class PairingRejectedError extends Error {}
+export class PairingRateLimitError extends Error {}
 
 export class RemotePairingService {
   private readonly pending = new Map<string, PendingPairing>();
@@ -25,19 +27,23 @@ export class RemotePairingService {
     private readonly announce: (message: string) => void = console.log,
   ) {}
 
-  begin(clientName: string, role: RemoteRole): PairingChallenge {
+  begin(clientName: string, role: RemoteRole, clientId: string, clientPublicKey: string): PairingChallenge {
     this.prune();
     const existing = [...this.pending.values()].find(
-      (pairing) => pairing.clientName === clientName && pairing.role === role,
+      (pairing) => pairing.clientId === clientId && pairing.clientName === clientName && pairing.role === role,
     );
-    const pairing = existing ?? this.create(clientName, role);
-    if (!existing) this.pending.set(pairing.pairingId, pairing);
-    this.announce(
-      `${role === "admin" ? "Administrative" : "Remote"} pairing requested by ${clientName}. Pairing code: ${pairing.code}`,
-    );
+    if (!existing && this.pending.size >= TestbenchDefaults.PAIRING_MAX_PENDING)
+      throw new PairingRateLimitError("Too many pairing requests are pending. Wait for one to expire and try again.");
+    const pairing = existing ?? this.create(clientName, role, clientId, clientPublicKey);
+    if (!existing) {
+      this.pending.set(pairing.pairingId, pairing);
+      this.announce(
+        `${role === "admin" ? "Administrative" : "Remote"} pairing requested by ${clientName}. Pairing code: ${RemoteCrypto.pairingCode(pairing.key, pairing.pairingId)}`,
+      );
+    }
     return {
       pairingId: pairing.pairingId,
-      serverPublicKey: pairing.keys.publicKey,
+      serverPublicKey: pairing.serverPublicKey,
       expiresAt: new Date(pairing.expiresAt).toISOString(),
     };
   }
@@ -48,7 +54,7 @@ export class RemotePairingService {
       pairingId: pairing.pairingId,
       clientName: pairing.clientName,
       role: pairing.role,
-      code: pairing.code,
+      code: RemoteCrypto.pairingCode(pairing.key, pairing.pairingId),
       expiresAt: new Date(pairing.expiresAt).toISOString(),
     }));
   }
@@ -57,28 +63,30 @@ export class RemotePairingService {
     this.prune();
     const pairing = this.pending.get(input.pairingId);
     if (!pairing) throw new PairingNotFoundError("The pairing request expired or was not found.");
-    if (pairing.role !== input.role || pairing.clientName !== input.clientName) {
+    if (pairing.clientId !== input.clientId || pairing.role !== input.role || pairing.clientName !== input.clientName) {
       throw new PairingRejectedError("The pairing request does not match this client.");
     }
-    const key = RemoteCrypto.pairingKey(pairing.keys.ecdh, input.clientPublicKey, pairing.code, pairing.pairingId);
-    const expectedProof = RemoteCrypto.proof(key, input.clientId, input.role);
+    const expectedProof = RemoteCrypto.proof(pairing.key, input.clientId, input.role);
     if (!RemoteCrypto.equal(expectedProof, input.proof)) {
       pairing.failedAttempts += 1;
       if (pairing.failedAttempts >= 5) this.pending.delete(pairing.pairingId);
-      throw new PairingRejectedError("The pairing code is invalid.");
+      throw new PairingRejectedError("The pairing proof is invalid.");
     }
     const client = await this.clients.authorize(input.clientName, input.role, input.clientId);
     this.pending.delete(input.pairingId);
-    return RemoteCrypto.encrypt(key, client, pairing.pairingId);
+    return RemoteCrypto.encrypt(pairing.key, client, pairing.pairingId);
   }
 
-  private create(clientName: string, role: RemoteRole): PendingPairing {
+  private create(clientName: string, role: RemoteRole, clientId: string, clientPublicKey: string): PendingPairing {
+    const keys = RemoteCrypto.ephemeralKeyPair();
+    const pairingId = randomUUID();
     return {
-      pairingId: randomUUID(),
-      code: randomInt(0, 1_000_000).toString().padStart(6, "0"),
+      pairingId,
       clientName,
       role,
-      keys: RemoteCrypto.ephemeralKeyPair(),
+      serverPublicKey: keys.publicKey,
+      clientId,
+      key: RemoteCrypto.pairingKey(keys.ecdh, clientPublicKey, pairingId),
       expiresAt: Date.now() + TestbenchDefaults.PAIRING_TTL_MS,
       failedAttempts: 0,
     };
