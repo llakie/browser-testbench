@@ -36,6 +36,7 @@
   --space-5: 2rem;
   --space-6: 3rem;
   --content-flow-space: var(--space-3);
+  --environment-panel-min-height: 54rem;
   --control-size: 2.75rem;
   --sidebar-width: 17rem;
   --sidebar-collapsed-width: 4.75rem;
@@ -157,6 +158,11 @@ body {
 .remote-client-actions {
   display: flex;
   gap: var(--space-2);
+}
+
+.remote-clients__empty {
+  margin-bottom: 0;
+  color: var(--color-ink-muted);
 }
 
 .remote-instance {
@@ -553,6 +559,35 @@ h3 {
   margin-top: var(--space-4);
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-line);
+}
+
+.environment-panel__body {
+  position: relative;
+  min-height: var(--environment-panel-min-height);
+}
+
+.environment-analysis {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--color-ink-muted);
+  text-align: center;
+  background: var(--color-surface);
+}
+
+.environment-analysis__content {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}
+
+.environment-analysis__content i {
+  color: var(--color-primary);
+}
+
+.environment-analysis__content strong {
+  color: var(--color-ink);
 }
 
 .accordion-panel__toolbar {
