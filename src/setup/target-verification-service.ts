@@ -1,6 +1,7 @@
 import { SessionManager } from "../automation/session-manager.js";
 import type { StartSessionInput } from "../config/input-schemas.js";
 import type { VerificationResult } from "../config/types.js";
+import { TestbenchDefaults } from "../config/defaults.js";
 import { FixtureServer } from "../support/fixture-server.js";
 import { VerificationStore } from "./verification-store.js";
 
@@ -8,15 +9,19 @@ export class TargetVerificationService {
   static async run(
     sessions: SessionManager,
     input: Pick<StartSessionInput, "target" | "headless">,
+    ownerId = "local",
   ): Promise<VerificationResult> {
     const fixture = new FixtureServer();
     const url = await fixture.start();
     const startedAt = Date.now();
     let sessionId: string | undefined;
     try {
-      const session = await sessions.start({ ...input, url });
+      const session = await sessions.start(
+        { ...input, url, lockTimeoutMs: TestbenchDefaults.TARGET_LOCK_TIMEOUT_MS },
+        ownerId,
+      );
       sessionId = session.id;
-      const controller = sessions.get(session.id);
+      const controller = sessions.get(session.id, ownerId);
       await controller.elementAction({ action: "fill", selector: "#name", value: "Testbench" });
       await controller.click("#submit");
       await controller.wait({ type: "elementText", selector: "#result", text: "Hello Testbench" });
@@ -28,7 +33,7 @@ export class TargetVerificationService {
         runtime: session.runtime,
       };
     } finally {
-      if (sessionId) await sessions.close(sessionId).catch(() => undefined);
+      if (sessionId) await sessions.close(sessionId, ownerId).catch(() => undefined);
       await fixture.stop();
     }
   }

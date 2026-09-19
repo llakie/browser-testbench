@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { resolve } from "node:path";
+import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 import open from "open";
 import { OutputFormatter } from "./cli/output-formatter.js";
@@ -9,16 +10,87 @@ import { TargetRegistry } from "./config/target-registry.js";
 import { TARGET_NAMES, type TargetName } from "./config/types.js";
 import { DoctorService } from "./setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "./setup/mcp-integration-service.js";
-import { SetupService } from "./setup/setup-service.js";
 import { ApiServer } from "./transports/api-server.js";
 import { McpServerHost } from "./transports/mcp-server.js";
 import { RemoteTestbench } from "./transports/testbench-client.js";
+import type { RemoteInstance, RemoteRole } from "./remote/remote-types.js";
 
 const program = new Command();
 program
   .name(PackageMetadata.NAME)
   .description("Portable browser and simulator test bench")
   .version(PackageMetadata.VERSION);
+
+program
+  .command("discover")
+  .description("Find remotely enabled Testbenches on the local network")
+  .option("--server <url>", "Local Testbench URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
+  .option("--json", "Output JSON")
+  .action(async (options) => {
+    const instances = await new RemoteTestbench({ server: options.server, token: options.token }).discoverTestbenches();
+    console.log(
+      options.json
+        ? JSON.stringify(instances, null, 2)
+        : instances.length
+          ? instances.map(formatRemoteInstance).join("\n")
+          : "No remote Testbench was found. Check --remote, multicast UDP 5353, VPN settings, and the remote host's firewall, or use connect --server <url>.",
+    );
+  });
+
+program
+  .command("connect")
+  .description("Connect the local Testbench gateway to a remote Testbench")
+  .argument("[name-or-id]", "Discovered instance name or ID")
+  .option("--server <url>", "Remote Testbench URL when discovery is unavailable")
+  .option("--gateway <url>", "Local Testbench gateway URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
+  .option("--admin", "Request administrative access")
+  .option("--code <code>", "Six-digit pairing code")
+  .option("--json", "Output JSON")
+  .action(async (selector, options) => {
+    const testbench = new RemoteTestbench({ server: options.gateway, token: options.token });
+    const instance = options.server
+      ? await testbench.remoteIdentity(options.server)
+      : selectRemote(await testbench.discoverTestbenches(), selector);
+    const role: RemoteRole = options.admin ? "admin" : "control";
+    const result = await testbench.connectTestbench(instance, role);
+    if (!("pairingRequired" in result)) {
+      console.log(options.json ? JSON.stringify(result, null, 2) : `Connected to ${result.remote?.instanceName}.`);
+      return;
+    }
+    const code = options.code ?? (await promptPairingCode(instance.name));
+    const connected = await testbench.completePairing(result.pairingId, code);
+    console.log(options.json ? JSON.stringify(connected, null, 2) : `Paired and connected to ${instance.name}.`);
+  });
+
+program
+  .command("status")
+  .description("Show whether the local Testbench uses local or remote targets")
+  .option("--server <url>", "Local Testbench URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
+  .option("--json", "Output JSON")
+  .action(async (options) => {
+    const status = await new RemoteTestbench({ server: options.server, token: options.token }).connection();
+    console.log(
+      options.json
+        ? JSON.stringify(status, null, 2)
+        : status.mode === "local"
+          ? "Local mode"
+          : `Remote mode — ${status.remote?.instanceName} (${status.remote?.role}) — ${status.reachable ? "reachable" : "unreachable"}`,
+    );
+  });
+
+program
+  .command("disconnect")
+  .description("Disconnect the active remote Testbench and return to local mode")
+  .option("--server <url>", "Local Testbench URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
+  .option("--json", "Output JSON")
+  .action(async (options) => {
+    const status = await new RemoteTestbench({ server: options.server, token: options.token }).disconnectTestbench();
+    console.log(options.json ? JSON.stringify(status, null, 2) : "Disconnected. The Testbench is using local targets.");
+  });
 
 program
   .command("targets")
@@ -44,10 +116,12 @@ program
   .command("doctor")
   .description("Inspect prerequisites without triggering permission dialogs")
   .option("-t, --targets <names>", "Comma-separated targets")
+  .option("--server <url>", "Testbench server URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
   .option("--json", "Output JSON")
   .action(async (options) => {
     const targets = parseTargets(options.targets);
-    const checks = await DoctorService.inspect(targets);
+    const checks = await new RemoteTestbench({ server: options.server, token: options.token }).doctor(targets);
     console.log(options.json ? JSON.stringify(checks, null, 2) : OutputFormatter.doctor(checks));
     if (DoctorService.hasBlockingChecks(checks)) process.exitCode = 2;
   });
@@ -57,14 +131,13 @@ program
   .description("Prepare local Appium drivers and print guided system steps")
   .option("-t, --targets <names>", "Comma-separated targets")
   .option("--yes", "Perform automatic downloads and installations")
+  .option("--server <url>", "Testbench server URL", defaultServerUrl())
+  .option("--token <token>", "Bearer token", process.env.BROWSER_TESTBENCH_TOKEN)
   .option("--json", "Output JSON")
   .action(async (options) => {
     const targets = parseTargets(options.targets) ?? defaultTargets();
-    const actions = options.yes
-      ? await SetupService.install(targets, {
-          onOutput: (line) => !options.json && console.error(line),
-        })
-      : await SetupService.plan(targets);
+    const testbench = new RemoteTestbench({ server: options.server, token: options.token });
+    const actions = options.yes ? await testbench.setup(targets) : await testbench.planSetup(targets);
     console.log(
       options.json
         ? JSON.stringify(actions, null, 2)
@@ -149,23 +222,28 @@ program
 program
   .command("start")
   .description("Start the browser Testbench service and setup UI")
-  .option("--host <host>", "Bind host", TestbenchDefaults.LOOPBACK_HOST)
+  .option("--host <host>", "Bind host")
   .option("--port <port>", "Bind port", String(TestbenchDefaults.PORT))
   .option("--token <token>", "Bearer token (recommended outside loopback)")
+  .option("--remote", "Allow paired clients and advertise this Testbench on the local network")
   .option("--live-reload", "Reload the UI when templates or assets change", import.meta.url.endsWith(".ts"))
   .option("--no-open", "Do not open the setup UI in the default browser")
   .action(async (options) => {
-    if (options.host !== TestbenchDefaults.LOOPBACK_HOST && options.host !== "localhost" && !options.token)
+    const host = options.host ?? (options.remote ? "0.0.0.0" : TestbenchDefaults.LOOPBACK_HOST);
+    if (!options.remote && host !== TestbenchDefaults.LOOPBACK_HOST && host !== "localhost" && !options.token)
       throw new Error("A bearer token is required when binding outside loopback.");
     const server = new ApiServer({
-      host: options.host,
+      host,
       port: Number(options.port),
       token: options.token,
       liveReload: options.liveReload,
+      remote: options.remote,
     });
     const address = await server.start();
-    const url = `http://${address.host}:${address.port}/setup`;
-    console.log(`Browser Testbench listening on ${url}`);
+    const browserHost =
+      address.host === "0.0.0.0" || address.host === "::" ? TestbenchDefaults.LOOPBACK_HOST : address.host;
+    const url = `http://${browserHost}:${address.port}/setup`;
+    console.log(`Browser Testbench listening on ${url}${options.remote ? " (remote access enabled)" : ""}`);
     if (options.open) {
       try {
         await open(url);
@@ -217,6 +295,37 @@ function defaultTargets(): TargetName[] {
 
 function defaultServerUrl(): string {
   return process.env.BROWSER_TESTBENCH_URL ?? TestbenchDefaults.SERVER_URL;
+}
+
+function formatRemoteInstance(instance: RemoteInstance): string {
+  return `${instance.name} — ${instance.platform}/${instance.architecture} — ${instance.authentication} — ${instance.url} — ${instance.instanceId}`;
+}
+
+function selectRemote(instances: RemoteInstance[], selector?: string): RemoteInstance {
+  if (!selector) {
+    if (instances.length === 1) return instances[0]!;
+    if (instances.length === 0) throw new Error("No remote Testbench was found. Use --server <url> as a fallback.");
+    throw new Error("Multiple remote Testbenches were found. Specify a name or instance ID.");
+  }
+  const normalized = selector.toLocaleLowerCase();
+  const matches = instances.filter(
+    (instance) => instance.instanceId === selector || instance.name.toLocaleLowerCase() === normalized,
+  );
+  if (matches.length !== 1)
+    throw new Error(
+      matches.length ? `Remote Testbench '${selector}' is ambiguous.` : `Remote Testbench '${selector}' was not found.`,
+    );
+  return matches[0]!;
+}
+
+async function promptPairingCode(instanceName: string): Promise<string> {
+  if (!process.stdin.isTTY) throw new Error("Pairing is required. Re-run with --code <six-digit-code>.");
+  const input = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return (await input.question(`Enter the pairing code shown on ${instanceName}: `)).trim();
+  } finally {
+    input.close();
+  }
 }
 
 function untilSignal(): Promise<void> {

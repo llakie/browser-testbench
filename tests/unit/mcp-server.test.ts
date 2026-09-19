@@ -50,8 +50,19 @@ describe("MCP transport", () => {
           "get_diagnostics",
           "clear_diagnostics",
           "get_devtools_instructions",
+          "discover_testbenches",
+          "get_testbench_connection",
+          "connect_testbench",
+          "disconnect_testbench",
         ]),
       );
+      expect(tools.tools.find((tool) => tool.name === "connect_testbench")?.annotations).toMatchObject({
+        readOnlyHint: false,
+      });
+      expect(tools.tools.find((tool) => tool.name === "disconnect_testbench")?.annotations).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: true,
+      });
       const result = await client.callTool({ name: "list_targets", arguments: {} });
       expect(JSON.stringify(result.content)).toContain("chrome");
     } finally {

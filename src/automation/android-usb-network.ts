@@ -39,14 +39,20 @@ export class AndroidUsbNetwork {
     if (!this.target.udid || this.forwardedPorts.size === 0) return;
     const adb = await this.adb().catch(() => undefined);
     if (!adb) return;
-    await Promise.all(
+    const results = await Promise.all(
       [...this.forwardedPorts].map((port) =>
         CommandRunner.run(adb, ["-s", this.target.udid!, "reverse", "--remove", `tcp:${port}`], {
           timeoutMs: ADB_TIMEOUT_MS,
-        }),
+        }).then((result) => ({ port, result })),
       ),
     );
-    this.forwardedPorts.clear();
+    const failures = results.filter(({ result }) => result.code !== 0);
+    for (const { port, result } of results) if (result.code === 0) this.forwardedPorts.delete(port);
+    if (failures.length > 0) {
+      throw new Error(
+        `Could not remove Android USB forwarding: ${failures.map(({ port, result }) => `tcp:${port}: ${(result.stderr || result.stdout).trim()}`).join("; ")}`,
+      );
+    }
   }
 
   private async adb(): Promise<string> {

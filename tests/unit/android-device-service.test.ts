@@ -42,7 +42,7 @@ emulator-5554 device product:sdk_gphone64_x86_64
     await mkdir(join(sdkRoot, "platform-tools"), { recursive: true });
     await writeFile(adb, "");
     vi.spyOn(AndroidSdk, "root").mockResolvedValue(sdkRoot);
-    vi.spyOn(CommandRunner, "run").mockImplementation(async (_command, args) => {
+    vi.spyOn(CommandRunner, "run").mockImplementation(async (_command, args = []) => {
       if (args[0] === "devices") {
         return { code: 0, stdout: "List of devices attached\nR5CT1234 device model:Pixel_8\n", stderr: "" };
       }

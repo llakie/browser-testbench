@@ -23,6 +23,25 @@ browser-testbench start</code></pre>
     <pre><code>npm install --save-dev browser-testbench</code></pre>
   </section>
 
+  <section id="remote">
+    <p class="eyebrow">Windows, macOS, and Linux</p>
+    <h2>Remote Testbench</h2>
+    <p>
+      Start the machine that owns the browsers and devices with <code>browser-testbench start --remote</code>. Start the
+      development computer normally, then use Discover on the Overview page. The first connection asks for the six-digit
+      code shown by the remote computer; later explicit connections reuse the saved pairing.
+    </p>
+    <pre><code>browser-testbench discover
+browser-testbench connect &lt;name-or-instance-id&gt;
+browser-testbench status
+browser-testbench disconnect</code></pre>
+    <p>
+      If discovery is blocked, use <code>browser-testbench connect --server http://HOST:55808</code>. A remote browser
+      cannot reach an application through the development computer's localhost address. Bind the application to the LAN
+      and use its explicit LAN URL. Use remote mode only on a trusted private network.
+    </p>
+  </section>
+
   <section id="targets">
     <p class="eyebrow">Convention over Configuration</p>
     <h2>Target-IDs</h2>

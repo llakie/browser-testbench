@@ -11,57 +11,115 @@
 
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 
-<section class="panel" id="environment">
-  <div class="section-heading">
+<details class="panel accordion-panel" id="remote-connection" name="overview-panel">
+  <summary class="accordion-panel__summary">
+    <div>
+      <p class="eyebrow">Remote Testbench</p>
+      <h2>Connect to a central Testbench</h2>
+      <p id="remote-connection-summary">Use browsers and devices provided by another computer on your network.</p>
+    </div>
+    <i class="fa-solid fa-chevron-down accordion-panel__icon" aria-hidden="true"></i>
+  </summary>
+  <div class="accordion-panel__body">
+    <div class="accordion-panel__toolbar">
+      <button class="button button--secondary" id="discover-remotes" type="button">
+        <i class="fa-solid fa-satellite-dish" aria-hidden="true"></i> Find Testbenches
+      </button>
+    </div>
+    <div class="remote-discovery" id="remote-discovery" hidden></div>
+    <form class="remote-manual" id="remote-manual">
+      <label>
+        <span>Testbench URL</span>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-link" aria-hidden="true"></i>
+          <input id="remote-server-url" type="url" placeholder="http://windows-pc:55808" />
+        </div>
+      </label>
+      <label class="remote-admin-option"
+        ><input id="remote-admin" type="checkbox" /> Request administrative access</label
+      >
+      <button class="button button--secondary" type="submit">Connect</button>
+    </form>
+    <form class="pairing-form" id="pairing-form" hidden>
+      <label
+        ><span>Pairing code shown on the remote computer</span
+        ><input
+          id="pairing-code"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          autocomplete="one-time-code"
+          required
+      /></label>
+      <button class="button" type="submit">Pair and connect</button>
+    </form>
+    <div class="pairing-requests" id="pairing-requests" hidden></div>
+    <div class="remote-clients" id="remote-clients" hidden>
+      <div class="subsection-heading">
+        <h3>Paired clients</h3>
+        <p>Change administrative access or revoke a client credential.</p>
+      </div>
+      <div class="remote-discovery" id="remote-client-list"></div>
+    </div>
+  </div>
+</details>
+
+<details class="panel accordion-panel" id="environment" name="overview-panel" open>
+  <summary class="accordion-panel__summary">
     <div>
       <p class="eyebrow">Local test environment</p>
       <h2>Browsers and devices</h2>
       <p>See what is ready and what still needs to be set up.</p>
     </div>
-    <button class="button button--secondary" id="refresh-environment" type="button">
-      <i class="fa-solid fa-rotate" aria-hidden="true"></i> Check again
-    </button>
-  </div>
-  <div class="environment-group environment-group--capabilities">
-    <div class="subsection-heading">
-      <h3>Availability on this machine</h3>
-      <p>Browser Testbench detects these capabilities directly on your machine.</p>
+    <i class="fa-solid fa-chevron-down accordion-panel__icon" aria-hidden="true"></i>
+  </summary>
+  <div class="accordion-panel__body">
+    <div class="accordion-panel__toolbar">
+      <button class="button button--secondary" id="refresh-environment" type="button">
+        <i class="fa-solid fa-rotate" aria-hidden="true"></i> Check again
+      </button>
     </div>
-    <div class="check-grid" id="checks" aria-live="polite"></div>
-  </div>
-  <div class="guided-actions" id="guided-actions" hidden>
-    <div class="guided-actions__content">
-      <div class="guided-actions__heading">
-        <div>
-          <h3>Environment setup</h3>
-          <p id="setup-summary"></p>
-        </div>
+    <div class="environment-group environment-group--capabilities">
+      <div class="subsection-heading">
+        <h3>Availability on this machine</h3>
+        <p>Browser Testbench detects these capabilities directly on your machine.</p>
       </div>
-      <div class="setup-action-list" id="setup-action-list"></div>
+      <div class="check-grid" id="checks" aria-live="polite"></div>
     </div>
-  </div>
-  <div class="integration-card">
-    <span class="integration-card__icon"><i class="fa-solid fa-plug" aria-hidden="true"></i></span>
-    <div class="integration-card__content">
-      <div class="integration-card__heading">
-        <div>
-          <h3>Connect an AI assistant through MCP</h3>
-          <p>Browser Testbench uses the open MCP standard and is not tied to a provider.</p>
+    <div class="guided-actions" id="guided-actions" hidden>
+      <div class="guided-actions__content">
+        <div class="guided-actions__heading">
+          <div>
+            <h3>Environment setup</h3>
+            <p id="setup-summary"></p>
+          </div>
         </div>
-        <button class="button button--secondary" id="register-mcp" type="button" hidden>
-          <i class="fa-solid fa-link" aria-hidden="true"></i> Set up automatically
-        </button>
+        <div class="setup-action-list" id="setup-action-list"></div>
       </div>
-      <label class="integration-client">
-        <span>AI assistant</span>
-        <span class="select-control">
-          <select id="mcp-client" aria-label="Select AI assistant"></select>
-          <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-        </span>
-      </label>
-      <p class="integration-status" id="mcp-status">Checking connection …</p>
-      <p id="mcp-instruction"></p>
-      <div id="mcp-command"></div>
+    </div>
+    <div class="integration-card">
+      <span class="integration-card__icon"><i class="fa-solid fa-plug" aria-hidden="true"></i></span>
+      <div class="integration-card__content">
+        <div class="integration-card__heading">
+          <div>
+            <h3>Connect an AI assistant through MCP</h3>
+            <p>Browser Testbench uses the open MCP standard and is not tied to a provider.</p>
+          </div>
+          <button class="button button--secondary" id="register-mcp" type="button" hidden>
+            <i class="fa-solid fa-link" aria-hidden="true"></i> Set up automatically
+          </button>
+        </div>
+        <label class="integration-client">
+          <span>AI assistant</span>
+          <span class="select-control">
+            <select id="mcp-client" aria-label="Select AI assistant"></select>
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+          </span>
+        </label>
+        <p class="integration-status" id="mcp-status">Checking connection …</p>
+        <p id="mcp-instruction"></p>
+        <div id="mcp-command"></div>
+      </div>
     </div>
   </div>
-</section>
+</details>

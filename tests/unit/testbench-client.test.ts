@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TestTargetInfo } from "../../src/config/types.js";
 import {
   BrowserOrientation,
@@ -8,6 +8,7 @@ import {
 } from "../../src/transports/testbench-client.js";
 
 describe("RemoteTestbench.availableTargets", () => {
+  afterEach(() => vi.unstubAllGlobals());
   it("exports type-safe interaction values for project tests", () => {
     expect(BrowserOrientation.Landscape).toBe("LANDSCAPE");
     expect(SwipeDirection.Up).toBe("up");
@@ -35,6 +36,23 @@ describe("RemoteTestbench.availableTargets", () => {
     await expect(testbench.availableTargets(["chrome", "missing"])).rejects.toThrow(
       "None of the requested Browser Testbench targets are ready",
     );
+  });
+
+  it("aborts requests after the configured client timeout", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), {
+              once: true,
+            }),
+          ),
+      ),
+    );
+    const testbench = new RemoteTestbench({ requestTimeoutMs: 20 });
+
+    await expect(testbench.targets()).rejects.toThrow("timed out after 20 ms");
   });
 });
 

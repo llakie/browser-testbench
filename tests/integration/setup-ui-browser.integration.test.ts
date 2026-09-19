@@ -108,6 +108,84 @@ describe("workbench UI browser flow", () => {
         ).toBe(true);
 
         expect(await browser.active.$("#host-badge").getText()).toContain(platformLabel);
+        expect(await browser.active.$("#remote-connection").getText()).toContain("Connect to a central Testbench");
+        expect(
+          await browser.active.execute(
+            "return { remote: document.querySelector('#remote-connection').open, environment: document.querySelector('#environment').open }",
+          ),
+        ).toEqual({ remote: false, environment: true });
+        await browser.active.$("#remote-connection > summary").click();
+        expect(
+          await browser.active.execute(
+            "return { remote: document.querySelector('#remote-connection').open, environment: document.querySelector('#environment').open }",
+          ),
+        ).toEqual({ remote: true, environment: false });
+        const checkboxMetrics = await browser.active.execute<{ width: number; height: number; fontSize: number }>(
+          "const input = document.querySelector('#remote-admin'); const label = input.closest('label'); const rect = input.getBoundingClientRect(); return { width: rect.width, height: rect.height, fontSize: parseFloat(getComputedStyle(label).fontSize) }",
+        );
+        expect(checkboxMetrics.width).toBeLessThanOrEqual(checkboxMetrics.fontSize * 1.25);
+        expect(checkboxMetrics.height).toBeLessThanOrEqual(checkboxMetrics.fontSize * 1.25);
+        await browser.active.$("#environment > summary").click();
+        expect(
+          await browser.active.execute(
+            "return { remote: document.querySelector('#remote-connection').open, environment: document.querySelector('#environment').open }",
+          ),
+        ).toEqual({ remote: false, environment: true });
+        await browser.active.execute(`
+          sessionStorage.setItem("browser-testbench-token", "banner-token");
+          window.__appShellFetch = window.fetch;
+          window.__bannerAuthorization = "";
+          window.fetch = async (path, options = {}) => {
+            if (String(path) !== "/v1/connections/status") return window.__appShellFetch(path, options);
+            window.__bannerAuthorization = options.headers?.authorization ?? "";
+            return new Response(JSON.stringify({
+              mode: "remote",
+              reachable: false,
+              remote: {
+                instanceName: "Windows Testbench",
+                platform: "win32",
+                role: "control",
+                url: "http://windows.test:55808"
+              }
+            }), { status: 200, headers: { "content-type": "application/json" } });
+          };
+          window.dispatchEvent(new Event("browser-testbench:authorization-changed"));
+        `);
+        await browser.active.waitForText("Windows Testbench", 15_000);
+        const bannerStatus = await browser.active.execute<{
+          authorization: string;
+          retryVisible: boolean;
+          text: string;
+        }>(`
+          return {
+            authorization: window.__bannerAuthorization,
+            retryVisible: !document.querySelector("#remote-banner-retry").hidden,
+            text: document.querySelector("#remote-banner").textContent
+          };
+        `);
+        expect(bannerStatus).toMatchObject({
+          authorization: "Bearer banner-token",
+          retryVisible: true,
+        });
+        expect(bannerStatus.text).toContain("Windows Testbench");
+        expect(bannerStatus.text).toContain("Windows · control · unreachable");
+        await browser.active.$("#remote-banner-retry").click();
+        expect(await browser.active.execute("return window.__bannerAuthorization")).toBe("Bearer banner-token");
+        await browser.active.execute(
+          "window.fetch = window.__appShellFetch; sessionStorage.removeItem('browser-testbench-token')",
+        );
+        const stickyHeader = await browser.active.execute<{
+          position: string;
+          headerTop: number;
+          bannerTop: number;
+          bannerBottom: number;
+          topbarTop: number;
+        }>(
+          "const banner = document.querySelector('#remote-banner'); banner.hidden = false; window.scrollTo(0, document.body.scrollHeight); const header = document.querySelector('.app-header').getBoundingClientRect(); const bannerRect = banner.getBoundingClientRect(); const topbar = document.querySelector('.topbar').getBoundingClientRect(); return { position: getComputedStyle(document.querySelector('.app-header')).position, headerTop: header.top, bannerTop: bannerRect.top, bannerBottom: bannerRect.bottom, topbarTop: topbar.top }",
+        );
+        expect(stickyHeader).toMatchObject({ position: "sticky", headerTop: 0, bannerTop: 0 });
+        expect(stickyHeader.topbarTop).toBe(stickyHeader.bannerBottom);
+        await browser.active.execute("document.querySelector('#remote-banner').hidden = true; window.scrollTo(0, 0)");
         expect(
           await browser.active.execute(
             "const card = [...document.querySelectorAll('.check-card')].find(candidate => candidate.textContent.includes('Google Chrome')); const detail = card.querySelector('.check-card__detail'); const style = getComputedStyle(detail); return { overflow: style.overflow, textOverflow: style.textOverflow, whiteSpace: style.whiteSpace, truncated: detail.scrollWidth > detail.clientWidth, title: detail.title }",
@@ -191,6 +269,41 @@ describe("workbench UI browser flow", () => {
           await browser.active.execute("return Boolean(document.querySelector('#debug-target + .fa-chevron-down'))"),
         ).toBe(true);
         await browser.active.$("#project-client-example .copy-command").waitForClickable();
+        await browser.active.execute(`
+          window.__busyFetch = window.fetch;
+          window.fetch = async (path, options = {}) => {
+            if (String(path) === "/v1/verify") {
+              return new Response(JSON.stringify({ target: "chrome", status: "passed", durationMs: 1, runtime: {} }), {
+                status: 200,
+                headers: { "content-type": "application/json" }
+              });
+            }
+            const response = await window.__busyFetch(path, options);
+            if (String(path) !== "/v1/workbench") return response;
+            const payload = await response.json();
+            const target = payload.testTargets.find(candidate => candidate.ready) ?? payload.testTargets[0];
+            target.ready = true;
+            target.busy = true;
+            return new Response(JSON.stringify(payload), {
+              status: response.status,
+              headers: { "content-type": "application/json" }
+            });
+          };
+        `);
+        await browser.active.$(".test-target__actions > .button").click();
+        await browser.active.waitForText("Busy", 15_000);
+        expect(
+          await browser.active.execute(
+            `return [...document.querySelectorAll(".test-target")].find(target => target.querySelector(".test-target__status")?.textContent.includes("Busy"))?.querySelector(".test-target__actions > .button")?.disabled`,
+          ),
+        ).toBe(true);
+        await browser.active.execute("window.fetch = window.__busyFetch");
+        events.publish({ type: "environment.changed", source: "android", occurredAt: new Date().toISOString() });
+        await browser.active.waitForScript(
+          `return ![...document.querySelectorAll(".test-target__status")].some(status => status.textContent.includes("Busy"))`,
+          [],
+          15_000,
+        );
         expect(await browser.active.$("#project-install-command").getText()).toContain(
           "npm install --save-dev browser-testbench",
         );
@@ -275,7 +388,7 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.execute("return document.querySelector('.docs-toc')")).toBeNull();
         expect(
           await browser.active.execute("return document.querySelectorAll('.sidebar__subnav .sidebar__sublink').length"),
-        ).toBe(5);
+        ).toBe(6);
         expect(
           await browser.active.execute(
             "return document.querySelector('.sidebar__subnav .sidebar__sublink').getAttribute('href')",

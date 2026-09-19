@@ -4,6 +4,28 @@ All notable changes to Browser Testbench are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.2.0] - 2026-09-19
+
+### Added
+
+- Chromium diagnostics now include WebSocket connection lifecycle, handshake, error, and sent/received frame events.
+- Remote Testbench hosts can now be discovered through mDNS, paired with control or admin credentials, and used transparently through the existing UI, CLI, Node client, REST gateway, and MCP server.
+- Remote sessions support per-client ownership, FIFO serial-target locks, bounded cleanup leases, and project-side artifact transfer.
+
+### Changed
+
+- The shared Testbench UI now exposes explicit remote connect and disconnect controls, keeps remote status visible, and disables administrative controls for non-admin pairings.
+- CLI, MCP, and Node client operations use the active local or remote gateway consistently and apply bounded request and setup timeouts.
+- Remote setup documentation is platform-neutral and includes diagrams for local and remote operation.
+
+### Fixed
+
+- Third-party license generation now honors explicit license replacements and no longer warns about known dual-license packages.
+- Remote authentication, artifact transfer, session ownership, process cleanup, and MCP lifecycle transitions are hardened against invalid or interrupted requests.
+- Remote control clients no longer receive host-specific browser installation paths or set unrestricted host capabilities.
+
 ## [0.1.8] - 2026-09-18
 
 ### Fixed
@@ -102,6 +124,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Dynamic Android AVD discovery and provisioning without fixed API levels or Pixel profiles.
 - Automated CI for macOS, Windows, and Linux and npm publishing through GitHub Actions.
 
+[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/llakie/browser-testbench/compare/v0.1.8...v0.2.0
 [0.1.8]: https://github.com/llakie/browser-testbench/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/llakie/browser-testbench/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/llakie/browser-testbench/compare/v0.1.5...v0.1.6

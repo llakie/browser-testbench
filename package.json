@@ -1,6 +1,6 @@
 {
   "name": "browser-testbench",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "Cross-platform browser testbench for controlling, debugging, and automating desktop browsers, iOS simulators, Android emulators, and physical Android devices",
   "author": "Lars-Erich Kiefer",
   "license": "MIT",
@@ -37,6 +37,7 @@
   },
   "files": [
     "dist",
+    "docs/assets",
     "public",
     "templates",
     "LICENSE.txt",
@@ -45,7 +46,7 @@
   "scripts": {
     "build": "npm run licenses && npm run clean && tsc -p tsconfig.json && node scripts/prepare-cli.mjs",
     "dev": "tsx src/cli.ts",
-    "check": "tsc -p tsconfig.json --noEmit",
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tests.json",
     "clean": "rimraf dist",
     "fixture:server": "node tests/fixtures/site-server.mjs",
     "format": "prettier --write . \"templates/**/*.eta\"",
@@ -63,6 +64,7 @@
     "@fortawesome/fontawesome-free": "7.3.1",
     "@modelcontextprotocol/sdk": "1.30.0",
     "appium": "3.7.0",
+    "bonjour-service": "1.4.4",
     "commander": "15.0.0",
     "eta": "4.6.0",
     "express": "5.2.1",

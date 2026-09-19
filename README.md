@@ -59,11 +59,105 @@ The web interface has three sections:
 
 The project license and third-party license notices are included as `LICENSE.txt` and `THIRD_PARTY_LICENSES.txt` and linked from the interface footer.
 
-A bearer token is required when binding to an address other than loopback:
+A bearer token is required when binding a normal, non-discoverable server to an address other than loopback:
 
 ```bash
 browser-testbench start --host 0.0.0.0 --token "$BROWSER_TESTBENCH_TOKEN"
 ```
+
+## Setup examples
+
+### Local setup
+
+![Local setup: application, Testbench, browsers, and devices on one computer](docs/assets/local-setup.svg)
+
+The application, Browser Testbench, and all test targets run on the same computer. Loopback URLs such as
+`http://127.0.0.1:5173` work because the browser and application share the same network context.
+
+### Remote setup
+
+![Remote setup: local gateway connected to browsers and devices on a remote host](docs/assets/remote-setup.svg)
+
+The UI, CLI, MCP server, and project files stay on the development machine. A paired remote Testbench controls
+the browsers and devices on another computer. The application must be reachable from that host through the local
+network.
+
+## Remote Testbench
+
+A local Testbench can use the browsers and physical devices of another computer while the UI, CLI, Node client,
+and MCP server stay on the development machine. The two computers may run macOS, Windows, or Linux. The local
+server always starts in local mode; a saved pairing is never activated automatically.
+
+### Start the remote host
+
+Install the same published Browser Testbench version on the remote host and start it explicitly in remote mode:
+
+```bash
+npm install --global browser-testbench
+browser-testbench start --remote
+```
+
+When developing from a repository checkout instead, update the checkout and run:
+
+```bash
+git pull --ff-only
+npm ci
+npm run dev -- start --remote
+```
+
+`--remote` binds to all network interfaces, advertises the service through DNS-SD/mDNS, and requires an
+individually paired client credential. Use it only on a trusted private LAN. No bearer token or knowledge of the
+host's IP address grants remote access. A headless host can run the same command with `--no-open` under the
+operating system's normal service or process manager.
+
+### Connect the development machine
+
+Start the normal local gateway on the computer from which you want to control the Testbench:
+
+```bash
+browser-testbench start
+```
+
+For a repository checkout, use `npm run dev -- start` instead. Open `http://127.0.0.1:55808/setup`, expand
+**Connect to a central Testbench**, choose **Discover**, and connect to the remote host. The first attempt creates a
+six-digit, five-minute pairing code shown in the remote host's terminal and local Testbench UI. Enter it on the
+development machine. Later explicit connections reuse the saved per-client credential without another code.
+Select “administrative access” only when remote setup and paired-client administration are needed.
+
+The same flow is available without the UI:
+
+```bash
+browser-testbench discover
+browser-testbench connect <name-or-instance-id>
+browser-testbench status
+browser-testbench disconnect
+```
+
+If multicast discovery is blocked by a firewall, VPN, or subnet boundary, use
+`browser-testbench connect --server http://REMOTE-HOST:55808`. Pairing credentials are stored in the
+platform-specific Browser Testbench user-data directory, never in the repository. Use `--gateway` only when the
+local gateway itself does not run at its default URL.
+
+While connected, the existing pages and commands show remote capabilities and targets. A control pairing can run tests, sessions, screenshots, and diagnostics; remote installation and configuration controls are disabled. An admin pairing additionally permits setup and management of paired clients. Multiple clients may use different targets concurrently. A serial device displays only `Busy`; requests wait FIFO for up to 60 seconds by default, or fail immediately with `lockTimeoutMs: 0`.
+
+Remote browsers cannot reach an application on the development machine through a loopback URL such as
+`http://127.0.0.1:5173`: on the remote host, that address refers to the remote host itself. Bind the application to
+a LAN interface and pass the development machine's LAN URL, for example `http://192.168.1.20:5173`. Browser
+Testbench detects loopback URLs before starting a remote session and reports this requirement without rewriting
+the URL.
+
+Screenshots, uploads, downloads, PDFs, and mobile video results cross the gateway so project paths remain on the
+development machine. Individual transferred files are limited to 50 MiB. Disconnect closes this client's
+sessions and queued device requests; a heartbeat and server-side lease clean up a client that disappears
+unexpectedly.
+
+### Platform notes
+
+- On Windows, allow Node.js on private networks if Windows Firewall asks.
+- On macOS, allow local-network access if the operating system asks. Safari and iOS Simulator targets are
+  available only on macOS.
+- On Linux, ensure the selected firewall permits the Testbench port and local mDNS traffic when discovery is
+  required.
 
 To avoid unexpected macOS permission dialogs, Safari is never launched automatically. Enable its driver once:
 
@@ -78,7 +172,7 @@ browser-testbench verify safari
 
 ### Interactive development and debugging
 
-An AI assistant can use MCP to open a session, navigate, inspect elements, click, type, take screenshots, and perform mobile gestures. The MCP process is a lightweight bridge to the running Browser Testbench server; target resolution, sessions, and device locks remain centralized. Console output and HTTP requests and responses are available through `get_diagnostics`. WebSocket transport and WebSocket frame inspection are not currently included.
+An AI assistant can use MCP to open a session, navigate, inspect elements, click, type, take screenshots, and perform mobile gestures. The MCP process is a lightweight bridge to the running Browser Testbench server; target resolution, sessions, and device locks remain centralized. Console output, HTTP requests and responses, and WebSocket connections and frames are available through `get_diagnostics` on Chromium desktop targets.
 
 `get_devtools_instructions` provides the appropriate connection for native browser developer tools:
 
@@ -131,7 +225,10 @@ For parallel execution, use `forEachTarget()`. Different devices can run in para
 
 ## Node client
 
-`RemoteTestbench` connects to `http://127.0.0.1:55808` by default. Set a different address through `BROWSER_TESTBENCH_URL` or the constructor. The client provides:
+`RemoteTestbench` connects to `http://127.0.0.1:55808` by default. Set a different address through
+`BROWSER_TESTBENCH_URL` or the constructor. Requests time out after 120 seconds by default; use
+`requestTimeoutMs` in the constructor or `timeoutMs` on `request()` to override this, and pass an `AbortSignal` to
+cancel an individual request. The client provides:
 
 - `targets()`, `capabilities()`, and `availableTargets([...])`
 - `open({ target, url, ... })`
@@ -139,23 +236,36 @@ For parallel execution, use `forEachTarget()`. Different devices can run in para
 
 A `RemoteSession` provides:
 
-- Forms: `fill()`, `append()`, `clear()`, `check()`, `uncheck()`, `select()`, `upload()`, and `submit()`
-- State: `state()`, `count()`, `inspect()`, `cookies()`, and `storage()`
-- Input: `click()`, `press()`, `focus()`, `blur()`, `hover()`, `doubleClick()`, `rightClick()`, and `drag()`
-- Navigation: `navigate()`, `back()`, `forward()`, `refresh()`, tabs/windows, and frames
-- Waiting: element, text, URL, value, count, and states such as visible, removed, enabled, or selected
-- Browser state: cookies, local/session storage, dialogs, and viewport
-- Files: upload, project-side screenshots, and downloads with a configured `downloadDir`
-- Debugging: full-page/element screenshots, PDF, accessibility tree, clipboard, and JavaScript evaluation
-- Environment: network conditions, blocked URLs, fetch mocks, geolocation, and permissions on Chromium targets
-- `tap()`, `swipe()`, and `pinch()` for mobile targets
-- Mobile: orientation, Back button, dismissing the keyboard, and optional MP4 recording
-- `diagnostics()`, `clearDiagnostics()`, and `devtools()`
-- `close()`
+- Metadata: `id`, `target`, and `runtime`
+- Page inspection: `inspect()`, `url()`, `title()`, and `source()`
+- Navigation: `navigate()`, `back()`, `forward()`, `refresh()`, and `scroll()`
+- Element state and input: `state()`, `count()`, `click()`, `type()`, `press()`, `focus()`, `blur()`, `hover()`,
+  `doubleClick()`, `rightClick()`, `drag()`, and `scrollIntoView()`
+- Forms and files: `fill()`, `append()`, `clear()`, `check()`, `uncheck()`, `select()`, `upload()`, and `submit()`
+- Waiting: `waitForElement()`, `waitForText()`, `waitForUrl()`, `waitForState()`, `waitForValue()`,
+  `waitForCount()`, `waitForAttribute()`, `waitForElementText()`, `waitForWindowCount()`, `waitForNetworkIdle()`,
+  `waitForScript()`, and the low-level `wait()`
+- Windows, frames, and dialogs: `windows()`, `newWindow()`, `switchWindow()`, `closeWindow()`, `switchFrame()`,
+  and `alert()`
+- Cookies and storage: `cookies()`, `setCookie()`, `deleteCookie()`, `storage()`, `setStorage()`, and
+  `deleteStorage()`
+- Reusable browser state: `snapshotState()`, `restoreState()`, `saveState()`, and `loadState()`
+- Screenshots and documents: `screenshot()`, `screenshotBase64()`, `elementScreenshot()`,
+  `elementScreenshotBase64()`, and `printPdf()`
+- Downloads: `waitForDownload()` with a project-side `downloadDir` configured when opening the session
+- Page execution and accessibility: `evaluate()` and `accessibility()`
+- Browser environment: `setViewport()`, `setNetworkConditions()`, `setGeolocation()`, `setPermission()`, and
+  `blockUrls()`
+- Clipboard and fetch mocks: `writeClipboard()`, `readClipboard()`, `mockFetch()`, and `clearFetchMocks()`
+- Mobile controls: `tap()`, `swipe()`, `pinch()`, `setOrientation()`, `mobileBack()`, and `hideKeyboard()`
+- Diagnostics: `diagnostics()`, `clearDiagnostics()`, and `devtools()`
+- Low-level escape hatches: `elementAction()` and `browserAction()`
+- Lifecycle: `close()`, which also finalizes an optional MP4 recording configured when opening the session
 
 All element methods accept standards-compliant CSS selectors only. Prefer stable attributes such as IDs, `name`, or `data-testid` for robust tests, for example `#login`, `input[name="email"]`, or `[data-testid="terms"]`. For open shadow roots, use `evaluate()` with `shadowRoot.querySelector()` when needed.
 
-Screenshots are saved by the client inside the project. For downloads, provide a `downloadDir` on the Browser Testbench machine when opening the session.
+Screenshots are saved by the client inside the project. For downloads, provide the project-side `downloadDir` when
+opening the session; the gateway transfers remote downloads into it.
 
 `mockFetch()` replaces fetch responses in the currently loaded page. `blockUrls()`, network conditions, geolocation, permissions, PDF, and the native accessibility tree use Chromium DevTools and are therefore intended for Chrome and Edge. WebDriver-based forms, navigation, and state operations remain available on other targets. For mobile videos, set `videoPath` when opening the session; recording is finalized when the session closes.
 
@@ -184,6 +294,7 @@ export BROWSER_TESTBENCH_NPX_CLI_PATH=/path/to/npx-cli.js
 
 Key tools:
 
+- Connection: `discover_testbenches`, `get_testbench_connection`, `connect_testbench`, `disconnect_testbench`
 - Environment: `list_targets`, `doctor`, `verify_target`
 - Session: `start_session`, `navigate`, `inspect_page`, `close_session`
 - Interaction: `click`, `type`, `element_action`, `browser_action`, `tap`, `swipe`, `pinch`
@@ -201,6 +312,7 @@ POST   /v1/verify
 GET    /v1/doctor
 GET    /v1/workbench
 POST   /v1/workbench/setup
+POST   /v1/workbench/plan
 POST   /v1/workbench/mcp
 GET    /v1/sessions
 POST   /v1/sessions
@@ -226,9 +338,14 @@ Multiple sessions can exist at the same time. Mobile targets typically remain se
 
 ```text
 browser-testbench start [--host 127.0.0.1] [--port 55808] [--token ...] [--no-open]
+browser-testbench start --remote [--port 55808] [--no-open]
+browser-testbench discover [--json]
+browser-testbench connect [name-or-id] [--server URL] [--gateway URL] [--admin] [--code ...] [--json]
+browser-testbench status [--json]
+browser-testbench disconnect [--json]
 browser-testbench targets [--server URL] [--token ...] [--json]
-browser-testbench doctor [--targets ...] [--json]
-browser-testbench setup [--targets ...] [--yes] [--json]
+browser-testbench doctor [--targets ...] [--server URL] [--token ...] [--json]
+browser-testbench setup [--targets ...] [--yes] [--server URL] [--token ...] [--json]
 browser-testbench verify <target-id> [--headless] [--server URL] [--token ...]
 browser-testbench open --target <target> --url <url>
 browser-testbench screenshot --target <target> --url <url> [--output file]

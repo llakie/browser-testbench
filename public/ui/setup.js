@@ -10,6 +10,16 @@ const elements = {
   mcpClient: document.querySelector("#mcp-client"),
   debugUrl: document.querySelector("#debug-url"),
   debugTarget: document.querySelector("#debug-target"),
+  remoteDiscovery: document.querySelector("#remote-discovery"),
+  remoteSummary: document.querySelector("#remote-connection-summary"),
+  remoteManual: document.querySelector("#remote-manual"),
+  remoteServerUrl: document.querySelector("#remote-server-url"),
+  remoteAdmin: document.querySelector("#remote-admin"),
+  pairingForm: document.querySelector("#pairing-form"),
+  pairingCode: document.querySelector("#pairing-code"),
+  pairingRequests: document.querySelector("#pairing-requests"),
+  remoteClients: document.querySelector("#remote-clients"),
+  remoteClientList: document.querySelector("#remote-client-list"),
 };
 
 const defaultApplicationUrl = "http://127.0.0.1:3000";
@@ -21,6 +31,7 @@ let authorization = sessionStorage.getItem(authorizationStorageKey) ?? "";
 const verificationStates = new Map();
 let interfaceBusy = false;
 let environmentRefreshTimer;
+let pendingPairingId;
 
 class WorkbenchUi {
   static async initialize() {
@@ -34,6 +45,11 @@ class WorkbenchUi {
     elements.mcpClient?.addEventListener("change", () => this.renderMcp());
     elements.debugUrl?.addEventListener("input", () => this.renderDebugCommand());
     elements.debugTarget?.addEventListener("change", () => this.renderDebugCommand());
+    document
+      .querySelector("#discover-remotes")
+      ?.addEventListener("click", (event) => this.discoverRemotes(event.currentTarget));
+    elements.remoteManual?.addEventListener("submit", (event) => this.connectManual(event));
+    elements.pairingForm?.addEventListener("submit", (event) => this.completePairing(event));
     void window.EnvironmentEventStream.listen({
       authorization: () => authorization,
       onEnvironmentChanged: () => this.scheduleEnvironmentRefresh(),
@@ -65,6 +81,7 @@ class WorkbenchUi {
       this.renderActions();
       this.renderTestTargets();
       this.renderConnections();
+      this.renderRemoteConnection();
     } catch (error) {
       if (!background) this.notice(this.message(error), "error");
     } finally {
@@ -161,7 +178,8 @@ class WorkbenchUi {
         const copy = this.element("div", "setup-action__copy");
         const label = this.element("strong");
         label.textContent = action.label;
-        const isInstallable = action.automatic && action.status === "planned" && action.targets?.length;
+        const isInstallable =
+          action.automatic && action.status === "planned" && action.targets?.length && state.permissions.configure;
         const status = this.element(
           isInstallable ? "button" : "span",
           `${isInstallable ? "button button--secondary " : ""}setup-action__status is-${action.status}`,
@@ -175,7 +193,10 @@ class WorkbenchUi {
           document.createTextNode(` ${isInstallable ? "Install" : this.actionStatus(action.status)}`),
         );
         const detail = this.element("small");
-        detail.textContent = action.detail ?? "This step must be completed manually.";
+        detail.textContent =
+          !state.permissions.configure && action.status !== "completed"
+            ? "Administrative setup requires an admin pairing."
+            : (action.detail ?? "This step must be completed manually.");
         copy.append(label, detail);
         item.append(copy, status);
         if (action.command) item.append(this.command(action.command));
@@ -226,9 +247,195 @@ for (const target of targets) {
   } finally {
     await browser.close();
   }
+
 }`;
     document.querySelector("#project-client-example").replaceChildren(this.command(example, true));
     this.renderDebugTargets();
+  }
+
+  static renderRemoteConnection() {
+    if (!elements.remoteSummary) return;
+    const connection = state.connection ?? { mode: "local" };
+    if (connection.mode === "remote") {
+      elements.remoteSummary.textContent = `Connected to ${connection.remote.instanceName} with ${connection.remote.role} access.`;
+      elements.remoteManual.hidden = true;
+      document.querySelector("#discover-remotes").hidden = true;
+    } else if (state.remoteMode) {
+      elements.remoteSummary.textContent =
+        "Remote access is enabled. Pairing requests appear below and in this terminal.";
+      elements.remoteManual.hidden = true;
+      document.querySelector("#discover-remotes").hidden = true;
+    } else {
+      elements.remoteSummary.textContent = "Use browsers and devices provided by another computer on your network.";
+      elements.remoteManual.hidden = false;
+      document.querySelector("#discover-remotes").hidden = false;
+    }
+    const requests = state.pairingRequests ?? [];
+    elements.pairingRequests.hidden = requests.length === 0;
+    elements.pairingRequests.replaceChildren(...requests.map((request) => this.pairingRequest(request)));
+    const clients = state.authorizedClients ?? [];
+    elements.remoteClients.hidden = clients.length === 0;
+    elements.remoteClientList.replaceChildren(...clients.map((client) => this.remoteClient(client)));
+  }
+
+  static pairingRequest(request) {
+    const item = this.element("article", "remote-instance");
+    const copy = this.element("div");
+    const title = this.element("strong");
+    title.textContent = `${request.role === "admin" ? "Administrative" : "Control"} pairing`;
+    const detail = this.element("small");
+    detail.textContent = `Code ${request.code} · expires ${new Intl.DateTimeFormat("en", { timeStyle: "short" }).format(new Date(request.expiresAt))}`;
+    copy.append(title, detail);
+    item.append(copy);
+    return item;
+  }
+
+  static remoteClient(client) {
+    const item = this.element("article", "remote-instance");
+    const copy = this.element("div");
+    const title = this.element("strong");
+    title.textContent = client.name;
+    const detail = this.element("small");
+    detail.textContent = `${client.role} · last used ${new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(client.lastUsedAt))}`;
+    const actions = this.element("div", "remote-client-actions");
+    const role = this.element("button", "button button--secondary");
+    role.type = "button";
+    role.textContent = client.role === "admin" ? "Set control" : "Make admin";
+    role.addEventListener("click", () =>
+      this.setRemoteClientRole(client, client.role === "admin" ? "control" : "admin", role),
+    );
+    const revoke = this.element("button", "button button--secondary");
+    revoke.type = "button";
+    revoke.textContent = "Revoke";
+    revoke.addEventListener("click", () => this.revokeRemoteClient(client, revoke));
+    copy.append(title, detail);
+    actions.append(role, revoke);
+    item.append(copy, actions);
+    return item;
+  }
+
+  static async setRemoteClientRole(client, role, trigger) {
+    const restore = this.buttonProgress(trigger, "Updating …");
+    try {
+      await this.request(`/v1/remote/clients/${encodeURIComponent(client.clientId)}`, {
+        method: "PUT",
+        body: JSON.stringify({ role }),
+      });
+      await this.refresh();
+    } catch (error) {
+      this.notice(this.message(error), "error");
+    } finally {
+      restore();
+    }
+  }
+
+  static async revokeRemoteClient(client, trigger) {
+    if (!window.confirm(`Revoke access for ${client.name}?`)) return;
+    const restore = this.buttonProgress(trigger, "Revoking …");
+    try {
+      await this.request(`/v1/remote/clients/${encodeURIComponent(client.clientId)}`, { method: "DELETE" });
+      await this.refresh();
+    } catch (error) {
+      this.notice(this.message(error), "error");
+    } finally {
+      restore();
+    }
+  }
+
+  static async discoverRemotes(trigger) {
+    const restore = this.buttonProgress(trigger, "Searching …");
+    try {
+      const instances = await this.request("/v1/connections/discover");
+      elements.remoteDiscovery.hidden = false;
+      elements.remoteDiscovery.replaceChildren(
+        ...(instances.length
+          ? instances.map((instance) => this.remoteInstance(instance))
+          : [
+              Object.assign(this.element("p"), {
+                textContent:
+                  "No central Testbench was found. Check that remote mode is running on the same LAN and that multicast UDP 5353 and Node.js private-network access are allowed, or enter its URL below.",
+              }),
+            ]),
+      );
+    } catch (error) {
+      this.notice(this.message(error), "error");
+    } finally {
+      restore();
+    }
+  }
+
+  static remoteInstance(instance) {
+    const item = this.element("article", "remote-instance");
+    const copy = this.element("div");
+    const title = this.element("strong");
+    title.textContent = instance.name;
+    const detail = this.element("small");
+    detail.textContent = `${instance.platform}/${instance.architecture} · ${instance.authentication} · ${instance.url}`;
+    const connect = this.element("button", "button button--secondary");
+    connect.type = "button";
+    connect.textContent = "Connect";
+    connect.addEventListener("click", () => this.connectRemote(instance, connect));
+    copy.append(title, detail);
+    item.append(copy, connect);
+    return item;
+  }
+
+  static async connectManual(event) {
+    event.preventDefault();
+    const submit = event.currentTarget.querySelector('button[type="submit"]');
+    const restore = this.buttonProgress(submit, "Connecting …");
+    try {
+      const instance = await this.request(
+        `/v1/connections/identity?server=${encodeURIComponent(elements.remoteServerUrl.value)}`,
+      );
+      await this.connectRemote(instance);
+    } catch (error) {
+      this.notice(this.message(error), "error");
+    } finally {
+      restore();
+    }
+  }
+
+  static async connectRemote(instance, trigger) {
+    const restore = this.buttonProgress(trigger, "Connecting …");
+    try {
+      const result = await this.request("/v1/connections/connect", {
+        method: "POST",
+        body: JSON.stringify({ instance, role: elements.remoteAdmin.checked ? "admin" : "control" }),
+      });
+      if (result.pairingRequired) {
+        pendingPairingId = result.pairingId;
+        elements.pairingForm.hidden = false;
+        elements.pairingCode.focus();
+        this.notice("Enter the pairing code shown on the remote computer.");
+        return;
+      }
+      window.location.reload();
+    } catch (error) {
+      this.notice(this.message(error), "error");
+    } finally {
+      restore();
+    }
+  }
+
+  static async completePairing(event) {
+    event.preventDefault();
+    if (!pendingPairingId) return;
+    const submit = event.currentTarget.querySelector('button[type="submit"]');
+    const restore = this.buttonProgress(submit, "Pairing …");
+    try {
+      await this.request("/v1/connections/pair", {
+        method: "POST",
+        body: JSON.stringify({ pairingId: pendingPairingId, code: elements.pairingCode.value }),
+      });
+      elements.pairingCode.value = "";
+      window.location.reload();
+    } catch (error) {
+      elements.pairingCode.value = "";
+      this.notice(this.message(error), "error");
+    } finally {
+      restore();
+    }
   }
 
   static renderDebugTargets() {
@@ -297,7 +504,7 @@ for (const target of targets) {
         const status = this.element("span", `test-target__status is-${target.status}`);
         status.append(
           this.icon(this.statusIcon(target.status)),
-          document.createTextNode(` ${this.targetAvailability(target.status)}`),
+          document.createTextNode(` ${target.busy ? "Busy" : this.targetAvailability(target.status)}`),
         );
         heading.append(name, status);
         const detail = this.element("small");
@@ -331,7 +538,7 @@ for (const target of targets) {
         if (target.ready) {
           const verify = this.element("button", "button button--secondary");
           verify.type = "button";
-          verify.disabled = interfaceBusy || verificationState?.status === "running";
+          verify.disabled = interfaceBusy || target.busy || verificationState?.status === "running";
           verify.append(
             this.icon(verificationState?.status === "running" ? "fa-spinner fa-spin" : "fa-circle-play"),
             document.createTextNode(verificationState?.status === "running" ? " Test running …" : " Run test"),
@@ -507,6 +714,7 @@ for (const target of targets) {
       if (token) {
         authorization = token;
         sessionStorage.setItem(authorizationStorageKey, token);
+        window.dispatchEvent(new Event("browser-testbench:authorization-changed"));
         return this.request(path, options, false);
       }
     }
@@ -520,6 +728,7 @@ for (const target of targets) {
     document.querySelectorAll(".page-content button, .page-content input, .page-content select").forEach((control) => {
       control.disabled = value;
     });
+    if (!value && state) this.renderTestTargets();
   }
 
   static buttonProgress(button, label) {

@@ -4,22 +4,17 @@ import { PackageMetadata } from "../config/package-metadata.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { InputSchemas } from "../config/input-schemas.js";
+import { z } from "zod";
+import type { RemoteInstance } from "../remote/remote-types.js";
 import { RemoteSession, RemoteTestbench, type RemoteTestbenchOptions } from "./testbench-client.js";
+import { McpSessionCoordinator } from "./mcp-session-coordinator.js";
 
 export class McpServerHost {
   static async start(options: RemoteTestbenchOptions = {}): Promise<void> {
     const testbench = new RemoteTestbench(options);
-    let currentSession: RemoteSession | undefined;
-    const active = (): RemoteSession => {
-      if (!currentSession) throw new Error("No interactive session is active.");
-      return currentSession;
-    };
-    const closeSession = async () => {
-      if (!currentSession) return {};
-      const session = currentSession;
-      currentSession = undefined;
-      return session.close();
-    };
+    const sessions = new McpSessionCoordinator();
+    const active = (): RemoteSession => sessions.active();
+    const closeSession = (): Promise<{ videoPath?: string }> => sessions.close();
     const server = new McpServer(
       { name: PackageMetadata.NAME, version: PackageMetadata.VERSION },
       {
@@ -27,6 +22,64 @@ export class McpServerHost {
           "Use list_targets to obtain concrete browser and device IDs before starting a session. Use the session tools as a remote control for exploration and debugging. Project-owned tests use the same remote controls through the Node client. Safari authorization is never probed automatically. Close sessions when finished.",
       },
     );
+    server.registerTool(
+      "discover_testbenches",
+      {
+        description: "Find remotely enabled Browser Testbench instances on the local network.",
+        annotations: { readOnlyHint: true },
+      },
+      async () => textResult(await testbench.discoverTestbenches()),
+    );
+
+    server.registerTool(
+      "get_testbench_connection",
+      {
+        description: "Show whether Browser Testbench currently uses local or remote targets.",
+        annotations: { readOnlyHint: true },
+      },
+      async () => textResult(await testbench.connection()),
+    );
+
+    server.registerTool(
+      "connect_testbench",
+      {
+        description:
+          "Connect to a remote Testbench. Use name or instanceId after discovery, or server for a manual URL. If pairing is required, ask the user for the six-digit code shown by the remote Testbench, then call this tool again with pairingId and code. Request role=admin only when the user explicitly asks for administrative access.",
+        inputSchema: {
+          nameOrId: z.string().min(1).optional(),
+          server: z.url().optional(),
+          role: InputSchemas.remoteRole.default("control"),
+          pairingId: z.uuid().optional(),
+          code: z
+            .string()
+            .regex(/^\d{6}$/)
+            .optional(),
+        },
+        annotations: { readOnlyHint: false },
+      },
+      async ({ nameOrId, server: remoteServer, role, pairingId, code }) => {
+        if (pairingId || code) {
+          if (!pairingId || !code) throw new Error("Both pairingId and code are required to complete pairing.");
+          return textResult(await sessions.transition(() => testbench.completePairing(pairingId, code)));
+        }
+        const instance = remoteServer
+          ? await testbench.remoteIdentity(remoteServer)
+          : selectRemoteInstance(await testbench.discoverTestbenches(), nameOrId);
+        return textResult(await sessions.transition(() => testbench.connectTestbench(instance, role)));
+      },
+    );
+
+    server.registerTool(
+      "disconnect_testbench",
+      {
+        description: "Close this client's remote sessions and return Browser Testbench to local mode.",
+        annotations: { readOnlyHint: false, destructiveHint: true },
+      },
+      async () => {
+        return textResult(await sessions.transition(() => testbench.disconnectTestbench(), { ignoreCloseError: true }));
+      },
+    );
+
     server.registerTool(
       "list_targets",
       {
@@ -67,8 +120,7 @@ export class McpServerHost {
         inputSchema: InputSchemas.startSession.shape,
       },
       async (input) => {
-        await closeSession();
-        currentSession = await testbench.open(input);
+        const currentSession = await sessions.replace(() => testbench.open(input));
         return textResult({
           id: currentSession.id,
           target: currentSession.target,
@@ -296,7 +348,8 @@ export class McpServerHost {
     server.registerTool(
       "get_diagnostics",
       {
-        description: "Return captured console output and HTTP request/response diagnostics for the active session.",
+        description:
+          "Return captured console output, HTTP request/response, and WebSocket connection/frame diagnostics for the active session.",
         annotations: { readOnlyHint: true },
       },
       async () => textResult(await active().diagnostics()),
@@ -304,7 +357,7 @@ export class McpServerHost {
 
     server.registerTool(
       "clear_diagnostics",
-      { description: "Clear collected console and HTTP diagnostics for the active session." },
+      { description: "Clear collected console, HTTP, and WebSocket diagnostics for the active session." },
       async () => {
         await active().clearDiagnostics();
         return textResult({ cleared: true });
@@ -331,8 +384,11 @@ export class McpServerHost {
     );
 
     const shutdown = async () => {
-      await closeSession();
-      await server.close();
+      try {
+        await closeSession();
+      } finally {
+        await server.close();
+      }
     };
     process.once("SIGINT", () => void shutdown());
     process.once("SIGTERM", () => void shutdown());
@@ -342,4 +398,21 @@ export class McpServerHost {
 
 function textResult(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
+}
+
+function selectRemoteInstance(instances: RemoteInstance[], selector?: string): RemoteInstance {
+  if (!selector) {
+    if (instances.length === 1) return instances[0]!;
+    if (instances.length === 0) throw new Error("No remote Testbench was found. Provide server as a fallback.");
+    throw new Error("Multiple remote Testbenches were found. Provide nameOrId.");
+  }
+  const normalized = selector.toLocaleLowerCase();
+  const matches = instances.filter(
+    (instance) => instance.instanceId === selector || instance.name.toLocaleLowerCase() === normalized,
+  );
+  if (matches.length !== 1)
+    throw new Error(
+      matches.length ? `Remote Testbench '${selector}' is ambiguous.` : `Remote Testbench '${selector}' was not found.`,
+    );
+  return matches[0]!;
 }

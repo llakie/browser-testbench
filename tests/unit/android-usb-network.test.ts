@@ -42,4 +42,19 @@ describe("AndroidUsbNetwork", () => {
     await expect(network.prepare("https://example.com/path")).resolves.toBe("https://example.com/path");
     expect(run).not.toHaveBeenCalled();
   });
+
+  it("reports failed forwarding cleanup", async () => {
+    vi.spyOn(AndroidSdk, "root").mockResolvedValue("C:\\Android\\Sdk");
+    vi.spyOn(CommandRunner, "run")
+      .mockResolvedValueOnce({ code: 0, stdout: "", stderr: "" })
+      .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "device offline" });
+    const network = new AndroidUsbNetwork({
+      name: "chrome-android",
+      deviceKind: "physical",
+      udid: "R5CT1234",
+    });
+    await network.prepare("http://localhost:4173/example");
+
+    await expect(network.close()).rejects.toThrow("device offline");
+  });
 });

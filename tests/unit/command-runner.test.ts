@@ -32,4 +32,24 @@ describe("CommandRunner", () => {
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("null bytes");
   });
+
+  it("finishes after the timeout when a process ignores graceful termination", async () => {
+    const startedAt = Date.now();
+    const result = await CommandRunner.run(
+      process.execPath,
+      ["-e", 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1_000)'],
+      { timeoutMs: 20 },
+    );
+
+    expect(result.code).toBe(-1);
+    expect(result.stderr).toContain("timed out after 20 ms");
+    expect(Date.now() - startedAt).toBeLessThan(4_000);
+  });
+
+  it("bounds buffered command output", async () => {
+    const result = await CommandRunner.run(process.execPath, ["-e", 'process.stdout.write("x".repeat(2_000_000))']);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout.length).toBe(1024 * 1024);
+  });
 });

@@ -36,18 +36,23 @@ export interface PageInspection {
 }
 
 export interface DiagnosticEvent {
-  type: "console" | "request" | "response" | "requestFailed";
+  type: "console" | "request" | "response" | "requestFailed" | "webSocket" | "webSocketFrame";
   timestamp: string;
   level?: string;
   message?: string;
+  requestId?: string;
   method?: string;
   url?: string;
   status?: number;
+  statusText?: string;
   mimeType?: string;
   headers?: Record<string, unknown>;
   body?: string;
   error?: string;
   durationMs?: number;
+  phase?: "created" | "handshakeRequest" | "handshakeResponse" | "closed" | "error";
+  direction?: "sent" | "received";
+  opcode?: number;
 }
 
 export type ResolvedStartSessionInput = Omit<StartSessionInput, "target"> & {
@@ -67,6 +72,7 @@ export class InteractiveController {
   private video?: { recorder: VideoRecorder; path: string };
   private readonly diagnosticEvents: DiagnosticEvent[] = [];
   private readonly requestTimestamps = new Map<string, number>();
+  private readonly webSocketUrls = new Map<string, string>();
 
   async start(options: ResolvedStartSessionInput): Promise<Record<string, unknown>> {
     if (!TargetRegistry.isSupported(options.target))
@@ -359,6 +365,7 @@ export class InteractiveController {
   clearDiagnostics(): void {
     this.diagnosticEvents.length = 0;
     this.requestTimestamps.clear();
+    this.webSocketUrls.clear();
   }
 
   debugTools(): Record<string, unknown> {
@@ -379,7 +386,8 @@ export class InteractiveController {
     return {
       tool: "Testbench diagnostics",
       automatic: true,
-      detail: "Console output and HTTP requests/responses are available through the diagnostics endpoint.",
+      detail:
+        "Console output, HTTP requests/responses, and WebSocket connections/frames are available through the diagnostics endpoint.",
     };
   }
 
@@ -452,6 +460,80 @@ export class InteractiveController {
           });
           if (requestId) this.requestTimestamps.delete(requestId);
         }
+        if (message?.method === "Network.webSocketCreated") {
+          const requestId = message.params?.requestId as string | undefined;
+          const url = message.params?.url as string | undefined;
+          if (requestId && url) this.webSocketUrls.set(requestId, url);
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "created",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url,
+          });
+        }
+        if (message?.method === "Network.webSocketWillSendHandshakeRequest") {
+          const requestId = message.params?.requestId as string | undefined;
+          const request = message.params?.request as { headers?: Record<string, unknown> } | undefined;
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "handshakeRequest",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+            headers: request?.headers,
+          });
+        }
+        if (message?.method === "Network.webSocketHandshakeResponseReceived") {
+          const requestId = message.params?.requestId as string | undefined;
+          const response = message.params?.response as
+            { status?: number; statusText?: string; headers?: Record<string, unknown> } | undefined;
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "handshakeResponse",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+            status: response?.status,
+            statusText: response?.statusText,
+            headers: response?.headers,
+          });
+        }
+        if (message?.method === "Network.webSocketFrameSent" || message?.method === "Network.webSocketFrameReceived") {
+          const requestId = message.params?.requestId as string | undefined;
+          const frame = message.params?.response as { opcode?: number; payloadData?: string } | undefined;
+          this.pushDiagnostic({
+            type: "webSocketFrame",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+            direction: message.method === "Network.webSocketFrameSent" ? "sent" : "received",
+            opcode: frame?.opcode,
+            body: frame?.payloadData?.slice(0, TestbenchDefaults.PAGE_SOURCE_LIMIT),
+          });
+        }
+        if (message?.method === "Network.webSocketFrameError") {
+          const requestId = message.params?.requestId as string | undefined;
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "error",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+            error: message.params?.errorMessage as string | undefined,
+          });
+        }
+        if (message?.method === "Network.webSocketClosed") {
+          const requestId = message.params?.requestId as string | undefined;
+          this.pushDiagnostic({
+            type: "webSocket",
+            phase: "closed",
+            timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
+            requestId,
+            url: requestId ? this.webSocketUrls.get(requestId) : undefined,
+          });
+          if (requestId) this.webSocketUrls.delete(requestId);
+        }
       }
     } catch {
       // Performance logging is currently available on Chromium targets only.
@@ -474,14 +556,23 @@ export class InteractiveController {
 
   private async appiumCommand(path: string, body: Record<string, unknown>): Promise<void> {
     if (!this.appium) throw new Error("This command requires an active mobile session.");
-    const response = await fetch(
-      `http://${TestbenchDefaults.LOOPBACK_HOST}:${this.appium.port}/session/${this.session.active.sessionId}/${path}`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    );
+    let response: Response;
+    try {
+      response = await fetch(
+        `http://${TestbenchDefaults.LOOPBACK_HOST}:${this.appium.port}/session/${this.session.active.sessionId}/${path}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS),
+        },
+      );
+    } catch (error) {
+      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+        throw new Error(`Appium command timed out after ${TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS} ms.`);
+      }
+      throw error;
+    }
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as { value?: { message?: string } };
       throw new Error(payload.value?.message ?? `Appium command failed with HTTP ${response.status}.`);
@@ -497,22 +588,31 @@ export class InteractiveController {
 
   async close(): Promise<{ videoPath?: string }> {
     const target = this.target;
-    await this.session.close().catch(() => undefined);
+    const failures: unknown[] = [];
+    await this.session.close().catch((error) => failures.push(error));
     let videoPath: string | undefined;
     if (this.video) {
-      const recorded = await this.video.recorder.stop().catch(() => undefined);
-      if (recorded) {
+      try {
+        const recorded = await this.video.recorder.stop();
         if (recorded !== this.video.path) await rename(recorded, this.video.path);
         videoPath = this.video.path;
+      } catch (error) {
+        failures.push(error);
       }
     }
-    await this.appium?.process.stop().catch(() => undefined);
-    await IosSimulatorCleanup.run(target);
+    await this.appium?.process.stop().catch((error) => failures.push(error));
+    await IosSimulatorCleanup.run(target).catch((error) => failures.push(error));
+    this.clearState();
+    if (failures.length > 0) throw new AggregateError(failures, "Session cleanup failed.");
+    return { videoPath };
+  }
+
+  private clearState(): void {
     this.video = undefined;
     this.appium = undefined;
     this.target = undefined;
     this.diagnosticEvents.length = 0;
     this.requestTimestamps.clear();
-    return { videoPath };
+    this.webSocketUrls.clear();
   }
 }
