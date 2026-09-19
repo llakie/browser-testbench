@@ -13,18 +13,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Chromium diagnostics now include WebSocket connection lifecycle, handshake, error, and sent/received frame events.
 - Remote Testbench hosts can now be discovered through mDNS, paired with control or admin credentials, and used transparently through the existing UI, CLI, Node client, REST gateway, and MCP server.
 - Remote sessions support per-client ownership, FIFO serial-target locks, bounded cleanup leases, and project-side artifact transfer.
+- The web interface now uses Vue and TypeScript with shared API contracts, reactive state, and live remote-client status updates over the existing event stream.
 
 ### Changed
 
 - The shared Testbench UI now exposes explicit remote connect and disconnect controls, keeps remote status visible, and disables administrative controls for non-admin pairings.
 - CLI, MCP, and Node client operations use the active local or remote gateway consistently and apply bounded request and setup timeouts.
 - Remote setup documentation is platform-neutral and includes diagrams for local and remote operation.
+- Remote target guidance distinguishes the remote operating system and suggests the local gateway's LAN address for applications that remote browsers cannot reach through localhost.
 
 ### Fixed
 
 - Third-party license generation now honors explicit license replacements and no longer warns about known dual-license packages.
 - Remote authentication, artifact transfer, session ownership, process cleanup, and MCP lifecycle transitions are hardened against invalid or interrupted requests.
 - Remote control clients no longer receive host-specific browser installation paths or set unrestricted host capabilities.
+- Cold Android emulators receive sufficient launch and boot time, including when verification runs through a remote gateway.
+- An unavailable Remote Testbench can be disconnected directly from the recovery banner without leaving a stale connection error behind.
 
 ## [0.1.8] - 2026-09-18
 

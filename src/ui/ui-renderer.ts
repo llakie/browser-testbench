@@ -28,21 +28,11 @@ export class UiRenderer {
   });
 
   static setup(liveReload = false): string {
-    return this.page(
-      "dashboard",
-      "Overview",
-      { refreshEnvironment: true, scripts: ["/ui-assets/environment-events.js", "/ui-assets/setup.js"] },
-      liveReload,
-    );
+    return this.page("dashboard", "Overview", { refreshEnvironment: true }, liveReload);
   }
 
   static targets(liveReload = false): string {
-    return this.page(
-      "targets",
-      "Test targets",
-      { scripts: ["/ui-assets/environment-events.js", "/ui-assets/setup.js"] },
-      liveReload,
-    );
+    return this.page("targets", "Test targets", {}, liveReload);
   }
 
   static documentation(liveReload = false): string {
@@ -74,11 +64,9 @@ export class UiRenderer {
       subnavigation: [],
       badgeIcon: "fa-circle-notch fa-spin",
       badgeLabel: "Checking system",
+      liveReload,
       ...data,
-      scripts: [
-        ...((data.scripts as string[] | undefined) ?? []),
-        ...(liveReload ? ["/ui-assets/live-reload.js"] : []),
-      ],
+      scripts: ["/ui-assets/app.js", ...((data.scripts as string[] | undefined) ?? [])],
     };
     const templates = liveReload ? this.liveTemplates : this.cachedTemplates;
     const content = templates.render(`./pages/${template}`, shared);

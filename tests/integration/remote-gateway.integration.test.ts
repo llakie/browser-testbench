@@ -11,6 +11,7 @@ import {
   RemoteHostIdentityStore,
 } from "../../src/remote/remote-client-store.js";
 import { RemoteConnectionService } from "../../src/remote/remote-connection-service.js";
+import { RemoteApiClient } from "../../src/remote/remote-api-client.js";
 import { RemotePairingService } from "../../src/remote/remote-pairing-service.js";
 import type { RemoteInstance } from "../../src/remote/remote-types.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
@@ -92,6 +93,15 @@ describe("remote gateway", () => {
     expect(JSON.stringify(await testbench.request("/v1/doctor"))).not.toContain("Program Files");
     expect(JSON.stringify(await testbench.capabilities())).not.toContain("Program Files");
     expect(JSON.stringify(await testbench.targets())).not.toContain("Program Files");
+    const mobileVerification = vi.spyOn(RemoteApiClient.prototype, "request").mockResolvedValue({
+      target: "chrome-android-pixel-8-16",
+      status: "passed",
+      durationMs: 1,
+      runtime: {},
+    });
+    await testbench.verify("chrome-android-pixel-8-16");
+    expect(mobileVerification).toHaveBeenCalledWith("/v1/verify", expect.objectContaining({ timeoutMs: 7 * 60_000 }));
+    mobileVerification.mockRestore();
     const signedRemote = connections.client()!;
     await expect(
       signedRemote.request("/v1/sessions", {
@@ -117,6 +127,11 @@ describe("remote gateway", () => {
       body: JSON.stringify({ role: "admin" }),
     });
     await vi.waitFor(() => expect(connections.status()).toMatchObject({ remote: { role: "admin" } }));
+    await expect(
+      signedRemote.request<Array<{ clientId: string; connected: boolean }>>("/v1/remote/clients"),
+    ).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ clientId: connected.remote!.clientId, connected: true })]),
+    );
     expect(JSON.stringify(await testbench.request("/v1/workbench"))).toContain("Program Files");
     await expect(testbench.request("/v1/sessions/missing", { method: "DELETE" })).rejects.toThrow(
       "Session 'missing' was not found.",
@@ -129,11 +144,18 @@ describe("remote gateway", () => {
       remote: { instanceId: instance.instanceId, role: "admin" },
     });
     expect(announcements).toHaveLength(1);
-  }, 15_000);
+  }, 30_000);
 
   it.runIf(nonLoopbackAddress)("authenticates a non-loopback control client and enforces revocation", async () => {
     directory = await mkdtemp(join(tmpdir(), "browser-testbench-remote-auth-integration-"));
-    vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
+    vi.spyOn(DoctorService, "inspect").mockResolvedValue([
+      {
+        id: "edge",
+        label: TargetRegistry.definitions.edge.label,
+        status: "ready",
+        detail: "Remote integration test",
+      },
+    ]);
     const clients = new AuthorizedRemoteClientStore(join(directory, "clients.json"));
     const announcements: string[] = [];
     const remote = new ApiServer(

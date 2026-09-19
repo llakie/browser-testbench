@@ -5,9 +5,10 @@ import { DoctorService } from "./doctor-service.js";
 import { McpIntegrationService } from "./mcp-integration-service.js";
 import { SetupService } from "./setup-service.js";
 import { TargetCatalogService } from "./target-catalog-service.js";
+import type { WorkbenchBaseState } from "./workbench-types.js";
 
 export class WorkbenchService {
-  async state(): Promise<Record<string, unknown>> {
+  async state(): Promise<WorkbenchBaseState> {
     const targets = [...TARGET_NAMES];
     const checks = await DoctorService.inspect(targets);
     const [actions, mcpClients] = await Promise.all([

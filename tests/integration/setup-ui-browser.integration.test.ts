@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { TargetRegistry } from "../../src/config/target-registry.js";
-import { TARGET_NAMES } from "../../src/config/types.js";
+import { TARGET_NAMES, type DoctorCheck } from "../../src/config/types.js";
 import { BrowserSession } from "../../src/automation/browser-session.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
@@ -28,6 +28,7 @@ describe("workbench UI browser flow", () => {
     "navigates the responsive app shell and operates the workbench pages",
     async () => {
       let androidConnected = true;
+      let androidName = "Pixel 8";
       vi.spyOn(DoctorService, "inspect").mockImplementation(async () =>
         TARGET_NAMES.map((id) => {
           const android = id === "chrome-android";
@@ -48,7 +49,7 @@ describe("workbench UI browser flow", () => {
                   devices: [
                     {
                       id: "R5CT1234",
-                      name: "Pixel 8",
+                      name: androidName,
                       platformVersion: "16",
                       state: "Connected",
                       deviceKind: "physical" as const,
@@ -56,7 +57,7 @@ describe("workbench UI browser flow", () => {
                       config: {
                         name: "chrome-android" as const,
                         deviceKind: "physical" as const,
-                        deviceName: "Pixel 8",
+                        deviceName: androidName,
                         platformVersion: "16",
                         udid: "R5CT1234",
                       },
@@ -110,11 +111,7 @@ describe("workbench UI browser flow", () => {
         await browser.active.setWindowRect(500, 812);
         await browser.navigate(`${baseUrl}/setup`);
         await browser.active.waitForText("Google Chrome", 15_000);
-        expect(
-          await browser.active.execute(
-            "return Boolean(document.querySelector('script[src=\"/ui-assets/live-reload.js\"]'))",
-          ),
-        ).toBe(true);
+        expect(await browser.active.execute("return document.querySelector('#app').dataset.liveReload")).toBe("true");
 
         expect(await browser.active.$("#host-badge").getText()).toContain(platformLabel);
         expect(await browser.active.$("#remote-connection").getText()).toContain("Connect to a central Testbench");
@@ -146,7 +143,9 @@ describe("workbench UI browser flow", () => {
           window.__bannerAuthorization = "";
           window.fetch = async (path, options = {}) => {
             if (String(path) !== "/v1/connections/status") return window.__appShellFetch(path, options);
-            window.__bannerAuthorization = options.headers?.authorization ?? "";
+            window.__bannerAuthorization = options.headers instanceof Headers
+              ? options.headers.get("authorization") ?? ""
+              : options.headers?.authorization ?? "";
             return new Response(JSON.stringify({
               mode: "remote",
               reachable: false,
@@ -221,9 +220,11 @@ describe("workbench UI browser flow", () => {
         await browser.active.execute(
           "window.__previousDeviceDetails = document.querySelector('.check-card--device .device-options')",
         );
+        androidName = "Pixel 8 Pro";
         events.publish({ type: "environment.changed", source: "android", occurredAt: new Date().toISOString() });
+        await browser.active.waitForText("Pixel 8 Pro", 15_000);
         await browser.active.waitForScript(
-          "return !window.__previousDeviceDetails.isConnected && document.querySelector('.check-card--device .device-options').open",
+          "return window.__previousDeviceDetails.isConnected && document.querySelector('.check-card--device .device-options').open",
           [],
           15_000,
         );
@@ -274,6 +275,14 @@ describe("workbench UI browser flow", () => {
         );
 
         await browser.navigate(`${baseUrl}/targets`);
+        await browser.active.$("#debug-url").waitForDisplayed({ timeout: 15_000 });
+        expect(await browser.active.execute("return document.querySelector('#debug-url').placeholder")).toBe(
+          "http://127.0.0.1:3000",
+        );
+        expect(await browser.active.$("#test-target-list").getText()).toContain("Ready on this machine");
+        expect(await browser.active.$("#test-target-list").getText()).toContain(
+          "Not available on this operating system",
+        );
         expect(
           await browser.active.execute("return Boolean(document.querySelector('#debug-target + .fa-chevron-down'))"),
         ).toBe(true);
@@ -514,8 +523,8 @@ describe("workbench UI browser flow", () => {
   browserTest(
     "presents remote host administration instead of connection controls",
     async () => {
-      let finishInspection!: (checks: []) => void;
-      const inspection = new Promise<[]>((resolve) => {
+      let finishInspection!: (checks: DoctorCheck[]) => void;
+      const inspection = new Promise<DoctorCheck[]>((resolve) => {
         finishInspection = resolve;
       });
       vi.spyOn(DoctorService, "inspect").mockReturnValue(inspection);
@@ -552,6 +561,11 @@ describe("workbench UI browser flow", () => {
       try {
         await browser.start({ name: "chrome", headless: true });
         await browser.navigate(`http://${remoteAddress.host}:${remoteAddress.port}/setup`);
+        await browser.active.waitForScript(
+          "return document.querySelector('#app').hasAttribute('data-v-app')",
+          [],
+          15_000,
+        );
         const loadingState = await browser.active.execute<{
           busy: string | null;
           exists: boolean;
@@ -576,7 +590,20 @@ describe("workbench UI browser flow", () => {
             hidden: overlay?.hidden
           };
         `);
-        finishInspection([]);
+        finishInspection([
+          {
+            id: "chrome",
+            label: "Google Chrome",
+            status: "ready",
+            detail: "Browser integration fixture",
+          },
+          {
+            id: "firefox",
+            label: "Mozilla Firefox",
+            status: "skip",
+            detail: "Browser integration fixture",
+          },
+        ]);
         await browser.active.waitForText("Connected test clients", 15_000);
         const loadedState = await browser.active.execute<{ busy: string | null; hidden?: boolean }>(`
           const overlay = document.querySelector("#environment-analysis");
@@ -622,6 +649,9 @@ describe("workbench UI browser flow", () => {
         const code = announcements[0]!.match(/\d{6}$/)?.[0];
         const connected = await testbench.completePairing((pairing as { pairingId: string }).pairingId, code!);
 
+        await browser.active.waitForText(connected.remote!.clientName, 15_000);
+        expect(await browser.active.$("#remote-client-list").getText()).toContain("connected");
+
         await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/setup`);
         await browser.active.waitForText(identity.name, 15_000);
         await vi.waitFor(
@@ -632,6 +662,29 @@ describe("workbench UI browser flow", () => {
           { timeout: 15_000 },
         );
         expect(await browser.active.execute("return document.querySelector('#remote-connection').hidden")).toBe(true);
+
+        await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/targets`);
+        await browser.active.$("#debug-url").waitForDisplayed({ timeout: 15_000 });
+        const gatewayWorkbench = (await fetch(`http://${gatewayAddress.host}:${gatewayAddress.port}/v1/workbench`).then(
+          (response) => response.json(),
+        )) as { localNetworkAddress?: string };
+        const expectedApplicationUrl = gatewayWorkbench.localNetworkAddress
+          ? `http://${gatewayWorkbench.localNetworkAddress}:3000`
+          : "http://YOUR-LAN-IP:3000";
+        expect(await browser.active.execute("return document.querySelector('#debug-url').placeholder")).toBe(
+          expectedApplicationUrl,
+        );
+        expect(await browser.active.$("#local-network-address").getText()).toContain(
+          gatewayWorkbench.localNetworkAddress ?? "this computer's LAN address",
+        );
+        expect(await browser.active.$("#project-client-example").getText()).toContain(expectedApplicationUrl);
+        expect(await browser.active.$("#test-target-list").getText()).toContain("Ready on remote machine");
+        expect(await browser.active.$("#test-target-list").getText()).toContain(
+          "Not available on remote operating system",
+        );
+
+        await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/setup`);
+        await browser.active.waitForText(identity.name, 15_000);
 
         await browser.active.execute(`
           window.__promptCalls = 0;
@@ -658,5 +711,77 @@ describe("workbench UI browser flow", () => {
       }
     },
     45_000,
+  );
+
+  browserTest(
+    "can disconnect when the configured remote Testbench is offline",
+    async () => {
+      vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
+      vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue([]);
+      const api = new ApiServer({ host: "127.0.0.1", port: 0 });
+      const address = await api.start();
+      const browser = new BrowserSession();
+
+      try {
+        await browser.start({ name: "chrome", headless: true });
+        await browser.active.devtools("Page.addScriptToEvaluateOnNewDocument", {
+          source: `
+          window.__offlineRemote = true;
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = async (path, options = {}) => {
+            const requestPath = String(path);
+            if (window.__offlineRemote && requestPath === "/v1/workbench") {
+              return new Response(JSON.stringify({ error: "Remote Testbench 'LLAKIE-ROG' is not reachable: fetch failed." }), {
+                status: 502,
+                headers: { "content-type": "application/json" }
+              });
+            }
+            if (requestPath === "/v1/connections/status") {
+              return new Response(JSON.stringify(window.__offlineRemote ? {
+                mode: "remote",
+                reachable: false,
+                remote: {
+                  instanceName: "LLAKIE-ROG",
+                  platform: "win32",
+                  role: "control",
+                  url: "http://llakie-rog:55808"
+                }
+              } : { mode: "local", reachable: true }), {
+                headers: { "content-type": "application/json" }
+              });
+            }
+            if (requestPath === "/v1/connections/active" && options.method === "DELETE") {
+              window.__offlineRemote = false;
+              return new Response(JSON.stringify({ mode: "local" }), {
+                headers: { "content-type": "application/json" }
+              });
+            }
+            return originalFetch(path, options);
+          };
+          `,
+        });
+
+        await browser.navigate(`http://${address.host}:${address.port}/setup`);
+        await browser.active.waitForText("LLAKIE-ROG", 15_000);
+        await browser.active.waitForText("is not reachable: fetch failed", 15_000);
+        expect(await browser.active.execute("return document.querySelector('#notice').textContent")).toContain(
+          "is not reachable: fetch failed",
+        );
+        expect(await browser.active.$("#remote-banner").getText()).toContain("unreachable");
+        await browser.active.$("#remote-banner-disconnect").click();
+        await browser.active.waitForText("Connect to a central Testbench", 15_000);
+        expect(
+          await browser.active.execute(
+            "return { connected: window.__offlineRemote, bannerHidden: document.querySelector('#remote-banner').hidden, panelHidden: document.querySelector('#remote-connection').hidden }",
+          ),
+        ).toEqual({ connected: false, bannerHidden: true, panelHidden: false });
+        expect(await browser.active.execute("return document.querySelector('#notice')")).toBeNull();
+      } finally {
+        await browser.close();
+        await api.stop();
+        vi.restoreAllMocks();
+      }
+    },
+    30_000,
   );
 });

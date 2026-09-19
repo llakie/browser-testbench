@@ -138,7 +138,12 @@ If multicast discovery is blocked by a firewall, VPN, or subnet boundary, use
 platform-specific Browser Testbench user-data directory, never in the repository. Use `--gateway` only when the
 local gateway itself does not run at its default URL.
 
-While connected, the existing pages and commands show remote capabilities and targets. A control pairing can run tests, sessions, screenshots, and diagnostics; remote installation and configuration controls are disabled. An admin pairing additionally permits setup and management of paired clients. Multiple clients may use different targets concurrently. A serial device displays only `Busy`; requests wait FIFO for up to 60 seconds by default, or fail immediately with `lockTimeoutMs: 0`.
+While connected, the existing pages and commands show remote capabilities and targets. The UI updates connection,
+device, target, and setup state automatically. On the remote host, **Paired clients** also shows which clients are
+currently connected. A control pairing can run tests, sessions, screenshots, and diagnostics; remote installation
+and configuration controls are disabled. An admin pairing additionally permits setup and management of paired
+clients. Multiple clients may use different targets concurrently. A serial device displays only `Busy`; requests
+wait FIFO for up to 60 seconds by default, or fail immediately with `lockTimeoutMs: 0`.
 
 Remote browsers cannot reach an application on the development machine through a loopback URL such as
 `http://127.0.0.1:5173`: on the remote host, that address refers to the remote host itself. Bind the application to
@@ -228,7 +233,8 @@ For parallel execution, use `forEachTarget()`. Different devices can run in para
 `RemoteTestbench` connects to `http://127.0.0.1:55808` by default. Set a different address through
 `BROWSER_TESTBENCH_URL` or the constructor. Requests time out after 120 seconds by default; use
 `requestTimeoutMs` in the constructor or `timeoutMs` on `request()` to override this, and pass an `AbortSignal` to
-cancel an individual request. The client provides:
+cancel an individual request. Mobile session startup and verification allow seven minutes so a cold simulator or
+emulator can finish booting. The client provides:
 
 - `targets()`, `capabilities()`, and `availableTargets([...])`
 - `open({ target, url, ... })`

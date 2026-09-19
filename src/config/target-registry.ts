@@ -66,6 +66,12 @@ export class TargetRegistry {
     return this.definitions[name].supportedPlatforms.includes(platform);
   }
 
+  static isMobileTargetId(id: string): boolean {
+    return TARGET_NAMES.some(
+      (name) => this.definitions[name].kind === "mobile" && (id === name || id.startsWith(`${name}-`)),
+    );
+  }
+
   static capabilities(target: TargetConfig): Record<string, unknown> {
     const common = target.capabilities ?? {};
     switch (target.name) {
@@ -136,6 +142,8 @@ export class TargetRegistry {
           "appium:deviceName": target.deviceName ?? "Android Emulator",
           "appium:chromedriverExecutableDir": TestbenchPaths.data("chromedrivers"),
           "appium:adbExecTimeout": TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS,
+          "appium:avdLaunchTimeout": TestbenchDefaults.ANDROID_EMULATOR_PHASE_TIMEOUT_MS,
+          "appium:avdReadyTimeout": TestbenchDefaults.ANDROID_EMULATOR_PHASE_TIMEOUT_MS,
           "appium:uiautomator2ServerInstallTimeout": TestbenchDefaults.ANDROID_UIAUTOMATOR_INSTALL_TIMEOUT_MS,
           ...(target.platformVersion ? { "appium:platformVersion": target.platformVersion } : {}),
           ...(target.avd ? { "appium:avd": target.avd } : {}),

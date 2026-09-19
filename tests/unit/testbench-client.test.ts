@@ -8,7 +8,10 @@ import {
 } from "../../src/transports/testbench-client.js";
 
 describe("RemoteTestbench.availableTargets", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
   it("exports type-safe interaction values for project tests", () => {
     expect(BrowserOrientation.Landscape).toBe("LANDSCAPE");
     expect(SwipeDirection.Up).toBe("up");
@@ -36,6 +39,22 @@ describe("RemoteTestbench.availableTargets", () => {
     await expect(testbench.availableTargets(["chrome", "missing"])).rejects.toThrow(
       "None of the requested Browser Testbench targets are ready",
     );
+  });
+
+  it("allows cold mobile targets enough time to start", async () => {
+    const testbench = new RemoteTestbench();
+    const request = vi.spyOn(testbench, "request").mockResolvedValue({
+      id: "session",
+      target: "chrome-android-pixel-8-16",
+      createdAt: new Date().toISOString(),
+      runtime: {},
+    });
+
+    await testbench.open({ target: "chrome-android-pixel-8-16" });
+    await testbench.verify("safari-ios-iphone-17-pro-26-5");
+
+    expect(request).toHaveBeenNthCalledWith(1, "/v1/sessions", expect.objectContaining({ timeoutMs: 7 * 60_000 }));
+    expect(request).toHaveBeenNthCalledWith(2, "/v1/verify", expect.objectContaining({ timeoutMs: 7 * 60_000 }));
   });
 
   it("aborts requests after the configured client timeout", async () => {
