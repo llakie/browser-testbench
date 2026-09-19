@@ -1,6 +1,6 @@
 {
   "name": "browser-testbench",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "Cross-platform browser testbench for controlling, debugging, and automating desktop browsers, iOS simulators, Android emulators, and physical Android devices",
   "author": "Lars-Erich Kiefer",
   "license": "MIT",

@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PackageMetadata } from "../../src/config/package-metadata.js";
 import { RemoteCredentialStore } from "../../src/remote/remote-client-store.js";
 import { RemoteConnectionService } from "../../src/remote/remote-connection-service.js";
 import { RemoteCrypto } from "../../src/remote/remote-crypto.js";
@@ -23,7 +24,7 @@ describe("RemoteConnectionService", () => {
       instanceName: "Windows Testbench",
       platform: "win32",
       architecture: "x64",
-      version: "0.1.8",
+      version: PackageMetadata.VERSION,
       url: "http://windows.test",
       clientId: "client",
       clientName: "Mac",
@@ -52,10 +53,13 @@ describe("RemoteConnectionService", () => {
   it("rejects an incompatible product version before making a network request", async () => {
     directory = await mkdtemp(join(tmpdir(), "browser-testbench-connections-"));
     const connections = new RemoteConnectionService(new RemoteCredentialStore(join(directory, "credentials.json")));
-    const incompatible = { ...instance("windows", "Windows Testbench"), version: "0.2.0" };
+    const incompatibleVersion = incompatibleProductVersion();
+    const incompatible = { ...instance("windows", "Windows Testbench"), version: incompatibleVersion };
     const fetchMock = vi.spyOn(globalThis, "fetch");
 
-    await expect(connections.connect(incompatible)).rejects.toThrow("incompatible product version 0.2.0");
+    await expect(connections.connect(incompatible)).rejects.toThrow(
+      `incompatible product version ${incompatibleVersion}`,
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -90,8 +94,13 @@ function instance(instanceId: string, name: string): RemoteInstance {
     url: `http://${instanceId}.test`,
     platform: "win32",
     architecture: "x64",
-    version: "0.1.8",
+    version: PackageMetadata.VERSION,
     apiVersion: 1,
     authentication: "pairing",
   };
+}
+
+function incompatibleProductVersion(): string {
+  const [major = 0, minor = 0] = PackageMetadata.VERSION.split(".").map(Number);
+  return major === 0 ? `0.${minor + 1}.0` : `${major + 1}.0.0`;
 }
