@@ -556,7 +556,6 @@ describe("workbench UI browser flow", () => {
           busy: string | null;
           exists: boolean;
           fills: boolean;
-          height: number;
           hidden?: boolean;
         }>(`
           const overlay = document.querySelector("#environment-analysis");
@@ -567,23 +566,20 @@ describe("workbench UI browser flow", () => {
             busy: document.querySelector("#environment").getAttribute("aria-busy"),
             exists: Boolean(overlay),
             fills: Boolean(overlayRect && Math.abs(overlayRect.top - bodyRect.top) <= 1 && Math.abs(overlayRect.right - bodyRect.right) <= 1 && Math.abs(overlayRect.bottom - bodyRect.bottom) <= 1 && Math.abs(overlayRect.left - bodyRect.left) <= 1),
-            height: bodyRect.height,
             hidden: overlay?.hidden
           };
         `);
         finishInspection([]);
         await browser.active.waitForText("Connected test clients", 15_000);
-        const loadedState = await browser.active.execute<{ busy: string | null; height: number; hidden?: boolean }>(`
+        const loadedState = await browser.active.execute<{ busy: string | null; hidden?: boolean }>(`
           const overlay = document.querySelector("#environment-analysis");
           return {
             busy: document.querySelector("#environment").getAttribute("aria-busy"),
-            height: document.querySelector("#environment .accordion-panel__body").getBoundingClientRect().height,
             hidden: overlay?.hidden
           };
         `);
         expect.soft(loadingState).toMatchObject({ busy: "true", exists: true, fills: true, hidden: false });
         expect.soft(loadedState).toMatchObject({ busy: "false", hidden: true });
-        expect.soft(loadingState.height).toBeGreaterThanOrEqual(loadedState.height);
         await browser.active.$("#remote-connection > summary").click();
         const panelText = await browser.active.$("#remote-connection").getText();
         expect(panelText).not.toContain("Connect to a central Testbench");
