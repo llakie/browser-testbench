@@ -18,17 +18,12 @@ import {
   type WaitRequest,
 } from "../config/input-schemas.js";
 import type { DoctorCheck, TargetDefinition, TestTargetInfo, VerificationResult } from "../config/types.js";
-import type { ConnectionStatus } from "../remote/remote-connection-service.js";
-import type { RemoteInstance, RemoteRole } from "../remote/remote-types.js";
+import type { ConnectionStatus, PairingRequired, RemoteInstance, RemoteRole } from "../remote/remote-types.js";
 import type { SetupAction } from "../setup/setup-types.js";
 
 export type { SetupAction } from "../setup/setup-types.js";
 
-export interface PairingRequired {
-  pairingRequired: true;
-  pairingId: string;
-  expiresAt: string;
-}
+export type { PairingRequired } from "../remote/remote-types.js";
 
 export { BrowserOrientation, PinchDirection, SwipeDirection };
 export type {

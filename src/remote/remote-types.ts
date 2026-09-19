@@ -24,6 +24,18 @@ export interface RemoteClientCredential {
   secret: string;
 }
 
+export interface ConnectionStatus {
+  mode: "local" | "remote";
+  remote?: Omit<RemoteClientCredential, "secret">;
+  reachable?: boolean;
+}
+
+export interface PairingRequired {
+  pairingRequired: true;
+  pairingId: string;
+  expiresAt: string;
+}
+
 export interface AuthorizedRemoteClient {
   clientId: string;
   name: string;

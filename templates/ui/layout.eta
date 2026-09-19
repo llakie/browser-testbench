@@ -8,13 +8,12 @@
     <link rel="stylesheet" href="/fontawesome/css/fontawesome.min.css" />
     <link rel="stylesheet" href="/fontawesome/css/solid.min.css" />
     <link rel="stylesheet" href="/ui-assets/setup.css" />
-    <script type="module" src="/ui-assets/app-shell.js"></script>
     <% for (const script of it.scripts) { %>
     <script type="module" src="<%= script %>"></script>
     <% } %>
   </head>
   <body>
-    <div class="app-layout">
+    <div id="app" class="app-layout" data-page="<%= it.activePage %>" data-live-reload="<%= it.liveReload %>" v-cloak>
       <aside class="sidebar" id="sidebar" aria-label="Main navigation">
         <a class="sidebar__brand" href="/setup" aria-label="Browser Testbench home">
           <span class="brand__mark"><i class="fa-solid fa-flask-vial" aria-hidden="true"></i></span>
@@ -48,12 +47,12 @@
             class="sidebar__collapse"
             id="sidebar-collapse"
             type="button"
-            data-shell-control
-            aria-expanded="true"
-            aria-label="Collapse menu"
-            title="Collapse menu"
+            :aria-expanded="String(!sidebarCollapsed)"
+            :aria-label="sidebarCollapsed ? 'Expand menu' : 'Collapse menu'"
+            :title="sidebarCollapsed ? 'Expand menu' : 'Collapse menu'"
+            @click="toggleSidebar"
           >
-            <i class="fa-solid fa-angles-left" aria-hidden="true"></i>
+            <i :class="['fa-solid', sidebarCollapsed ? 'fa-angles-right' : 'fa-angles-left']" aria-hidden="true"></i>
           </button>
           <footer class="sidebar__footer">
             <nav class="sidebar__footer-links" aria-label="Status and legal">
@@ -78,21 +77,39 @@
         class="sidebar-backdrop"
         id="sidebar-backdrop"
         type="button"
-        data-shell-control
         aria-label="Close menu"
-        hidden
+        :hidden="!mobileMenuOpen"
+        @click="closeMobileMenu"
       ></button>
 
       <div class="app-content">
         <div class="app-header">
-          <div class="remote-banner" id="remote-banner" role="status" hidden>
+          <div class="remote-banner" id="remote-banner" role="status" :hidden="connection.mode !== 'remote'">
             <span
-              ><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i> <strong id="remote-banner-name"></strong
-              ><span id="remote-banner-detail"></span
-            ></span>
+              ><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i>
+              <strong id="remote-banner-name">{{ connection.remote?.instanceName }}</strong
+              ><span id="remote-banner-detail">{{ remoteBannerDetail }}</span></span
+            >
             <span class="remote-banner__actions">
-              <button class="button button--secondary" id="remote-banner-retry" type="button" hidden>Retry</button>
-              <button class="button button--secondary" id="remote-banner-disconnect" type="button">Disconnect</button>
+              <button
+                class="button button--secondary"
+                id="remote-banner-retry"
+                type="button"
+                v-if="connection.reachable === false"
+                :disabled="shellBusy"
+                @click="retryRemote"
+              >
+                Retry
+              </button>
+              <button
+                class="button button--secondary"
+                id="remote-banner-disconnect"
+                type="button"
+                :disabled="shellBusy"
+                @click="disconnectRemote"
+              >
+                Disconnect
+              </button>
             </span>
           </div>
           <header class="topbar">
@@ -100,30 +117,42 @@
               class="menu-toggle"
               id="menu-toggle"
               type="button"
-              data-shell-control
               aria-controls="sidebar"
-              aria-expanded="false"
+              :aria-expanded="String(mobileMenuOpen)"
+              @click="toggleMobileMenu"
             >
               <i class="fa-solid fa-bars" aria-hidden="true"></i><span class="visually-hidden">Open menu</span>
             </button>
             <a class="mobile-brand" href="/setup">Browser Testbench</a>
             <div class="topbar__actions">
               <div class="host-badge" id="host-badge" aria-live="polite">
-                <i class="fa-solid <%= it.badgeIcon %>" aria-hidden="true"></i> <%= it.badgeLabel %>
+                <i :class="['fa-solid', badgeIcon]" aria-hidden="true"></i> {{ badgeLabel }}
               </div>
               <% if (it.refreshEnvironment) { %>
-              <button class="button button--secondary topbar__refresh" id="refresh-environment" type="button">
-                <i class="fa-solid fa-rotate" aria-hidden="true"></i>
-                <span class="topbar__refresh-label">Check again</span>
+              <button
+                class="button button--secondary topbar__refresh"
+                id="refresh-environment"
+                type="button"
+                :disabled="store.busy"
+                @click="store.refresh({ analyze: true })"
+              >
+                <i :class="['fa-solid', store.loading ? 'fa-spinner fa-spin' : 'fa-rotate']" aria-hidden="true"></i>
+                <span class="topbar__refresh-label">{{ store.loading ? 'Checking …' : 'Check again' }}</span>
               </button>
               <% } %>
             </div>
           </header>
         </div>
 
-        <main class="shell page-content"><%~ it.content %></main>
+        <main class="shell page-content" :aria-busy="String(store.loading)"><%~ it.content %></main>
         <% if (it.refreshEnvironment) { %>
-        <div class="content-analysis" id="environment-analysis" role="status" aria-live="polite">
+        <div
+          class="content-analysis"
+          id="environment-analysis"
+          role="status"
+          aria-live="polite"
+          :hidden="!store.analyzing"
+        >
           <div class="content-analysis__content">
             <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
             <strong>Please wait</strong>

@@ -102,6 +102,7 @@ export class ApiServer {
       connections: this.connections,
       notifyConnectionChanged: () => this.notifyConnectionChanged(),
       closeOwned: (ownerId) => this.closeOwnedAndCleanup(ownerId),
+      isClientConnected: (clientId) => this.clientLeases.has(clientId),
     });
     this.eventStream = new WorkbenchEventStream(this.events);
     this.androidMonitor =
@@ -114,6 +115,7 @@ export class ApiServer {
       this.liveReload = new UiLiveReload([
         join(TestbenchPaths.projectRoot, "templates", "ui"),
         join(TestbenchPaths.projectRoot, "public", "ui"),
+        join(TestbenchPaths.projectRoot, "dist", "public", "ui"),
       ]);
     }
     this.app.disable("x-powered-by");
@@ -186,6 +188,7 @@ export class ApiServer {
       response.sendFile(join(TestbenchPaths.projectRoot, "THIRD_PARTY_LICENSES.txt")),
     );
     if (this.liveReload) this.app.get("/ui-live-reload", (_request, response) => this.connectLiveReload(response));
+    this.app.use("/ui-assets", express.static(join(TestbenchPaths.projectRoot, "dist", "public", "ui")));
     this.app.use(
       "/ui-assets",
       express.static(join(TestbenchPaths.projectRoot, "public", "ui"), {
@@ -278,20 +281,20 @@ export class ApiServer {
       response.json(this.remoteApi.visibleHostDetails(request, await this.workbench.capabilities())),
     );
     this.app.post("/v1/verify", async (request, response) => {
-      response.json(
-        await TargetVerificationService.run(
-          this.sessions,
-          InputSchemas.verification.parse(request.body),
-          this.ownerId(request),
-        ),
+      const result = await TargetVerificationService.run(
+        this.sessions,
+        InputSchemas.verification.parse(request.body),
+        this.ownerId(request),
       );
+      this.notifyWorkbenchChanged("session");
+      response.json(result);
     });
     this.app.get("/v1/workbench", async (request, response) => {
       const state = await this.workbench.state();
       response.json(
         this.remoteApi.visibleHostDetails(request, {
           ...state,
-          testTargets: (state.testTargets as Array<{ id: string; serial: boolean }>).map((target) => ({
+          testTargets: state.testTargets.map((target) => ({
             ...target,
             busy: target.serial && this.sessions.isTargetBusy(target.id),
           })),
@@ -302,7 +305,9 @@ export class ApiServer {
     this.app.post("/v1/workbench/setup", async (request, response) => {
       if (!this.requireAdmin(request, response)) return;
       const input = InputSchemas.setup.parse(request.body);
-      response.json(await SetupService.install(input.targets));
+      const result = await SetupService.install(input.targets);
+      this.notifyWorkbenchChanged("setup");
+      response.json(result);
     });
     this.app.post("/v1/workbench/plan", async (request, response) => {
       const input = InputSchemas.setup.parse(request.body);
@@ -311,7 +316,9 @@ export class ApiServer {
     this.app.post("/v1/workbench/mcp", async (request, response) => {
       if (!this.requireAdmin(request, response)) return;
       const input = InputSchemas.mcpIntegration.parse(request.body);
-      response.json(await McpIntegrationService.register(input.client));
+      const result = await McpIntegrationService.register(input.client);
+      this.notifyWorkbenchChanged("mcp");
+      response.json(result);
     });
     this.app.get("/v1/sessions", (request, response) => response.json(this.sessions.list(this.ownerId(request))));
     this.app.post("/v1/sessions", async (request, response) => {
@@ -329,6 +336,7 @@ export class ApiServer {
       try {
         const session = await this.sessions.start(prepared.input, this.ownerId(request));
         this.artifactHost.track(session.id, prepared.directory);
+        this.notifyWorkbenchChanged("session");
         response.status(201).json(session);
       } catch (error) {
         if (prepared.directory) await this.artifactHost.discard(prepared.directory);
@@ -344,6 +352,7 @@ export class ApiServer {
         throw error;
       }
       const artifact = await this.artifactHost.completeSession(request.params.id, result);
+      this.notifyWorkbenchChanged("session");
       if ("path" in artifact) {
         try {
           await this.sendArtifact(response, artifact);
@@ -475,6 +484,10 @@ export class ApiServer {
     this.events.publish({ type: "connection.changed", source: "remote", occurredAt: new Date().toISOString() });
   }
 
+  private notifyWorkbenchChanged(source: "session" | "setup" | "mcp"): void {
+    this.events.publish({ type: "workbench.changed", source, occurredAt: new Date().toISOString() });
+  }
+
   private ownerId(request: Request): string {
     return this.remoteApi.ownerId(request);
   }
@@ -493,15 +506,20 @@ export class ApiServer {
   }
 
   private refreshClientLease(clientId: string): void {
+    const connected = this.clientLeases.has(clientId);
     clearTimeout(this.clientLeases.get(clientId));
     const lease = setTimeout(() => {
       this.clientLeases.delete(clientId);
-      void this.closeOwnedAndCleanup(clientId).catch((error) =>
-        console.error(`Remote client cleanup failed: ${error instanceof Error ? error.message : error}`),
-      );
+      this.notifyConnectionChanged();
+      void this.closeOwnedAndCleanup(clientId)
+        .then(() => this.notifyWorkbenchChanged("session"))
+        .catch((error) =>
+          console.error(`Remote client cleanup failed: ${error instanceof Error ? error.message : error}`),
+        );
     }, TestbenchDefaults.REMOTE_LEASE_TIMEOUT_MS);
     lease.unref();
     this.clientLeases.set(clientId, lease);
+    if (!connected) this.notifyConnectionChanged();
   }
 
   private async closeOwnedAndCleanup(ownerId: string): Promise<void> {

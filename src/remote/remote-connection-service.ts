@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { WorkbenchEventType } from "../setup/workbench-events.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { PackageMetadata } from "../config/package-metadata.js";
 import { RemoteApiClient, RemoteApiError } from "./remote-api-client.js";
@@ -6,6 +7,7 @@ import { RemoteCredentialStore } from "./remote-client-store.js";
 import { RemoteCrypto, type EphemeralKeyPair } from "./remote-crypto.js";
 import type {
   AuthorizedRemoteClient,
+  ConnectionStatus,
   EncryptedCredential,
   PairingChallenge,
   RemoteClientCredential,
@@ -24,19 +26,13 @@ interface PendingConnection {
   failedAttempts: number;
 }
 
-export interface ConnectionStatus {
-  mode: "local" | "remote";
-  remote?: Omit<RemoteClientCredential, "secret">;
-  reachable?: boolean;
-}
-
 export class RemoteConnectionService {
   private activeCredential?: RemoteClientCredential;
   private readonly pending = new Map<string, PendingConnection>();
   private heartbeat?: NodeJS.Timeout;
   private eventsAbort?: AbortController;
   private reachable?: boolean;
-  private eventHandler?: (type: "environment.changed" | "connection.changed") => void;
+  private eventHandler?: (type: WorkbenchEventType) => void;
 
   constructor(private readonly credentials = new RemoteCredentialStore()) {}
 
@@ -61,7 +57,7 @@ export class RemoteConnectionService {
     return this.status();
   }
 
-  onEvent(handler: (type: "environment.changed" | "connection.changed") => void): void {
+  onEvent(handler: (type: WorkbenchEventType) => void): void {
     this.eventHandler = handler;
   }
 
@@ -314,7 +310,7 @@ export class RemoteConnectionService {
       .find((line) => line.startsWith("event:"))
       ?.slice(6)
       .trim();
-    if (type === "environment.changed") this.eventHandler?.(type);
+    if (type === "environment.changed" || type === "workbench.changed") this.eventHandler?.(type);
     if (type === "connection.changed") {
       const previousRole = this.activeCredential?.role;
       try {

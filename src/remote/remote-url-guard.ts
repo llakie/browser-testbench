@@ -32,7 +32,7 @@ export class RemoteUrlGuard {
     );
   }
 
-  private static lanAddress(): string | undefined {
+  static lanAddress(): string | undefined {
     for (const addresses of Object.values(networkInterfaces())) {
       const address = addresses?.find((candidate) => candidate.family === "IPv4" && !candidate.internal);
       if (address) return address.address;

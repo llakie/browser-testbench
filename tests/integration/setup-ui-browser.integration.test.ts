@@ -28,6 +28,7 @@ describe("workbench UI browser flow", () => {
     "navigates the responsive app shell and operates the workbench pages",
     async () => {
       let androidConnected = true;
+      let androidName = "Pixel 8";
       vi.spyOn(DoctorService, "inspect").mockImplementation(async () =>
         TARGET_NAMES.map((id) => {
           const android = id === "chrome-android";
@@ -48,7 +49,7 @@ describe("workbench UI browser flow", () => {
                   devices: [
                     {
                       id: "R5CT1234",
-                      name: "Pixel 8",
+                      name: androidName,
                       platformVersion: "16",
                       state: "Connected",
                       deviceKind: "physical" as const,
@@ -56,7 +57,7 @@ describe("workbench UI browser flow", () => {
                       config: {
                         name: "chrome-android" as const,
                         deviceKind: "physical" as const,
-                        deviceName: "Pixel 8",
+                        deviceName: androidName,
                         platformVersion: "16",
                         udid: "R5CT1234",
                       },
@@ -110,11 +111,7 @@ describe("workbench UI browser flow", () => {
         await browser.active.setWindowRect(500, 812);
         await browser.navigate(`${baseUrl}/setup`);
         await browser.active.waitForText("Google Chrome", 15_000);
-        expect(
-          await browser.active.execute(
-            "return Boolean(document.querySelector('script[src=\"/ui-assets/live-reload.js\"]'))",
-          ),
-        ).toBe(true);
+        expect(await browser.active.execute("return document.querySelector('#app').dataset.liveReload")).toBe("true");
 
         expect(await browser.active.$("#host-badge").getText()).toContain(platformLabel);
         expect(await browser.active.$("#remote-connection").getText()).toContain("Connect to a central Testbench");
@@ -146,7 +143,9 @@ describe("workbench UI browser flow", () => {
           window.__bannerAuthorization = "";
           window.fetch = async (path, options = {}) => {
             if (String(path) !== "/v1/connections/status") return window.__appShellFetch(path, options);
-            window.__bannerAuthorization = options.headers?.authorization ?? "";
+            window.__bannerAuthorization = options.headers instanceof Headers
+              ? options.headers.get("authorization") ?? ""
+              : options.headers?.authorization ?? "";
             return new Response(JSON.stringify({
               mode: "remote",
               reachable: false,
@@ -221,9 +220,11 @@ describe("workbench UI browser flow", () => {
         await browser.active.execute(
           "window.__previousDeviceDetails = document.querySelector('.check-card--device .device-options')",
         );
+        androidName = "Pixel 8 Pro";
         events.publish({ type: "environment.changed", source: "android", occurredAt: new Date().toISOString() });
+        await browser.active.waitForText("Pixel 8 Pro", 15_000);
         await browser.active.waitForScript(
-          "return !window.__previousDeviceDetails.isConnected && document.querySelector('.check-card--device .device-options').open",
+          "return window.__previousDeviceDetails.isConnected && document.querySelector('.check-card--device .device-options').open",
           [],
           15_000,
         );
@@ -274,6 +275,9 @@ describe("workbench UI browser flow", () => {
         );
 
         await browser.navigate(`${baseUrl}/targets`);
+        expect(await browser.active.execute("return document.querySelector('#debug-url').placeholder")).toBe(
+          "http://127.0.0.1:3000",
+        );
         expect(
           await browser.active.execute("return Boolean(document.querySelector('#debug-target + .fa-chevron-down'))"),
         ).toBe(true);
@@ -622,6 +626,9 @@ describe("workbench UI browser flow", () => {
         const code = announcements[0]!.match(/\d{6}$/)?.[0];
         const connected = await testbench.completePairing((pairing as { pairingId: string }).pairingId, code!);
 
+        await browser.active.waitForText(connected.remote!.clientName, 15_000);
+        expect(await browser.active.$("#remote-client-list").getText()).toContain("connected");
+
         await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/setup`);
         await browser.active.waitForText(identity.name, 15_000);
         await vi.waitFor(
@@ -632,6 +639,25 @@ describe("workbench UI browser flow", () => {
           { timeout: 15_000 },
         );
         expect(await browser.active.execute("return document.querySelector('#remote-connection').hidden")).toBe(true);
+
+        await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/targets`);
+        await browser.active.$("#debug-url").waitForDisplayed({ timeout: 15_000 });
+        const gatewayWorkbench = (await fetch(`http://${gatewayAddress.host}:${gatewayAddress.port}/v1/workbench`).then(
+          (response) => response.json(),
+        )) as { localNetworkAddress?: string };
+        const expectedApplicationUrl = gatewayWorkbench.localNetworkAddress
+          ? `http://${gatewayWorkbench.localNetworkAddress}:3000`
+          : "http://YOUR-LAN-IP:3000";
+        expect(await browser.active.execute("return document.querySelector('#debug-url').placeholder")).toBe(
+          expectedApplicationUrl,
+        );
+        expect(await browser.active.$("#local-network-address").getText()).toContain(
+          gatewayWorkbench.localNetworkAddress ?? "this computer's LAN address",
+        );
+        expect(await browser.active.$("#project-client-example").getText()).toContain(expectedApplicationUrl);
+
+        await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/setup`);
+        await browser.active.waitForText(identity.name, 15_000);
 
         await browser.active.execute(`
           window.__promptCalls = 0;

@@ -138,7 +138,12 @@ If multicast discovery is blocked by a firewall, VPN, or subnet boundary, use
 platform-specific Browser Testbench user-data directory, never in the repository. Use `--gateway` only when the
 local gateway itself does not run at its default URL.
 
-While connected, the existing pages and commands show remote capabilities and targets. A control pairing can run tests, sessions, screenshots, and diagnostics; remote installation and configuration controls are disabled. An admin pairing additionally permits setup and management of paired clients. Multiple clients may use different targets concurrently. A serial device displays only `Busy`; requests wait FIFO for up to 60 seconds by default, or fail immediately with `lockTimeoutMs: 0`.
+While connected, the existing pages and commands show remote capabilities and targets. The UI updates connection,
+device, target, and setup state automatically. On the remote host, **Paired clients** also shows which clients are
+currently connected. A control pairing can run tests, sessions, screenshots, and diagnostics; remote installation
+and configuration controls are disabled. An admin pairing additionally permits setup and management of paired
+clients. Multiple clients may use different targets concurrently. A serial device displays only `Busy`; requests
+wait FIFO for up to 60 seconds by default, or fail immediately with `lockTimeoutMs: 0`.
 
 Remote browsers cannot reach an application on the development machine through a loopback URL such as
 `http://127.0.0.1:5173`: on the remote host, that address refers to the remote host itself. Bind the application to

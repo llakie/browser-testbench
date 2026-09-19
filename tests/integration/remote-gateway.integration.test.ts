@@ -117,6 +117,11 @@ describe("remote gateway", () => {
       body: JSON.stringify({ role: "admin" }),
     });
     await vi.waitFor(() => expect(connections.status()).toMatchObject({ remote: { role: "admin" } }));
+    await expect(
+      signedRemote.request<Array<{ clientId: string; connected: boolean }>>("/v1/remote/clients"),
+    ).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ clientId: connected.remote!.clientId, connected: true })]),
+    );
     expect(JSON.stringify(await testbench.request("/v1/workbench"))).toContain("Program Files");
     await expect(testbench.request("/v1/sessions/missing", { method: "DELETE" })).rejects.toThrow(
       "Session 'missing' was not found.",

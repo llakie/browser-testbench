@@ -22,6 +22,7 @@ interface RemoteApiControllerOptions {
   connections: RemoteConnectionService;
   notifyConnectionChanged: () => void;
   closeOwned: (ownerId: string) => Promise<void>;
+  isClientConnected: (clientId: string) => boolean;
 }
 
 export class RemoteApiController {
@@ -110,6 +111,7 @@ export class RemoteApiController {
       response.json({
         ...remoteState,
         mcpClients,
+        localNetworkAddress: RemoteUrlGuard.lanAddress(),
         connection: { ...this.options.connections.status(), reachable: true },
         permissions: { control: true, configure: this.options.connections.status().remote?.role === "admin" },
         remoteMode: false,
@@ -167,11 +169,12 @@ export class RemoteApiController {
   async workbenchContext(request: Request): Promise<Record<string, unknown>> {
     const principal = this.options.authentication.principal(request);
     return {
+      localNetworkAddress: RemoteUrlGuard.lanAddress(),
       connection: this.options.connections.status(),
       permissions: { control: true, configure: !this.options.remote || principal.role === "admin" },
       remoteMode: this.options.remote,
       pairingRequests: this.options.remote && principal.local ? this.options.pairing.list() : [],
-      authorizedClients: principal.role === "admin" ? await this.options.clients.list() : [],
+      authorizedClients: principal.role === "admin" ? await this.authorizedClients() : [],
     };
   }
 
@@ -192,7 +195,7 @@ export class RemoteApiController {
     app.get("/v1/remote/clients", async (request, response) => {
       if (!this.requireAdmin(request, response)) return;
       const remote = this.options.remote ? undefined : this.options.connections.client();
-      response.json(remote ? await remote.request("/v1/remote/clients") : await this.options.clients.list());
+      response.json(remote ? await remote.request("/v1/remote/clients") : await this.authorizedClients());
     });
     app.get("/v1/remote/me", (request, response) => {
       const principal = this.options.authentication.principal(request);
@@ -251,6 +254,13 @@ export class RemoteApiController {
         "/v1/sessions",
       ].includes(path) || path.startsWith("/v1/sessions/")
     );
+  }
+
+  private async authorizedClients(): Promise<Array<Record<string, unknown>>> {
+    return (await this.options.clients.list()).map((client) => ({
+      ...client,
+      connected: this.options.isClientConnected(client.clientId),
+    }));
   }
 
   private async assertRemoteResponse(response: globalThis.Response): Promise<void> {

@@ -4,6 +4,7 @@ import { TARGET_NAMES } from "../../src/config/types.js";
 import { TestbenchDefaults } from "../../src/config/defaults.js";
 import { SessionManager } from "../../src/automation/session-manager.js";
 import { RemoteRequestAuthentication } from "../../src/remote/remote-request-authentication.js";
+import { RemoteUrlGuard } from "../../src/remote/remote-url-guard.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
 import { SetupService } from "../../src/setup/setup-service.js";
@@ -115,9 +116,9 @@ describe("ApiServer", () => {
     );
     expect((await fetch(`${baseUrl}/licenses`)).status).toBe(404);
     expect((await fetch(`${baseUrl}/ui-assets/setup.css`)).status).toBe(200);
-    expect(await fetch(`${baseUrl}/ui-assets/environment-events.js`).then((response) => response.text())).toContain(
-      "EnvironmentEventStream",
-    );
+    expect((await fetch(`${baseUrl}/ui-assets/app.js`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/vendor/vue.js`)).status).toBe(404);
+    expect((await fetch(`${baseUrl}/ui-assets/setup.js`)).status).toBe(404);
 
     const initial = (await fetch(`${baseUrl}/v1/workbench`).then((response) => response.json())) as {
       platform: string;
@@ -126,6 +127,7 @@ describe("ApiServer", () => {
       mcpClients: Array<{ id: string }>;
       clientInstallCommand: string;
       packageName: string;
+      localNetworkAddress?: string;
     };
     expect(initial.platform).toBe(process.platform);
     expect(initial.targets.map((target) => target.name)).toEqual([
@@ -146,6 +148,7 @@ describe("ApiServer", () => {
     ]);
     expect(initial.clientInstallCommand).toBe("npm install --save-dev browser-testbench");
     expect(initial.packageName).toBe("browser-testbench");
+    expect(initial.localNetworkAddress).toBe(RemoteUrlGuard.lanAddress());
 
     const capabilities = (await fetch(`${baseUrl}/v1/capabilities`).then((response) => response.json())) as {
       platform: string;
@@ -165,7 +168,7 @@ describe("ApiServer", () => {
     const asset = await fetch(`${baseUrl}/ui-assets/setup.css`);
 
     expect(page.headers.get("cache-control")).toBe("no-store");
-    expect(await page.text()).toContain("/ui-assets/live-reload.js");
+    expect(await page.text()).toContain('data-live-reload="true"');
     expect(asset.headers.get("cache-control")).toBe("no-store");
   });
 
