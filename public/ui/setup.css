@@ -36,7 +36,6 @@
   --space-5: 2rem;
   --space-6: 3rem;
   --content-flow-space: var(--space-3);
-  --environment-panel-min-height: 54rem;
   --control-size: 2.75rem;
   --sidebar-width: 17rem;
   --sidebar-collapsed-width: 4.75rem;
@@ -407,6 +406,14 @@ a {
   backdrop-filter: blur(18px);
 }
 
+.topbar__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -452,6 +459,8 @@ a {
 }
 
 .shell {
+  position: relative;
+  isolation: isolate;
   width: min(74rem, calc(100% - 2rem));
   margin: 0 auto;
   padding: var(--space-6) 0;
@@ -561,32 +570,28 @@ h3 {
   border-top: 1px solid var(--color-line);
 }
 
-.environment-panel__body {
-  position: relative;
-  min-height: var(--environment-panel-min-height);
-}
-
-.environment-analysis {
+.content-analysis {
   position: absolute;
+  z-index: var(--layer-overlay);
   inset: 0;
   display: grid;
   place-items: center;
   color: var(--color-ink-muted);
   text-align: center;
-  background: var(--color-surface);
+  background: var(--color-canvas);
 }
 
-.environment-analysis__content {
+.content-analysis__content {
   display: grid;
   justify-items: center;
   gap: var(--space-2);
 }
 
-.environment-analysis__content i {
+.content-analysis__content i {
   color: var(--color-primary);
 }
 
-.environment-analysis__content strong {
+.content-analysis__content strong {
   color: var(--color-ink);
 }
 
@@ -1291,6 +1296,10 @@ select:focus {
     font-size: 0.72rem;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .topbar__refresh-label {
+    display: none;
   }
 
   .shell {
