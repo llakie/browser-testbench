@@ -43,6 +43,7 @@
   --layer-navigation: 30;
   --layer-overlay: 20;
   --layer-topbar: 10;
+  --layer-content-overlay: 5;
   --transition: 160ms ease;
   --reduced-motion-duration: 0.01ms;
   font-family:
@@ -79,12 +80,17 @@ body {
 }
 
 .app-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
   min-width: 0;
+  min-height: 100vh;
 }
 
 .app-header {
   position: sticky;
   z-index: var(--layer-topbar);
+  grid-row: 1;
   top: 0;
 }
 
@@ -459,8 +465,8 @@ a {
 }
 
 .shell {
-  position: relative;
-  isolation: isolate;
+  grid-row: 2;
+  grid-column: 1;
   width: min(74rem, calc(100% - 2rem));
   margin: 0 auto;
   padding: var(--space-6) 0;
@@ -571,10 +577,15 @@ h3 {
 }
 
 .content-analysis {
-  position: absolute;
-  z-index: var(--layer-overlay);
-  inset: 0;
+  position: sticky;
+  z-index: var(--layer-content-overlay);
+  top: 0;
+  grid-row: 2;
+  grid-column: 1;
   display: grid;
+  height: 100vh;
+  align-self: start;
+  justify-self: stretch;
   place-items: center;
   color: var(--color-ink-muted);
   text-align: center;

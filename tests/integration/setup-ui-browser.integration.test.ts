@@ -556,18 +556,22 @@ describe("workbench UI browser flow", () => {
           busy: string | null;
           exists: boolean;
           fills: boolean;
+          messageVisible: boolean;
           refreshInHeader: boolean;
           hidden?: boolean;
         }>(`
           const overlay = document.querySelector("#environment-analysis");
           const content = document.querySelector(".page-content");
+          const appContent = document.querySelector(".app-content");
           const overlayRect = overlay?.getBoundingClientRect();
-          const contentRect = content.getBoundingClientRect();
+          const appContentRect = appContent.getBoundingClientRect();
           const headerRect = document.querySelector(".app-header").getBoundingClientRect();
+          const messageRect = document.querySelector(".content-analysis__content").getBoundingClientRect();
           return {
             busy: content.getAttribute("aria-busy"),
             exists: Boolean(overlay),
-            fills: Boolean(overlayRect && Math.abs(overlayRect.top - contentRect.top) <= 1 && Math.abs(overlayRect.right - contentRect.right) <= 1 && Math.abs(overlayRect.bottom - contentRect.bottom) <= 1 && Math.abs(overlayRect.left - contentRect.left) <= 1 && overlayRect.top >= headerRect.bottom),
+            fills: Boolean(overlayRect && Math.abs(overlayRect.left - appContentRect.left) <= 1 && Math.abs(overlayRect.right - appContentRect.right) <= 1 && Math.abs(overlayRect.height - window.innerHeight) <= 1 && overlayRect.top >= headerRect.bottom - 1),
+            messageVisible: messageRect.top >= headerRect.bottom && messageRect.bottom <= window.innerHeight,
             refreshInHeader: Boolean(document.querySelector(".topbar > .topbar__actions > #refresh-environment")),
             hidden: overlay?.hidden
           };
@@ -585,6 +589,7 @@ describe("workbench UI browser flow", () => {
           busy: "true",
           exists: true,
           fills: true,
+          messageVisible: true,
           refreshInHeader: true,
           hidden: false,
         });

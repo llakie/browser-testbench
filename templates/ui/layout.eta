@@ -122,6 +122,15 @@
         </div>
 
         <main class="shell page-content"><%~ it.content %></main>
+        <% if (it.refreshEnvironment) { %>
+        <div class="content-analysis" id="environment-analysis" role="status" aria-live="polite">
+          <div class="content-analysis__content">
+            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+            <strong>Please wait</strong>
+            <span>Analyzing the system environment …</span>
+          </div>
+        </div>
+        <% } %>
       </div>
     </div>
   </body>
