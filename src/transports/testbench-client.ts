@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { TestbenchDefaults } from "../config/defaults.js";
+import { TargetRegistry } from "../config/target-registry.js";
 import {
   BrowserOrientation,
   PinchDirection,
@@ -173,6 +174,9 @@ export class RemoteTestbench {
     const started = await this.request<StartedSession>("/v1/sessions", {
       method: "POST",
       body: JSON.stringify(input),
+      ...(TargetRegistry.isMobileTargetId(input.target)
+        ? { timeoutMs: TestbenchDefaults.MOBILE_SESSION_REQUEST_TIMEOUT_MS }
+        : {}),
     });
     return new RemoteSession(this, started);
   }
@@ -181,6 +185,9 @@ export class RemoteTestbench {
     return this.request<VerificationResult>("/v1/verify", {
       method: "POST",
       body: JSON.stringify({ target, ...options }),
+      ...(TargetRegistry.isMobileTargetId(target)
+        ? { timeoutMs: TestbenchDefaults.MOBILE_SESSION_REQUEST_TIMEOUT_MS }
+        : {}),
     });
   }
 

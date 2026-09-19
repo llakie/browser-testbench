@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { TargetRegistry } from "../../src/config/target-registry.js";
-import { TARGET_NAMES } from "../../src/config/types.js";
+import { TARGET_NAMES, type DoctorCheck } from "../../src/config/types.js";
 import { BrowserSession } from "../../src/automation/browser-session.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
@@ -278,6 +278,10 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.execute("return document.querySelector('#debug-url').placeholder")).toBe(
           "http://127.0.0.1:3000",
         );
+        expect(await browser.active.$("#test-target-list").getText()).toContain("Ready on this machine");
+        expect(await browser.active.$("#test-target-list").getText()).toContain(
+          "Not available on this operating system",
+        );
         expect(
           await browser.active.execute("return Boolean(document.querySelector('#debug-target + .fa-chevron-down'))"),
         ).toBe(true);
@@ -518,8 +522,8 @@ describe("workbench UI browser flow", () => {
   browserTest(
     "presents remote host administration instead of connection controls",
     async () => {
-      let finishInspection!: (checks: []) => void;
-      const inspection = new Promise<[]>((resolve) => {
+      let finishInspection!: (checks: DoctorCheck[]) => void;
+      const inspection = new Promise<DoctorCheck[]>((resolve) => {
         finishInspection = resolve;
       });
       vi.spyOn(DoctorService, "inspect").mockReturnValue(inspection);
@@ -580,7 +584,20 @@ describe("workbench UI browser flow", () => {
             hidden: overlay?.hidden
           };
         `);
-        finishInspection([]);
+        finishInspection([
+          {
+            id: "chrome",
+            label: "Google Chrome",
+            status: "ready",
+            detail: "Browser integration fixture",
+          },
+          {
+            id: "firefox",
+            label: "Mozilla Firefox",
+            status: "skip",
+            detail: "Browser integration fixture",
+          },
+        ]);
         await browser.active.waitForText("Connected test clients", 15_000);
         const loadedState = await browser.active.execute<{ busy: string | null; hidden?: boolean }>(`
           const overlay = document.querySelector("#environment-analysis");
@@ -655,6 +672,10 @@ describe("workbench UI browser flow", () => {
           gatewayWorkbench.localNetworkAddress ?? "this computer's LAN address",
         );
         expect(await browser.active.$("#project-client-example").getText()).toContain(expectedApplicationUrl);
+        expect(await browser.active.$("#test-target-list").getText()).toContain("Ready on remote machine");
+        expect(await browser.active.$("#test-target-list").getText()).toContain(
+          "Not available on remote operating system",
+        );
 
         await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/setup`);
         await browser.active.waitForText(identity.name, 15_000);

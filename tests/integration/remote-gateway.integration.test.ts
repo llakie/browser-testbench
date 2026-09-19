@@ -11,6 +11,7 @@ import {
   RemoteHostIdentityStore,
 } from "../../src/remote/remote-client-store.js";
 import { RemoteConnectionService } from "../../src/remote/remote-connection-service.js";
+import { RemoteApiClient } from "../../src/remote/remote-api-client.js";
 import { RemotePairingService } from "../../src/remote/remote-pairing-service.js";
 import type { RemoteInstance } from "../../src/remote/remote-types.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
@@ -92,6 +93,15 @@ describe("remote gateway", () => {
     expect(JSON.stringify(await testbench.request("/v1/doctor"))).not.toContain("Program Files");
     expect(JSON.stringify(await testbench.capabilities())).not.toContain("Program Files");
     expect(JSON.stringify(await testbench.targets())).not.toContain("Program Files");
+    const mobileVerification = vi.spyOn(RemoteApiClient.prototype, "request").mockResolvedValue({
+      target: "chrome-android-pixel-8-16",
+      status: "passed",
+      durationMs: 1,
+      runtime: {},
+    });
+    await testbench.verify("chrome-android-pixel-8-16");
+    expect(mobileVerification).toHaveBeenCalledWith("/v1/verify", expect.objectContaining({ timeoutMs: 7 * 60_000 }));
+    mobileVerification.mockRestore();
     const signedRemote = connections.client()!;
     await expect(
       signedRemote.request("/v1/sessions", {

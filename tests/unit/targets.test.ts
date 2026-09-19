@@ -32,6 +32,8 @@ describe("TargetRegistry", () => {
       "appium:automationName": "UiAutomator2",
       "appium:avd": "Pixel_Test",
       "appium:adbExecTimeout": 120_000,
+      "appium:avdLaunchTimeout": 180_000,
+      "appium:avdReadyTimeout": 180_000,
       "appium:uiautomator2ServerInstallTimeout": 120_000,
     });
     expect(
@@ -68,6 +70,12 @@ describe("TargetRegistry", () => {
 
   it("selects platform-specific defaults without unsupported Apple targets on Windows", () => {
     expect(TargetRegistry.defaultTargets("win32")).toEqual(["chrome", "firefox", "edge", "chrome-android"]);
+  });
+
+  it("recognizes generated mobile target IDs", () => {
+    expect(TargetRegistry.isMobileTargetId("chrome-android-pixel-8-16")).toBe(true);
+    expect(TargetRegistry.isMobileTargetId("safari-ios-iphone-17-pro-26-5")).toBe(true);
+    expect(TargetRegistry.isMobileTargetId("chrome")).toBe(false);
   });
 
   it("includes all supported non-Apple targets on Linux", () => {

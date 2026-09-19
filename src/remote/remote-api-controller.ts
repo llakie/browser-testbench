@@ -2,6 +2,7 @@ import type { Express, NextFunction, Request, Response } from "express";
 import { InputSchemas, type StartSessionInput } from "../config/input-schemas.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { PackageMetadata } from "../config/package-metadata.js";
+import { TargetRegistry } from "../config/target-registry.js";
 import { McpIntegrationService } from "../setup/mcp-integration-service.js";
 import { RemoteArtifactGateway } from "./remote-artifact-transfer.js";
 import { RemoteApiError } from "./remote-api-client.js";
@@ -134,12 +135,17 @@ export class RemoteApiController {
       proxyBody = undefined;
     }
     const body = proxyBody === undefined ? undefined : JSON.stringify(proxyBody);
+    const mobileSessionRequest =
+      (request.path === "/v1/sessions" || request.path === "/v1/verify") &&
+      typeof originalBody?.target === "string" &&
+      TargetRegistry.isMobileTargetId(originalBody.target);
     const remoteRequest = {
       method: request.method,
       body: upload ? (upload.body as unknown as BodyInit) : body,
       bodyHash: upload?.bodyHash,
       headers: upload ? { "content-type": "application/octet-stream" } : undefined,
       ...(request.path === "/v1/workbench/setup" ? { timeoutMs: TestbenchDefaults.SETUP_REQUEST_TIMEOUT_MS } : {}),
+      ...(mobileSessionRequest ? { timeoutMs: TestbenchDefaults.MOBILE_SESSION_REQUEST_TIMEOUT_MS } : {}),
     };
     if (sessionMatch?.[2] === "browser" && originalBody?.action === "waitDownload") {
       const remoteResponse = await client.response(path, remoteRequest);

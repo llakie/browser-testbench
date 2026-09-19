@@ -90,11 +90,12 @@ for (const target of targets) {
     },
     availability(target: WorkbenchTestTarget): string {
       if (target.busy) return "Busy";
+      const remote = this.workbench?.connection.mode === "remote";
       return {
-        ready: "Ready on this machine",
+        ready: remote ? "Ready on remote machine" : "Ready on this machine",
         action: "Setup required",
         blocked: "Not available yet",
-        skip: "Not available on this operating system",
+        skip: remote ? "Not available on remote operating system" : "Not available on this operating system",
       }[target.status];
     },
     verification(target: WorkbenchTestTarget): VerificationState | undefined {

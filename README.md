@@ -233,7 +233,8 @@ For parallel execution, use `forEachTarget()`. Different devices can run in para
 `RemoteTestbench` connects to `http://127.0.0.1:55808` by default. Set a different address through
 `BROWSER_TESTBENCH_URL` or the constructor. Requests time out after 120 seconds by default; use
 `requestTimeoutMs` in the constructor or `timeoutMs` on `request()` to override this, and pass an `AbortSignal` to
-cancel an individual request. The client provides:
+cancel an individual request. Mobile session startup and verification allow seven minutes so a cold simulator or
+emulator can finish booting. The client provides:
 
 - `targets()`, `capabilities()`, and `availableTargets([...])`
 - `open({ target, url, ... })`
