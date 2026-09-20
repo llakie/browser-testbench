@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { WorkbenchEventType } from "../setup/workbench-events.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { PackageMetadata } from "../config/package-metadata.js";
+import { ClientVersion } from "../config/client-version.js";
 import { RemoteApiClient, RemoteApiError } from "./remote-api-client.js";
 import { RemoteCredentialStore } from "./remote-client-store.js";
 import { RemoteCrypto, type EphemeralKeyPair } from "./remote-crypto.js";
@@ -235,19 +236,10 @@ export class RemoteConnectionService {
   }
 
   private assertCompatibleProductVersion(instance: RemoteInstance): void {
-    const local = this.versionParts(PackageMetadata.VERSION);
-    const remote = this.versionParts(instance.version);
-    const compatible =
-      local && remote && local.major === remote.major && (local.major !== 0 || local.minor === remote.minor);
-    if (!compatible)
+    if (instance.version !== PackageMetadata.VERSION)
       throw new Error(
         `Remote Testbench '${instance.name}' uses incompatible product version ${instance.version}; this gateway uses ${PackageMetadata.VERSION}.`,
       );
-  }
-
-  private versionParts(version: string): { major: number; minor: number } | undefined {
-    const match = version.match(/^(\d+)\.(\d+)(?:\.|$)/);
-    return match ? { major: Number(match[1]), minor: Number(match[2]) } : undefined;
   }
 
   private startHeartbeat(): void {
@@ -379,7 +371,7 @@ export class RemoteConnectionService {
       response = await fetch(`${url}${path}`, {
         ...init,
         signal: AbortSignal.timeout(TestbenchDefaults.REMOTE_CONNECT_TIMEOUT_MS),
-        headers: { "content-type": "application/json", ...init.headers },
+        headers: ClientVersion.headers({ "content-type": "application/json", ...init.headers }),
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

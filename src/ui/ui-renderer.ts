@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { Eta } from "eta";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { RemoteUrlGuard } from "../remote/remote-url-guard.js";
+import { PackageMetadata } from "../config/package-metadata.js";
 
 const navigation = [
   { id: "dashboard", href: "/setup", label: "Overview", icon: "fa-gauge-high" },
@@ -71,6 +72,7 @@ export class UiRenderer {
       badgeIcon: "fa-circle-notch fa-spin",
       badgeLabel: "Checking system",
       liveReload,
+      version: PackageMetadata.VERSION,
       ...data,
       scripts: ["/ui-assets/app.js", ...((data.scripts as string[] | undefined) ?? [])],
     };

@@ -1,15 +1,22 @@
 const authorizationStorageKey = "browser-testbench-token";
+const clientVersion = document.querySelector<HTMLElement>("#app")?.dataset.version;
 
 export class ApiClient {
   static authorization(): string {
     return sessionStorage.getItem(authorizationStorageKey) ?? "";
   }
 
-  static async request<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
+  static headers(initial?: HeadersInit): Headers {
+    const headers = new Headers(initial);
     const authorization = this.authorization();
-    const headers = new Headers(options.headers);
-    if (options.body) headers.set("content-type", "application/json");
+    if (clientVersion) headers.set("x-browser-testbench-version", clientVersion);
     if (authorization) headers.set("authorization", `Bearer ${authorization}`);
+    return headers;
+  }
+
+  static async request<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
+    const headers = this.headers(options.headers);
+    if (options.body) headers.set("content-type", "application/json");
     const response = await fetch(path, { ...options, headers });
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     if (response.status === 401 && payload.error === "Unauthorized" && retry) {

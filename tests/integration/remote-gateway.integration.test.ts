@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InteractiveController } from "../../src/automation/interactive-controller.js";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TARGET_NAMES } from "../../src/config/types.js";
+import { ClientVersion } from "../../src/config/client-version.js";
 import {
   AuthorizedRemoteClientStore,
   RemoteCredentialStore,
@@ -63,7 +64,9 @@ describe("remote gateway", () => {
       "url"
     >;
     const discovered: RemoteInstance = { ...instance, url: remoteUrl };
-    expect(await fetch(`${remoteUrl}/v1/doctor`).then((response) => response.text())).toContain("C:\\\\Program Files");
+    expect(
+      await fetch(`${remoteUrl}/v1/doctor`, { headers: ClientVersion.headers() }).then((response) => response.text()),
+    ).toContain("C:\\\\Program Files");
 
     const connections = new RemoteConnectionService(new RemoteCredentialStore(join(directory, "credentials.json")));
     const gateway = new ApiServer(
@@ -123,7 +126,7 @@ describe("remote gateway", () => {
     ).rejects.toThrow("artifact transfer protocol");
     await fetch(`http://127.0.0.1:${remoteAddress.port}/v1/remote/clients/${connected.remote!.clientId}`, {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: ClientVersion.headers({ "content-type": "application/json" }),
       body: JSON.stringify({ role: "admin" }),
     });
     await vi.waitFor(() => expect(connections.status()).toMatchObject({ remote: { role: "admin" } }));
@@ -197,13 +200,14 @@ describe("remote gateway", () => {
 
     await fetch(`http://127.0.0.1:${remoteAddress.port}/v1/remote/clients/${connected.remote!.clientId}`, {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: ClientVersion.headers({ "content-type": "application/json" }),
       body: JSON.stringify({ role: "admin" }),
     });
     await vi.waitFor(() => expect(connections.status()).toMatchObject({ remote: { role: "admin" }, reachable: true }));
 
     await fetch(`http://127.0.0.1:${remoteAddress.port}/v1/remote/clients/${connected.remote!.clientId}`, {
       method: "DELETE",
+      headers: ClientVersion.headers(),
     });
     await vi.waitFor(async () => expect(await testbench.connection()).toEqual({ mode: "local" }));
     await expect(testbench.targets()).resolves.not.toHaveLength(0);

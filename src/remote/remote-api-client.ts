@@ -1,6 +1,7 @@
 import { RemoteRequestSigner } from "./remote-request-authentication.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import type { RemoteClientCredential } from "./remote-types.js";
+import { ClientVersion } from "../config/client-version.js";
 
 export interface RemoteApiRequestInit extends RequestInit {
   timeoutMs?: number;
@@ -37,6 +38,7 @@ export class RemoteApiClient {
         signal,
         headers: {
           ...(body ? { "content-type": "application/json" } : {}),
+          [ClientVersion.HEADER]: ClientVersion.CURRENT,
           ...RemoteRequestSigner.headers(this.credential, method, path, body, bodyHash),
           ...requestInit.headers,
         },

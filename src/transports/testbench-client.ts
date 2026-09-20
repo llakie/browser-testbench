@@ -21,6 +21,7 @@ import {
 import type { DoctorCheck, TargetDefinition, TestTargetInfo, VerificationResult } from "../config/types.js";
 import type { ConnectionStatus, PairingRequired, RemoteInstance, RemoteRole } from "../remote/remote-types.js";
 import type { SetupAction } from "../setup/setup-types.js";
+import { ClientVersion } from "../config/client-version.js";
 
 export type { SetupAction } from "../setup/setup-types.js";
 
@@ -224,6 +225,7 @@ export class RemoteTestbench {
         signal,
         headers: {
           ...(requestInit.body ? { "content-type": "application/json" } : {}),
+          [ClientVersion.HEADER]: ClientVersion.CURRENT,
           ...(this.options.token ? { authorization: `Bearer ${this.options.token}` } : {}),
           ...requestInit.headers,
         },

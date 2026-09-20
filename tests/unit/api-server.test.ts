@@ -9,6 +9,7 @@ import { DoctorService } from "../../src/setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
 import { SetupService } from "../../src/setup/setup-service.js";
 import { ApiServer } from "../../src/transports/api-server.js";
+import { ClientVersion } from "../../src/config/client-version.js";
 
 describe("ApiServer", () => {
   let server: ApiServer | undefined;
@@ -50,7 +51,7 @@ describe("ApiServer", () => {
     server = new ApiServer({ host: "127.0.0.1", port: 0 });
     const address = await server.start();
     const health = await fetch(`http://${address.host}:${address.port}/health`);
-    const targets = await fetch(`http://${address.host}:${address.port}/v1/targets`);
+    const targets = await apiFetch(`http://${address.host}:${address.port}/v1/targets`);
     expect(await health.json()).toEqual({ status: "ok" });
     expect((await targets.json()) as Array<{ id: string }>).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "chrome" })]),
@@ -138,7 +139,7 @@ describe("ApiServer", () => {
     expect((await fetch(`${baseUrl}/vendor/vue.js`)).status).toBe(404);
     expect((await fetch(`${baseUrl}/ui-assets/setup.js`)).status).toBe(404);
 
-    const initial = (await fetch(`${baseUrl}/v1/workbench`).then((response) => response.json())) as {
+    const initial = (await apiFetch(`${baseUrl}/v1/workbench`).then((response) => response.json())) as {
       platform: string;
       targets: Array<{ name: string }>;
       testTargets: Array<{ id: string }>;
@@ -168,13 +169,13 @@ describe("ApiServer", () => {
     expect(initial.packageName).toBe("browser-testbench");
     expect(initial.localNetworkAddress).toBe(RemoteUrlGuard.lanAddress());
 
-    const capabilities = (await fetch(`${baseUrl}/v1/capabilities`).then((response) => response.json())) as {
+    const capabilities = (await apiFetch(`${baseUrl}/v1/capabilities`).then((response) => response.json())) as {
       platform: string;
       targets: Array<{ name: string }>;
     };
     expect(capabilities.platform).toBe(process.platform);
     expect(capabilities.targets.map((target) => target.name)).toContain("chrome");
-    expect((await fetch(`${baseUrl}/v1/workbench/config`, { method: "PUT" })).status).toBe(404);
+    expect((await apiFetch(`${baseUrl}/v1/workbench/config`, { method: "PUT" })).status).toBe(404);
   });
 
   it("explains the executing Testbench address in remote mode", async () => {
@@ -219,9 +220,9 @@ describe("ApiServer", () => {
     expect(unauthorized.status).toBe(401);
     expect(authorized.status).toBe(200);
 
-    const unauthorizedEvents = await fetch(`http://${address.host}:${address.port}/v1/events`);
+    const unauthorizedEvents = await apiFetch(`http://${address.host}:${address.port}/v1/events`);
     expect(unauthorizedEvents.status).toBe(401);
-    const eventResponse = await fetch(`http://${address.host}:${address.port}/v1/events`, {
+    const eventResponse = await apiFetch(`http://${address.host}:${address.port}/v1/events`, {
       headers: { authorization: "Bearer test-secret" },
     });
     const reader = eventResponse.body!.getReader();
@@ -233,7 +234,7 @@ describe("ApiServer", () => {
   it("rejects invalid requests at the API boundary", async () => {
     server = new ApiServer({ host: "127.0.0.1", port: 0 });
     const address = await server.start();
-    const response = await fetch(`http://${address.host}:${address.port}/v1/sessions`, {
+    const response = await apiFetch(`http://${address.host}:${address.port}/v1/sessions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ target: "" }),
@@ -241,25 +242,60 @@ describe("ApiServer", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: "Invalid request" });
 
-    const invalidVerification = await fetch(`http://${address.host}:${address.port}/v1/verify`, {
+    const invalidVerification = await apiFetch(`http://${address.host}:${address.port}/v1/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ target: "" }),
     });
     expect(invalidVerification.status).toBe(400);
 
-    const unknown = await fetch(`http://${address.host}:${address.port}/v1/sessions`, {
+    const unknown = await apiFetch(`http://${address.host}:${address.port}/v1/sessions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ target: "netscape" }),
     });
     expect(unknown.status).toBe(404);
 
-    const gesture = await fetch(`http://${address.host}:${address.port}/v1/sessions/missing/gesture`, {
+    const gesture = await apiFetch(`http://${address.host}:${address.port}/v1/sessions/missing/gesture`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "swipe", direction: "diagonal" }),
     });
     expect(gesture.status).toBe(400);
   });
+
+  it("requires the exact client version for API requests but keeps diagnostics reachable", async () => {
+    server = new ApiServer(
+      { host: "127.0.0.1", port: 0, remote: true },
+      {
+        publisher: { start: vi.fn().mockResolvedValue(undefined), stop: vi.fn().mockResolvedValue(undefined) },
+      },
+    );
+    const address = await server.start();
+    const baseUrl = `http://${address.host}:${address.port}`;
+
+    const missing = await fetch(`${baseUrl}/v1/targets`);
+    expect(missing.status).toBe(409);
+    await expect(missing.json()).resolves.toMatchObject({
+      code: "client_version_missing",
+      expectedVersion: ClientVersion.CURRENT,
+    });
+
+    const mismatch = await fetch(`${baseUrl}/v1/targets`, {
+      headers: { [ClientVersion.HEADER]: "999.0.0" },
+    });
+    expect(mismatch.status).toBe(409);
+    await expect(mismatch.json()).resolves.toMatchObject({
+      code: "client_version_mismatch",
+      expectedVersion: ClientVersion.CURRENT,
+      actualVersion: "999.0.0",
+    });
+
+    expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/v1/remote/identity`)).status).toBe(200);
+  });
 });
+
+function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(url, { ...init, headers: ClientVersion.headers(init.headers) });
+}
