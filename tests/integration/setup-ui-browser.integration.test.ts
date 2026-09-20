@@ -534,6 +534,22 @@ describe("workbench UI browser flow", () => {
         await browser.active.saveScreenshot(screenshotPath);
 
         const inspectionCountBeforeDocumentation = inspectEnvironment.mock.calls.length;
+        await browser.active.devtools("Page.addScriptToEvaluateOnNewDocument", {
+          source: `
+            const platformFetch = window.fetch.bind(window);
+            window.fetch = async (...argumentsList) => {
+              const response = await platformFetch(...argumentsList);
+              if (String(argumentsList[0]) !== "/v1/workbench") return response;
+              const payload = await response.json();
+              payload.platform = "darwin";
+              payload.platformLabel = "macOS";
+              return new Response(JSON.stringify(payload), {
+                status: response.status,
+                headers: { "content-type": "application/json" }
+              });
+            };
+          `,
+        });
         await browser.navigate(`${baseUrl}/docs`);
         expect(await browser.active.$(".docs-content").getText()).toContain("Automated tests");
         await waitForText(browser, "Set up your iPhone or iPad");
