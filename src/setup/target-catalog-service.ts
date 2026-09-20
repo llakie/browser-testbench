@@ -85,6 +85,7 @@ export class TargetCatalogService {
             ready: check.status === "ready",
             serial: definition.serial,
             detail: check.detail,
+            messages: check.messages,
             config: { name: browser },
           },
         ];
@@ -126,6 +127,13 @@ export class TargetCatalogService {
         deviceKind: device.deviceKind,
         deviceId: device.id,
         detail: check.detail,
+        messages: {
+          ...check.messages,
+          label: {
+            key: this.mobileLabelKey(browser, device),
+            parameters: { deviceName: device.name, version: device.platformVersion ?? "" },
+          },
+        },
         config: { ...device.config },
       };
     });
@@ -136,6 +144,17 @@ export class TargetCatalogService {
     const version = device.platformVersion ? this.slug(device.platformVersion) : "";
     const devicePart = version && !name.endsWith(`-${version}`) ? `${name}-${version}` : name;
     return `${browser}-${devicePart}`;
+  }
+
+  private static mobileLabelKey(browser: "safari-ios" | "chrome-android", device: TargetDeviceOption) {
+    const suffix = device.platformVersion ? "" : "NoVersion";
+    if (browser === "safari-ios")
+      return device.deviceKind === "physical"
+        ? (`targets.mobileLabel.safariPhysical${suffix}` as const)
+        : (`targets.mobileLabel.safari${suffix}` as const);
+    if (device.deviceKind === "physical") return `targets.mobileLabel.androidPhysical${suffix}` as const;
+    if (device.deviceKind === "emulator") return `targets.mobileLabel.androidEmulator${suffix}` as const;
+    return `targets.mobileLabel.android${suffix}` as const;
   }
 
   private static slug(value: string): string {

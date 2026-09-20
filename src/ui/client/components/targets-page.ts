@@ -3,6 +3,7 @@ import type { CheckStatus } from "../../../config/types.js";
 import type { VerificationResultView, WorkbenchState, WorkbenchTestTarget } from "../../../setup/workbench-types.js";
 import { ApiClient } from "../core/api-client.js";
 import { workbenchStore, type VerificationState } from "../stores/workbench-store.js";
+import { localized, translator } from "../core/translator.js";
 
 const defaultApplicationUrl = "http://127.0.0.1:3000";
 
@@ -42,12 +43,11 @@ export const TargetsPage = defineComponent({
     },
     debugNote(): string {
       const notes: Partial<Record<WorkbenchTestTarget["browser"], string>> = {
-        "safari-ios": "DevTools: Open Safari's Develop menu and select the simulator and open page.",
-        "chrome-android": "DevTools: Open chrome://inspect/#devices in Chrome on your machine.",
+        "safari-ios": translator.t("targets.devtools.ios"),
+        "chrome-android": translator.t("targets.devtools.android"),
       };
       return (
-        (this.debugTarget ? notes[this.debugTarget.browser] : undefined) ??
-        "You can open DevTools as usual directly in the desktop browser."
+        (this.debugTarget ? notes[this.debugTarget.browser] : undefined) ?? translator.t("targets.devtools.desktop")
       );
     },
     clientExample(): string {
@@ -85,17 +85,19 @@ for (const target of targets) {
     },
   },
   methods: {
+    t: translator.t.bind(translator),
+    localized,
     statusIcon(status: CheckStatus): string {
       return { ready: "fa-check", action: "fa-triangle-exclamation", blocked: "fa-xmark", skip: "fa-minus" }[status];
     },
     availability(target: WorkbenchTestTarget): string {
-      if (target.busy) return "Busy";
+      if (target.busy) return translator.t("targets.status.busy");
       const remote = this.workbench?.connection.mode === "remote";
       return {
-        ready: remote ? "Ready on remote machine" : "Ready on this machine",
-        action: "Setup required",
-        blocked: "Not available yet",
-        skip: remote ? "Not available on remote operating system" : "Not available on this operating system",
+        ready: translator.t(remote ? "targets.status.readyRemote" : "targets.status.readyLocal"),
+        action: translator.t("targets.status.action"),
+        blocked: translator.t("targets.status.blocked"),
+        skip: translator.t(remote ? "targets.status.skipRemote" : "targets.status.skipLocal"),
       }[target.status];
     },
     verification(target: WorkbenchTestTarget): VerificationState | undefined {
@@ -105,7 +107,9 @@ for (const target of targets) {
       const current = this.verification(target);
       if (current) return current.message;
       return target.verifiedAt
-        ? `Last successfully tested: ${new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(target.verifiedAt))}`
+        ? translator.t("targets.lastVerified", {
+            date: translator.formatDate(target.verifiedAt, { dateStyle: "medium", timeStyle: "short" }),
+          })
         : "";
     },
     verificationIcon(target: WorkbenchTestTarget): string {
@@ -113,13 +117,12 @@ for (const target of targets) {
       return status === "running" ? "fa-spinner fa-spin" : status === "failed" ? "fa-circle-xmark" : "fa-circle-check";
     },
     progress(target: WorkbenchTestTarget): string {
-      if (target.browser === "safari-ios")
-        return "Test running. On first launch, Xcode may take a few minutes to check the iOS runtime.";
+      if (target.browser === "safari-ios") return translator.t("targets.runningIos");
       if (target.browser === "chrome-android")
         return target.deviceKind === "physical"
-          ? "Test running on the connected Android device. The first Appium session can take a moment."
-          : "Test running. On first launch, the Android Emulator may take a few minutes to start.";
-      return "Test running.";
+          ? translator.t("targets.runningAndroidDevice")
+          : translator.t("targets.runningAndroidEmulator");
+      return translator.t("targets.running");
     },
     async runVerification(target: WorkbenchTestTarget): Promise<VerificationResultView> {
       this.store.state.verification[target.id] = { status: "running", message: this.progress(target) };
@@ -133,13 +136,13 @@ for (const target of targets) {
         });
         this.store.state.verification[target.id] = {
           status: "passed",
-          message: `Test passed (${result.durationMs} ms).`,
+          message: translator.t("targets.passed", { duration: result.durationMs }),
         };
         return result;
       } catch (error) {
         this.store.state.verification[target.id] = {
           status: "failed",
-          message: `Test failed: ${this.store.message(error)}`,
+          message: translator.t("targets.failed", { message: this.store.message(error) }),
         };
         throw error;
       }
@@ -149,7 +152,10 @@ for (const target of targets) {
       try {
         const result = await this.runVerification(target);
         delete this.store.state.verification[target.id];
-        this.store.setNotice(`${target.label} was tested successfully (${result.durationMs} ms).`, "success");
+        this.store.setNotice(
+          translator.t("targets.targetPassed", { targetName: localized(target, "label"), duration: result.durationMs }),
+          "success",
+        );
         await this.store.refresh();
       } catch (error) {
         this.store.setNotice(this.store.message(error), "error");
@@ -174,8 +180,12 @@ for (const target of targets) {
         await this.store.refresh();
         this.store.setNotice(
           failures.length
-            ? `${this.readyTargets.length - failures.length} of ${this.readyTargets.length} tests passed; ${failures.length} failed.`
-            : `All ${this.readyTargets.length} tests completed successfully.`,
+            ? translator.t("targets.partialResult", {
+                passed: this.readyTargets.length - failures.length,
+                total: this.readyTargets.length,
+                failed: failures.length,
+              })
+            : translator.t("targets.allPassed", { count: this.readyTargets.length }, this.readyTargets.length),
           failures.length ? "error" : "success",
         );
       } finally {

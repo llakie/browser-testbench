@@ -48,6 +48,7 @@ export class AndroidAvdService {
         automatic: false,
         status: "manual",
         detail: "Install the Android SDK and Android Emulator, then run setup again.",
+        messages: { detail: { key: "environment.avdInstallSdk" } },
       };
     }
     if (environment.compatibleNames.length > 0) {
@@ -57,6 +58,10 @@ export class AndroidAvdService {
         automatic: true,
         status: "completed",
         detail: `Using existing compatible AVD ${environment.compatibleNames[0]}.`,
+        messages: {
+          label: { key: "environment.avdLabel" },
+          detail: { key: "environment.avdExisting", parameters: { name: environment.compatibleNames[0]! } },
+        },
       };
     }
 
@@ -84,6 +89,16 @@ export class AndroidAvdService {
         created.code === 0
           ? `Created from ${image.packageId} with hardware profile ${profile}.`
           : (created.stderr || created.stdout).trim(),
+      ...(created.code === 0
+        ? {
+            messages: {
+              detail: {
+                key: "environment.avdCreated" as const,
+                parameters: { image: image.packageId, profile },
+              },
+            },
+          }
+        : {}),
     };
   }
 
@@ -151,6 +166,10 @@ export class AndroidAvdService {
           automatic: false,
           status: "manual",
           detail: "Install the Android SDK Command-line Tools, then run setup again.",
+          messages: {
+            label: { key: "environment.avdLabel" },
+            detail: { key: "environment.avdCommandTools" },
+          },
         },
       };
     }
@@ -164,6 +183,10 @@ export class AndroidAvdService {
           automatic: false,
           status: "manual",
           detail: `No compatible Google Play system image for ${architecture} is installed. Install the latest available image in Android Studio > SDK Manager, then run setup again.`,
+          messages: {
+            label: { key: "environment.avdImageLabel" },
+            detail: { key: "environment.avdImageMissing", parameters: { architecture } },
+          },
         },
       };
     }
@@ -181,6 +204,10 @@ export class AndroidAvdService {
           status: "manual",
           detail:
             "No Pixel hardware profile is available. Install or create one in Android Studio, then run setup again.",
+          messages: {
+            label: { key: "environment.avdProfileLabel" },
+            detail: { key: "environment.avdProfileMissing" },
+          },
         },
       };
     }
@@ -193,6 +220,12 @@ export class AndroidAvdService {
         status: "planned",
         command: TestbenchPaths.cliCommand("setup", "--yes", "--targets", "chrome-android"),
         detail: `Create ${name} from ${image.packageId} with hardware profile ${profile}.`,
+        messages: {
+          detail: {
+            key: "environment.avdCreate",
+            parameters: { name, image: image.packageId, profile },
+          },
+        },
       },
       image,
       profile,

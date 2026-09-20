@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DoctorCheck, TargetDeviceOption } from "../../src/config/types.js";
 import { TargetCatalogService } from "../../src/setup/target-catalog-service.js";
 import { VerificationStore } from "../../src/setup/verification-store.js";
+import { Translator } from "../../src/i18n/translator.js";
 
 describe("TargetCatalogService", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -33,6 +34,13 @@ describe("TargetCatalogService", () => {
     expect(targets.find((target) => target.browser === "safari-ios")?.detail).toBe("safari-ios detail");
     expect(targets.find((target) => target.browser === "safari-ios")?.deviceId).toBe("simulator-one");
     expect(targets.find((target) => target.browser === "safari-ios")?.detail).not.toContain("Shutdown");
+    const german = new Translator("de");
+    const safari = targets.find((target) => target.browser === "safari-ios")!;
+    const android = targets.find((target) => target.browser === "chrome-android")!;
+    expect(german.message(safari.messages?.label, safari.label)).toBe("Safari auf iOS · iPhone 17 Pro · 26.5");
+    expect(german.message(android.messages?.label, android.label)).toBe(
+      "Chrome auf Android · Browser Testbench API 36 · 36 · Emulator",
+    );
   });
 
   it("uses deterministic alphabetic suffixes when readable IDs collide", () => {
@@ -72,5 +80,13 @@ function device(
   platformVersion: string,
   config: TargetDeviceOption["config"],
 ): TargetDeviceOption {
-  return { id, name, platformVersion, state: "Shutdown", compatible: true, config };
+  return {
+    id,
+    name,
+    platformVersion,
+    state: "Shutdown",
+    ...(config.avd ? { deviceKind: "emulator" as const } : {}),
+    compatible: true,
+    config,
+  };
 }

@@ -32,3 +32,19 @@
 - I will give suggestions to refactor files, which violate the principles above.
 - I will prefer exported classes and static methods over exported functions
 - If I'm given a task, I will look for the best solution for a problem, which is not necessarily the first one I come up with. I rank my solutions based on their elegance. The most elegant solutions are always the easiest solutions which solve a given problem.
+
+## Localization (Mandatory)
+
+- Put every new user-visible UI, documentation, setup, status, placeholder, title, and accessibility string in both
+  `src/i18n/en.json` and `src/i18n/de.json`. English is the default locale; German uses informal `du`/`dein`.
+- Keep code blocks, commands, selectors, IDs, environment variables, URLs, and technical product names language-neutral.
+  For labels in external iOS or Xcode interfaces, include the English original in parentheses when the German label
+  may differ.
+- Use named interpolation parameters, `Intl`-based formatting, and plural messages instead of assembling translated
+  sentences from fragments.
+- API fields retained for compatibility must keep their English fallback and include a stable message descriptor for
+  localized clients. Unexpected technical diagnostics remain in their original language.
+- Keep dictionary keys, placeholders, and plural structures identical across locales. Missing translations must stay
+  visibly detectable through the runtime marker and the dictionary completeness test.
+- Do not add locale-specific routes or anchor IDs. Server-rendered and client-rendered content must use the same
+  locale resolved from the browser's `Accept-Language` header.

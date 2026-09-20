@@ -2,11 +2,9 @@
   <div>
     <section class="hero hero--compact">
       <div>
-        <p class="eyebrow">Remote control and verification</p>
-        <h1>Test targets</h1>
-        <p class="hero__copy">
-          Use stable IDs in your projects or verify all available browsers and devices right here.
-        </p>
+        <p class="eyebrow">{{ t('targets.page.eyebrow') }}</p>
+        <h1><%= it.t("targets.page.title") %></h1>
+        <p class="hero__copy">{{ t('targets.page.intro') }}</p>
       </div>
     </section>
     <div
@@ -22,12 +20,9 @@
       <section class="panel" id="test-targets">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Convention over Configuration</p>
-            <h2>Targets for your tests</h2>
-            <p>
-              Use these unique IDs directly in your tests. “Ready” confirms the environment; a successful test run also
-              displays its date.
-            </p>
+            <p class="eyebrow">{{ t('targets.page.convention') }}</p>
+            <h2>{{ t('targets.page.targetsTitle') }}</h2>
+            <p>{{ t('targets.page.targetsIntro') }}</p>
           </div>
           <button
             class="button button--secondary"
@@ -37,8 +32,9 @@
             :disabled="store.busy"
             @click="verifyAll"
           >
-            <i :class="['fa-solid', runningAll ? 'fa-spinner fa-spin' : 'fa-list-check']" aria-hidden="true"></i> {{
-            runningAll ? 'Checking targets …' : 'Run all tests' }}
+            <i :class="['fa-solid', runningAll ? 'fa-spinner fa-spin' : 'fa-list-check']" aria-hidden="true"></i>
+            <span v-if="runningAll">{{ t('targets.page.checkingTargets') }}</span>
+            <span v-else><%= it.t("targets.page.runAll") %></span>
           </button>
         </div>
         <div class="test-target-list" id="test-target-list" aria-live="polite">
@@ -49,13 +45,13 @@
           >
             <div class="test-target__content">
               <div class="test-target__heading">
-                <strong>{{ target.label }}</strong
+                <strong>{{ localized(target, 'label') }}</strong
                 ><span :class="['test-target__status', `is-${target.status}`]"
                   ><i :class="['fa-solid', statusIcon(target.status)]" aria-hidden="true"></i> {{ availability(target)
                   }}</span
                 >
               </div>
-              <small>{{ target.detail }}</small
+              <small>{{ localized(target, 'detail') }}</small
               ><small
                 v-if="verification(target) || target.verifiedAt"
                 :class="['test-target__verification', `is-${verification(target)?.status ?? 'passed'}`]"
@@ -64,7 +60,7 @@
               >
             </div>
             <div class="test-target__actions">
-              <command-block :value="target.id" copy-label="Target ID"></command-block
+              <command-block :value="target.id" copy-label="targetId"></command-block
               ><button
                 v-if="target.ready"
                 class="button button--secondary"
@@ -76,7 +72,8 @@
                   :class="['fa-solid', verification(target)?.status === 'running' ? 'fa-spinner fa-spin' : 'fa-circle-play']"
                   aria-hidden="true"
                 ></i>
-                {{ verification(target)?.status === 'running' ? 'Test running …' : 'Run test' }}
+                {{ verification(target)?.status === 'running' ? t('targets.page.runningShort') :
+                t('targets.page.runTest') }}
               </button>
             </div>
           </article>
@@ -85,16 +82,16 @@
       <section class="panel" id="connect">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">In your project</p>
-            <h2>Use Browser Testbench</h2>
-            <p>URLs, assertions, and result directories remain entirely in your project.</p>
+            <p class="eyebrow">{{ t('targets.page.projectEyebrow') }}</p>
+            <h2>{{ t('targets.page.useTitle') }}</h2>
+            <p>{{ t('targets.page.useIntro') }}</p>
           </div>
         </div>
         <div class="project-command">
           <span class="integration-card__icon"><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i></span>
           <div>
-            <h3>Install the client in your project</h3>
-            <p>Install Browser Testbench as a development dependency in your project.</p>
+            <h3>{{ t('targets.page.installTitle') }}</h3>
+            <p>{{ t('targets.page.installIntro') }}</p>
             <div id="project-install-command">
               <command-block :value="workbench.clientInstallCommand"></command-block>
             </div>
@@ -103,22 +100,19 @@
         <div class="project-command">
           <span class="integration-card__icon"><i class="fa-solid fa-play" aria-hidden="true"></i></span>
           <div>
-            <h3>Use it in your own test</h3>
-            <p>Your test opens the session. The flow and assertions remain with your test runner.</p>
+            <h3>{{ t('targets.page.testTitle') }}</h3>
+            <p>{{ t('targets.page.testIntro') }}</p>
             <div id="project-client-example"><command-block :value="clientExample" multiline></command-block></div>
           </div>
         </div>
         <div class="project-command">
           <span class="integration-card__icon"><i class="fa-solid fa-bug" aria-hidden="true"></i></span>
           <div>
-            <h3>Open a browser for debugging</h3>
-            <p>
-              Open a URL directly. The session stays active until you press <kbd>Ctrl</kbd> + <kbd>C</kbd> in the
-              terminal.
-            </p>
+            <h3>{{ t('targets.page.debugTitle') }}</h3>
+            <p>{{ t('targets.page.debugIntro') }}</p>
             <div class="debug-controls">
               <label
-                ><span>Application URL</span>
+                ><span>{{ t('targets.page.applicationUrl') }}</span>
                 <div class="input-with-icon">
                   <i class="fa-solid fa-link" aria-hidden="true"></i
                   ><input
@@ -128,20 +122,21 @@
                     :placeholder="applicationUrlPlaceholder"
                   /></div></label
               ><label
-                ><span>Browser or device</span
+                ><span>{{ t('targets.page.browserOrDevice') }}</span
                 ><span class="select-control"
                   ><select id="debug-target" v-model="debugTargetId">
                     <option v-for="target in workbench.testTargets" :key="target.id" :value="target.id">
-                      {{ target.label }}{{ target.ready ? '' : ' · Setup required' }}
+                      {{ localized(target, 'label') }}{{ target.ready ? '' : ` ·
+                      ${t('targets.page.setupRequiredSuffix')}` }}
                     </option></select
                   ><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span
               ></label>
             </div>
             <p class="debug-tools-note" id="local-network-address" v-if="workbench.connection.mode === 'remote'">
-              Remote browsers cannot use this computer's localhost.
+              {{ t('targets.page.remoteLocalhost') }}
               <template v-if="networkApplicationUrl"
-                >Bind your application to the LAN and use <code>{{ networkApplicationUrl }}</code>.</template
-              ><template v-else>Bind your application to the LAN and use this computer's LAN address.</template>
+                >{{ t('targets.page.remoteAddress', { url: networkApplicationUrl }) }}</template
+              ><template v-else>{{ t('targets.page.remoteAddressFallback') }}</template>
             </p>
             <div id="debug-open-command"><command-block v-if="debugCommand" :value="debugCommand"></command-block></div>
             <p class="debug-tools-note" id="debug-tools-note">{{ debugNote }}</p>

@@ -10,6 +10,7 @@ import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-int
 import { SetupService } from "../../src/setup/setup-service.js";
 import { ApiServer } from "../../src/transports/api-server.js";
 import { ClientVersion } from "../../src/config/client-version.js";
+import { UiRenderer } from "../../src/ui/ui-renderer.js";
 
 describe("ApiServer", () => {
   let server: ApiServer | undefined;
@@ -121,7 +122,7 @@ describe("ApiServer", () => {
     if (localNetworkAddress) {
       expect(documentation).toContain(`http://${localNetworkAddress}:3000`);
       expect(documentation.replace(/\s+/g, " ")).toContain(
-        `you must use <strong><code>http://${localNetworkAddress}:3000</code></strong> instead of <code>http://localhost:3000</code>`,
+        `you must use http://${localNetworkAddress}:3000 instead of http://localhost:3000`,
       );
     } else expect(documentation).toContain("could not detect a LAN address");
     expect(documentation).not.toContain("YOUR-LAN-IP");
@@ -138,6 +139,20 @@ describe("ApiServer", () => {
     expect((await fetch(`${baseUrl}/ui-assets/app.js`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/vendor/vue.js`)).status).toBe(404);
     expect((await fetch(`${baseUrl}/ui-assets/setup.js`)).status).toBe(404);
+
+    const germanSetup = await fetch(`${baseUrl}/setup`, { headers: { "accept-language": "de-DE,de;q=0.9" } }).then(
+      (response) => response.text(),
+    );
+    expect(germanSetup).toContain('<html lang="de">');
+    expect(germanSetup).toContain("Browser und Geräte für deine Projekte");
+    const germanDocumentation = await fetch(`${baseUrl}/docs`, {
+      headers: { "accept-language": "de-DE,de;q=0.9" },
+    }).then((response) => response.text());
+    expect(germanDocumentation).toContain("Physisches iPhone oder iPad verbinden");
+    expect(germanDocumentation).toContain("Fenster → Geräte und Simulatoren (Window → Devices and Simulators)");
+    expect(UiRenderer.documentation(false, true, "de-DE")).toContain(
+      "Du musst die IP-Adresse der Testbench verwenden, die die Tests ausführt.",
+    );
 
     const initial = (await apiFetch(`${baseUrl}/v1/workbench`).then((response) => response.json())) as {
       platform: string;

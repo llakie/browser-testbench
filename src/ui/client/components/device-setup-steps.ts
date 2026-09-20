@@ -1,5 +1,8 @@
 import type { DoctorCheck, TargetDeviceOption } from "../../../config/types.js";
 import type { WorkbenchState } from "../../../setup/workbench-types.js";
+import { localized, translator } from "../core/translator.js";
+
+const t = translator.t.bind(translator);
 
 export interface ChecklistHint {
   text: string;
@@ -47,74 +50,70 @@ export class DeviceSetupSteps {
     return [
       {
         id: "tools",
-        label: "Install Xcode and the iOS test tools",
+        label: t("checklist.ios.tools.label"),
         detail: !xcodeReady
-          ? "Install Xcode and open it once."
+          ? t("checklist.ios.tools.installXcode")
           : driver?.status !== "completed"
-            ? "Install Appium XCUITest under Environment setup."
-            : "Xcode and Appium XCUITest are ready.",
+            ? t("checklist.ios.tools.installDriver")
+            : t("checklist.ios.tools.ready"),
         href: xcodeReady ? "/setup#environment-setup" : "#ios-mac-setup",
         ready: toolsReady,
-        troubleshooting: [
-          { text: "Open Xcode once and accept its license or component installation prompts." },
-          { text: "No separate iPhone driver is required; install Appium XCUITest from Environment setup." },
-        ],
+        troubleshooting: [{ text: t("checklist.ios.tools.hintOpen") }, { text: t("checklist.ios.tools.hintDriver") }],
       },
       {
         id: "device",
-        label: "Connect and trust the device",
+        label: t("checklist.ios.device.label"),
         detail: connectionReady
-          ? "The device is connected, trusted, and in Developer Mode."
-          : (nextConnectionCheck?.detail ?? "Connect and unlock the device by USB."),
+          ? t("checklist.ios.device.ready")
+          : nextConnectionCheck
+            ? localized(nextConnectionCheck, "detail")
+            : t("checklist.ios.device.connect"),
         href: "#ios-device-connection",
         ready: connectionReady,
         troubleshooting: [
-          { text: "Use a data-capable USB cable and keep the device unlocked." },
-          { text: "In Xcode, open Window → Devices and Simulators and wait until the warning disappears." },
-          { text: "Developer Mode requires a restart and a second confirmation after the restart." },
+          { text: t("checklist.ios.device.hintCable") },
+          { text: t("checklist.ios.device.hintXcode") },
+          { text: t("checklist.ios.device.hintDeveloperMode") },
         ],
       },
       {
         id: "access",
-        label: "Allow browser automation",
+        label: t("checklist.ios.access.label"),
         detail: !signingReady
-          ? (setupCheck("signing")?.detail ?? "Create an Apple Development signing identity in Xcode.")
+          ? setupCheck("signing")
+            ? localized(setupCheck("signing")!, "detail")
+            : t("checklist.ios.access.createSigning")
           : safariSettingsConfirmed
-            ? "Signing and the Safari automation settings are ready."
-            : "Enable UI Automation, Web Inspector, and Remote Automation, then confirm below.",
+            ? t("checklist.ios.access.ready")
+            : t("checklist.ios.access.enable"),
         href: signingReady ? "#ios-safari-settings" : "#ios-signing",
         ready: accessReady,
         manual: signingReady && !safariSettingsConfirmed,
         troubleshooting: signingReady
-          ? [
-              { text: "On iOS 16, Safari is directly under Settings; newer versions place it under Settings → Apps." },
-              { text: "UI Automation appears under Settings → Developer after Developer Mode is enabled." },
-            ]
+          ? [{ text: t("checklist.ios.access.hintSettings") }, { text: t("checklist.ios.access.hintAutomation") }]
           : [
               {
-                text: "In Keychain Access select login → My Certificates and expand Apple Development. A private key must appear below it.",
+                text: t("checklist.ios.access.hintKeychain"),
               },
               {
-                text: "If the identity remains invalid, install Apple's WWDR G3 intermediate certificate.",
+                text: t("checklist.ios.access.hintCertificate"),
                 href: "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer",
-                linkLabel: "Download WWDR G3",
+                linkLabel: t("checklist.ios.access.downloadCertificate"),
               },
             ],
       },
       {
         id: "test",
-        label: "Run the first Safari test",
-        detail: verified
-          ? "Browser Testbench has successfully controlled Safari on this device."
-          : "Run the physical Safari target once to finish setup.",
+        label: t("checklist.ios.test.label"),
+        detail: verified ? t("checklist.ios.test.ready") : t("checklist.ios.test.run"),
         href: verified ? "/targets" : "#ios-signing",
         ready: verified,
         troubleshooting: [
-          { text: "Keep the iPhone unlocked while WebDriverAgent starts for the first time." },
+          { text: t("checklist.ios.test.hintUnlock") },
           {
-            text: "If iOS blocks WebDriverAgent, trust the Apple Account under Settings → General → VPN & Device Management.",
+            text: t("checklist.ios.test.hintTrust"),
           },
-          { text: "A free Personal Team profile expires after seven days and must then be signed again." },
+          { text: t("checklist.ios.test.hintExpiry") },
         ],
       },
     ];
@@ -142,59 +141,61 @@ export class DeviceSetupSteps {
     return [
       {
         id: "tools",
-        label: "Install Android Platform Tools and Appium",
+        label: t("checklist.android.tools.label"),
         detail: !sdkReady
-          ? "Install Android Studio or the Android SDK Platform Tools."
+          ? t("checklist.android.tools.installSdk")
           : driver?.status !== "completed"
-            ? "Install Appium UiAutomator2 under Environment setup."
-            : "Android Platform Tools and Appium UiAutomator2 are ready.",
+            ? t("checklist.android.tools.installDriver")
+            : t("checklist.android.tools.ready"),
         href: sdkReady ? "/setup#environment-setup" : "#android-tools",
         ready: toolsReady,
         troubleshooting: [
-          { text: "Android Studio includes the required Platform Tools." },
-          { text: "Install Appium UiAutomator2 from Environment setup." },
+          { text: t("checklist.android.tools.hintSdk") },
+          { text: t("checklist.android.tools.hintDriver") },
         ],
       },
       {
         id: "device",
-        label: "Connect the device",
+        label: t("checklist.android.device.label"),
         detail: connected
-          ? `${device!.name} was detected over USB.`
-          : "Enable USB debugging, then connect and unlock the device.",
+          ? t("checklist.android.device.detected", { deviceName: device!.name })
+          : t("checklist.android.device.connect"),
         href: "#android-device-connection",
         ready: connected,
         troubleshooting: [
-          { text: "Enable Developer options by tapping the Android build number seven times." },
-          { text: "Use a data-capable USB cable and keep the device unlocked." },
+          { text: t("checklist.android.device.hintDeveloperOptions") },
+          { text: t("checklist.android.device.hintCable") },
         ],
       },
       {
         id: "access",
-        label: "Allow debugging and Chrome",
+        label: t("checklist.android.access.label"),
         detail: !authorized
-          ? (check?.action ?? "Accept the USB debugging prompt on the device.")
+          ? check?.action
+            ? localized(check, "action")
+            : t("checklist.android.access.authorize")
           : chromeReady
-            ? "USB debugging is authorized and Chrome is available."
-            : (device?.detail ?? "Install or enable Google Chrome on the device."),
+            ? t("checklist.android.access.ready")
+            : device?.detail
+              ? localized(device, "detail")
+              : t("checklist.android.access.installChrome"),
         href: "#android-debugging",
         ready: authorized && chromeReady,
         troubleshooting: [
-          { text: "Reconnect the unlocked device if the USB debugging prompt does not appear." },
-          { text: "If authorization is stuck, revoke USB debugging authorizations and connect again." },
-          { text: "Install or enable Google Chrome before running the first test." },
+          { text: t("checklist.android.access.hintReconnect") },
+          { text: t("checklist.android.access.hintAuthorization") },
+          { text: t("checklist.android.access.hintChrome") },
         ],
       },
       {
         id: "test",
-        label: "Run the first Chrome test",
-        detail: verified
-          ? "Browser Testbench has successfully controlled Chrome on this device."
-          : "Run the physical Android target once to finish setup.",
+        label: t("checklist.android.test.label"),
+        detail: verified ? t("checklist.android.test.ready") : t("checklist.android.test.run"),
         href: "/targets",
         ready: verified,
         troubleshooting: [
-          { text: "Keep the device unlocked during the first Appium session." },
-          { text: "Accept any additional debugging prompt shown by Android." },
+          { text: t("checklist.android.test.hintUnlock") },
+          { text: t("checklist.android.test.hintPrompt") },
         ],
       },
     ];

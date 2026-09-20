@@ -24,6 +24,16 @@ import { RemoteTestbench } from "../../src/transports/testbench-client.js";
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
 const platformLabel = process.platform === "darwin" ? "macOS" : process.platform === "win32" ? "Windows" : "Linux";
 
+const chrome = (locale: "en-US" | "de-DE") => ({
+  name: "chrome" as const,
+  capabilities: {
+    "goog:chromeOptions": {
+      args: ["--headless=new", `--lang=${locale}`],
+      prefs: { "intl.accept_languages": locale === "de-DE" ? "de-DE,de" : "en-US,en" },
+    },
+  },
+});
+
 describe("workbench UI browser flow", () => {
   browserTest(
     "navigates the responsive app shell and operates the workbench pages",
@@ -207,7 +217,7 @@ describe("workbench UI browser flow", () => {
       const browser = new BrowserSession();
 
       try {
-        await browser.start({ name: "chrome", headless: true });
+        await browser.start(chrome("en-US"));
         await browser.active.setWindowRect(500, 812);
         await browser.navigate(`${baseUrl}/setup`);
         await browser.active.waitForText("Google Chrome", 15_000);
@@ -509,7 +519,7 @@ describe("workbench UI browser flow", () => {
           "return document.querySelectorAll('#test-target-list .test-target__actions .button').length",
         );
         await browser.active.$("#verify-all-targets").click();
-        await browser.active.waitForText("tests completed successfully", 15_000);
+        await browser.active.waitForText("completed successfully", 15_000);
         expect(await browser.active.execute<number>("return window.__verifiedTargets.length")).toBe(readyTargetCount);
         expect(await browser.active.execute<number>("return window.__maxActiveVerifications")).toBe(1);
         expect(await browser.active.$("#test-target-list").getText()).not.toContain("Shutdown");
@@ -805,7 +815,7 @@ describe("workbench UI browser flow", () => {
       let gateway: ApiServer | undefined;
 
       try {
-        await browser.start({ name: "chrome", headless: true });
+        await browser.start(chrome("en-US"));
         await browser.navigate(`http://${remoteAddress.host}:${remoteAddress.port}/setup`);
         await browser.active.waitForScript(
           "return document.querySelector('#app').hasAttribute('data-v-app')",
@@ -989,7 +999,7 @@ describe("workbench UI browser flow", () => {
       const browser = new BrowserSession();
 
       try {
-        await browser.start({ name: "chrome", headless: true });
+        await browser.start(chrome("en-US"));
         await browser.active.devtools("Page.addScriptToEvaluateOnNewDocument", {
           source: `
           window.__offlineRemote = true;
@@ -1045,6 +1055,74 @@ describe("workbench UI browser flow", () => {
       } finally {
         await browser.close();
         await api.stop();
+        vi.restoreAllMocks();
+      }
+    },
+    30_000,
+  );
+
+  browserTest(
+    "renders the complete German UI on a remote Testbench",
+    async () => {
+      vi.spyOn(DoctorService, "inspect").mockResolvedValue(
+        TARGET_NAMES.map((id) => ({
+          id,
+          label: TargetRegistry.definitions[id].label,
+          status: "ready" as const,
+          detail: "Test environment",
+          messages: {
+            detail: { key: "environment.browserNotFound" as const },
+            ...(id === "safari-ios"
+              ? { label: { key: "environment.safariIosLabel" as const } }
+              : id === "chrome-android"
+                ? { label: { key: "environment.chromeAndroidLabel" as const } }
+                : {}),
+          },
+        })),
+      );
+      vi.spyOn(SetupService, "plan").mockResolvedValue([]);
+      vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue([]);
+      const directory = await mkdtemp(join(tmpdir(), "browser-testbench-i18n-ui-"));
+      const clients = new AuthorizedRemoteClientStore(join(directory, "clients.json"));
+      const api = new ApiServer(
+        { host: "127.0.0.1", port: 0, remote: true },
+        {
+          identity: new RemoteHostIdentityStore(join(directory, "identity.json")),
+          clients,
+          pairing: new RemotePairingService(clients, () => {}),
+          publisher: { start: async () => {}, stop: async () => {} },
+        },
+      );
+      const address = await api.start();
+      const browser = new BrowserSession();
+
+      try {
+        await browser.start(chrome("de-DE"));
+        await browser.active.setWindowRect(390, 844);
+        await browser.navigate(`http://${address.host}:${address.port}/setup`);
+        await browser.active.waitForText("Browser und Geräte für deine Projekte", 15_000);
+        await browser.active.waitForText("Chrome auf Android", 15_000);
+        expect(await browser.active.execute("return document.documentElement.lang")).toBe("de");
+        expect(await browser.active.$("#remote-connection").getText()).toContain("Verbundene Test-Clients");
+
+        await browser.navigate(`http://${address.host}:${address.port}/targets`);
+        await browser.active.waitForText("Alle Tests ausführen", 15_000);
+        expect(await browser.active.$("#test-targets").getText()).toContain("Ziele für deine Tests");
+
+        await browser.navigate(`http://${address.host}:${address.port}/docs#physical-ios`);
+        await browser.active.waitForText("Physisches iPhone oder iPad verbinden", 15_000);
+        expect(
+          await browser.active.execute("return document.querySelector('#ios-network-access').textContent"),
+        ).toContain("IP-Adresse der Testbench verwenden, die die Tests ausführt");
+        expect(
+          await browser.active.execute(
+            "return document.documentElement.scrollWidth <= document.documentElement.clientWidth",
+          ),
+        ).toBe(true);
+      } finally {
+        await browser.close();
+        await api.stop();
+        await rm(directory, { recursive: true, force: true });
         vi.restoreAllMocks();
       }
     },

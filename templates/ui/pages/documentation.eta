@@ -1,60 +1,49 @@
 <section class="hero hero--compact">
   <div>
-    <p class="eyebrow">Reference</p>
-    <h1>Documentation</h1>
-    <p class="hero__copy">From your first target to parallel project tests and interactive debugging.</p>
+    <p class="eyebrow"><%= it.t("documentation.content.reference") %></p>
+    <h1><%= it.t("documentation.content.title") %></h1>
+    <p class="hero__copy"><%= it.t("documentation.content.intro") %></p>
   </div>
 </section>
 
 <article class="docs-content panel">
   <section id="start">
-    <p class="eyebrow">In five minutes</p>
-    <h2>Quick start</h2>
+    <p class="eyebrow"><%= it.t("documentation.content.quick.eyebrow") %></p>
+    <h2><%= it.t("documentation.content.quick.title") %></h2>
     <ol>
-      <li>Install and start Browser Testbench once on your machine.</li>
-      <li>Check and complete the environment on the <a href="/setup">Overview</a> page.</li>
-      <li>Install the client as a development dependency in your project.</li>
-      <li>Copy a concrete ID from the <a href="/targets">Test targets</a> page.</li>
-      <li>Start your application and use its URL in your test.</li>
+      <li><%= it.t("documentation.content.quick.step1") %></li>
+      <li><%= it.t("documentation.content.quick.step2Before") %> <a href="/setup"><%= it.t("documentation.content.quick.step2Link") %></a><%= it.t("documentation.content.quick.step2After") %></li>
+      <li><%= it.t("documentation.content.quick.step3") %></li>
+      <li><%= it.t("documentation.content.quick.step4Before") %> <a href="/targets"><%= it.t("documentation.content.quick.step4Link") %></a><%= it.t("documentation.content.quick.step4After") %></li>
+      <li><%= it.t("documentation.content.quick.step5") %></li>
     </ol>
     <pre><code>npm install --global browser-testbench
 browser-testbench start</code></pre>
-    <p>Run this command in each project that contains automated tests:</p>
+    <p><%= it.t("documentation.content.quick.projectCommand") %></p>
     <pre><code>npm install --save-dev browser-testbench</code></pre>
   </section>
 
   <section id="remote">
-    <p class="eyebrow">Windows, macOS, and Linux</p>
-    <h2>Remote Testbench</h2>
-    <p>
-      Start the machine that owns the browsers and devices with <code>browser-testbench start --remote</code>. Start the
-      development computer normally, then use Discover on the Overview page. The first connection asks for the six-digit
-      code shown by the remote computer; later explicit connections reuse the saved pairing.
-    </p>
+    <p class="eyebrow"><%= it.t("documentation.content.remote.eyebrow") %></p>
+    <h2><%= it.t("documentation.content.remote.title") %></h2>
+    <p><%= it.t("documentation.content.remote.intro") %></p>
     <pre><code>browser-testbench discover
 browser-testbench connect &lt;name-or-instance-id&gt;
 browser-testbench status
 browser-testbench disconnect</code></pre>
-    <p>
-      If discovery is blocked, use <code>browser-testbench connect --server http://HOST:55808</code>. A remote browser
-      cannot reach an application through the development computer's localhost address. Bind the application to the LAN
-      and use its explicit LAN URL. Use remote mode only on a trusted private network.
-    </p>
+    <p><%= it.t("documentation.content.remote.network") %></p>
   </section>
 
   <section id="targets">
-    <p class="eyebrow">Convention over Configuration</p>
-    <h2>Target-IDs</h2>
-    <p>
-      Desktop browsers use short IDs such as <code>chrome</code>. Mobile targets include the device and version, for
-      example <code>safari-ios-iphone-17-pro-26-5</code>. IDs are generated from the detected environment.
-    </p>
+    <p class="eyebrow"><%= it.t("documentation.content.targetIds.eyebrow") %></p>
+    <h2><%= it.t("documentation.content.targetIds.title") %></h2>
+    <p><%= it.t("documentation.content.targetIds.intro") %></p>
   </section>
 
   <section id="automation">
-    <p class="eyebrow">Project-controlled</p>
-    <h2>Automated tests</h2>
-    <p>Install the Node client in your project:</p>
+    <p class="eyebrow"><%= it.t("documentation.content.automation.eyebrow") %></p>
+    <h2><%= it.t("documentation.content.automation.title") %></h2>
+    <p><%= it.t("documentation.content.automation.intro") %></p>
     <pre><code>npm install --save-dev browser-testbench</code></pre>
     <pre><code>import { RemoteTestbench } from "browser-testbench/client";
 
@@ -69,81 +58,73 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
   </section>
 
   <section id="debugging">
-    <p class="eyebrow">Remote control</p>
-    <h2>Interactive debugging</h2>
-    <p>Open a long-lived session from the command line or control it through a connected MCP client.</p>
+    <p class="eyebrow"><%= it.t("documentation.content.debugging.eyebrow") %></p>
+    <h2><%= it.t("documentation.content.debugging.title") %></h2>
+    <p><%= it.t("documentation.content.debugging.intro") %></p>
     <pre><code>browser-testbench open --target chrome --url http://127.0.0.1:3000</code></pre>
   </section>
 
   <section id="mobile">
-    <p class="eyebrow">Physical and virtual devices</p>
-    <h2>Mobile devices</h2>
-    <p>
-      Browser Testbench detects connected devices and shows their concrete target IDs on the Test targets page. Use the
-      matching setup below before running the first verification.
-    </p>
+    <p class="eyebrow"><%= it.t("documentation.content.mobile.eyebrow") %></p>
+    <h2><%= it.t("documentation.content.mobile.title") %></h2>
+    <p><%= it.t("documentation.content.mobile.intro") %></p>
   </section>
 
   <section id="physical-android">
-    <p class="eyebrow">USB setup</p>
-    <h2>Connect a physical Android device</h2>
+    <p class="eyebrow"><%= it.t("documentation.content.android.eyebrow") %></p>
+    <h2><%= it.t("documentation.content.android.title") %></h2>
     <device-setup-checklist platform="android"></device-setup-checklist>
     <details class="docs-disclosure" id="android-detailed-setup">
-      <summary>Show full Android setup guide</summary>
+      <summary><%= it.t("documentation.content.android.showGuide") %></summary>
       <div class="docs-disclosure__content">
         <details class="docs-accordion" id="android-tools" name="android-setup">
           <summary>
-            Install Android Platform Tools and Appium
+            <%= it.t("documentation.content.android.toolsTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
             <ol>
-              <li>Install Android Studio or the Android SDK Platform Tools on the Testbench computer.</li>
-              <li>Install Appium UiAutomator2 under <a href="/setup#environment-setup">Environment setup</a>.</li>
+              <li><%= it.t("documentation.content.android.tools1") %></li>
+              <li>
+                <%= it.t("documentation.content.android.tools2Before") %> <a href="/setup#environment-setup"><%= it.t("documentation.content.android.environmentSetup") %></a><%= it.t("documentation.content.android.tools2After") %>
+              </li>
             </ol>
           </div>
         </details>
         <details class="docs-accordion" id="android-device-connection" name="android-setup">
           <summary>
-            Prepare and connect the device
+            <%= it.t("documentation.content.android.deviceTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
             <ol>
-              <li>On the device, enable Developer options by tapping the build number seven times.</li>
-              <li>Open Developer options and enable USB debugging.</li>
-              <li>Connect and unlock the device with a data-capable USB cable.</li>
+              <li><%= it.t("documentation.content.android.device1") %></li>
+              <li><%= it.t("documentation.content.android.device2") %></li>
+              <li><%= it.t("documentation.content.android.device3") %></li>
             </ol>
           </div>
         </details>
         <details class="docs-accordion" id="android-debugging" name="android-setup">
           <summary>
-            Allow debugging and check Chrome
+            <%= it.t("documentation.content.android.debugTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
             <ol>
-              <li>Accept the USB debugging authorization prompt on the unlocked device.</li>
-              <li>Install or enable Google Chrome on the device.</li>
-              <li>
-                Open the <a href="/setup">Overview</a> page and confirm that the device is listed as ready under Chrome
-                on Android.
-              </li>
+              <li><%= it.t("documentation.content.android.debug1") %></li>
+              <li><%= it.t("documentation.content.android.debug2") %></li>
+              <li><%= it.t("documentation.content.android.debug3Before") %> <a href="/setup"><%= it.t("documentation.content.android.overview") %></a> <%= it.t("documentation.content.android.debug3After") %></li>
             </ol>
           </div>
         </details>
         <details class="docs-accordion" id="android-first-test" name="android-setup">
           <summary>
-            Run the first test
+            <%= it.t("documentation.content.android.testTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
-            <p>Open <a href="/targets">Test targets</a> and run the generated physical-device target once.</p>
-            <p>
-              Connecting, disconnecting, or changing USB authorization updates the interface automatically. Localhost
-              URLs are forwarded over USB for the session, so the Android device does not need access to the development
-              computer's LAN address.
-            </p>
+            <p><%= it.t("documentation.content.android.test1Before") %> <a href="/targets"><%= it.t("documentation.content.android.testTargets") %></a> <%= it.t("documentation.content.android.test1After") %></p>
+            <p><%= it.t("documentation.content.android.test2") %></p>
           </div>
         </details>
       </div>
@@ -151,175 +132,125 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
   </section>
 
   <section id="physical-ios">
-    <p class="eyebrow">USB and Xcode setup</p>
-    <h2>Connect a physical iPhone or iPad</h2>
+    <p class="eyebrow"><%= it.t("documentation.content.ios.eyebrow") %></p>
+    <h2><%= it.t("documentation.content.ios.title") %></h2>
     <device-setup-checklist platform="ios"></device-setup-checklist>
     <details class="docs-disclosure" id="ios-detailed-setup">
-      <summary>Show full iPhone and iPad setup guide</summary>
+      <summary><%= it.t("documentation.content.ios.showGuide") %></summary>
       <div class="docs-disclosure__content">
         <details class="docs-accordion" id="ios-mac-setup" name="ios-setup">
           <summary>
-            Install Xcode and the iOS test tools
+            <%= it.t("documentation.content.ios.toolsTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
             <ol>
-              <li>Install and open Xcode on the Mac that runs Browser Testbench.</li>
+              <li><%= it.t("documentation.content.ios.tools1") %></li>
+              <li><%= it.t("documentation.content.ios.tools2") %></li>
               <li>
-                Under Xcode Settings → Accounts, add a free Apple Account or an account belonging to a paid Apple
-                Developer team. Browser Testbench never asks for or stores the account credentials.
-              </li>
-              <li>
-                Install Appium XCUITest under <a href="/setup#environment-setup">Environment setup</a> if Browser
-                Testbench offers that action.
+                <%= it.t("documentation.content.ios.tools3Before") %> <a href="/setup#environment-setup"><%= it.t("documentation.content.android.environmentSetup") %></a> <%= it.t("documentation.content.ios.tools3After") %>
               </li>
             </ol>
           </div>
         </details>
         <details class="docs-accordion" id="ios-device-connection" name="ios-setup">
           <summary>
-            Connect and trust the device
+            <%= it.t("documentation.content.ios.deviceTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
             <ol>
-              <li>Connect the unlocked iPhone or iPad by USB and accept <strong>Trust This Computer</strong>.</li>
-              <li>
-                Under Settings → Privacy &amp; Security, enable Developer Mode, restart the device, and confirm it after
-                the restart.
-              </li>
-              <li>
-                In Xcode, open <strong>Window → Devices and Simulators</strong>, select the device, and wait until it
-                appears without a warning or a <strong>Preparing</strong> status.
-              </li>
+              <li><%= it.t("documentation.content.ios.device1") %></li>
+              <li><%= it.t("documentation.content.ios.device2") %></li>
+              <li><%= it.t("documentation.content.ios.device3") %></li>
             </ol>
           </div>
         </details>
         <details class="docs-accordion" id="ios-safari-settings" name="ios-setup">
           <summary>
-            Enable Safari automation
+            <%= it.t("documentation.content.ios.safariTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
             <ol>
-              <li>Under Settings → Developer, enable <strong>UI Automation</strong>.</li>
-              <li>
-                Under Settings → Safari → Advanced on iOS 16, or Settings → Apps → Safari → Advanced on newer iOS
-                versions, enable <strong>Web Inspector</strong> and <strong>Remote Automation</strong>.
-              </li>
+              <li><%= it.t("documentation.content.ios.safari1") %></li>
+              <li><%= it.t("documentation.content.ios.safari2") %></li>
             </ol>
           </div>
         </details>
         <details class="docs-accordion" id="ios-signing" name="ios-setup">
           <summary>
-            Sign and run WebDriverAgent
+            <%= it.t("documentation.content.ios.signingTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
-            <p>
-              Appium controls a real iPhone through WebDriverAgent. Apple requires this helper app to have an Apple
-              Development certificate and a provisioning profile. A free Apple Account is sufficient.
-            </p>
-            <h4>Create the signing identity</h4>
+            <p><%= it.t("documentation.content.ios.signingIntro") %></p>
+            <h4><%= it.t("documentation.content.ios.identityTitle") %></h4>
             <ol>
               <li>
-                Under <a href="/setup#environment-setup">Environment setup</a>, run the WebDriverAgent command shown for
-                the iPhone. Keep the opened <code>WebDriverAgent.xcodeproj</code> project open.
+                <%= it.t("documentation.content.ios.identity1Before") %> <a href="/setup#environment-setup"><%= it.t("documentation.content.android.environmentSetup") %></a> <%= it.t("documentation.content.ios.identity1After") %>
               </li>
-              <li>
-                In Xcode Settings → Accounts, select the team, open <strong>Manage Certificates</strong>, and create an
-                <strong>Apple Development</strong> certificate if none exists.
-              </li>
-              <li>
-                Return to the Overview page, select <strong>Check again</strong>, and copy the exact WebDriverAgent
-                bundle ID shown for the device.
-              </li>
+              <li><%= it.t("documentation.content.ios.identity2") %></li>
+              <li><%= it.t("documentation.content.ios.identity3") %></li>
             </ol>
-            <p>
-              If more than one team is installed, set <code>BROWSER_TESTBENCH_IOS_TEAM_ID</code> to the intended
-              ten-character team ID and restart Browser Testbench.
-            </p>
-            <h4>If the certificate is not detected</h4>
+            <p><%= it.t("documentation.content.ios.teamId") %></p>
+            <h4><%= it.t("documentation.content.ios.certificateTitle") %></h4>
             <ol>
+              <li><%= it.t("documentation.content.ios.certificate1") %></li>
               <li>
-                In Keychain Access, select <strong>login → My Certificates</strong> and expand Apple Development. A
-                private key must appear below it.
-              </li>
-              <li>
-                If the identity remains invalid, install Apple's
-                <a href="https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer">WWDR G3 intermediate</a> in the
-                login keychain and keep <strong>Use System Defaults</strong>.
+                <%= it.t("documentation.content.ios.certificate2Before") %>
+                <a href="https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer"><%= it.t("documentation.content.ios.certificateLink") %></a>
+                <%= it.t("documentation.content.ios.certificate2After") %>
               </li>
             </ol>
-            <h4>Run WebDriverAgent</h4>
+            <h4><%= it.t("documentation.content.ios.runTitle") %></h4>
             <ol>
-              <li>A paid Developer team can first run the physical target and let Xcode provision automatically.</li>
-              <li>
-                For a Personal Team or failed automatic provisioning, select
-                <strong>WebDriverAgentRunner → Signing &amp; Capabilities</strong>, enable automatic signing, select the
-                team, and enter the bundle ID shown by Browser Testbench.
-              </li>
-              <li>
-                Select <strong>Product → Scheme → WebDriverAgentRunner</strong>, select the iPhone under Product →
-                Destination, and choose <strong>Product → Test</strong>.
-              </li>
-              <li>
-                If iOS blocks the app, open <strong>Settings → General → VPN &amp; Device Management</strong>, select
-                the developer entry, and trust it. The device needs internet access for this confirmation.
-              </li>
-              <li>Return to <a href="/targets">Test targets</a> and run the physical iPhone target again.</li>
+              <li><%= it.t("documentation.content.ios.run1") %></li>
+              <li><%= it.t("documentation.content.ios.run2") %></li>
+              <li><%= it.t("documentation.content.ios.run3") %></li>
+              <li><%= it.t("documentation.content.ios.run4") %></li>
+              <li><%= it.t("documentation.content.ios.run5Before") %> <a href="/targets"><%= it.t("documentation.content.android.testTargets") %></a> <%= it.t("documentation.content.ios.run5After") %></li>
             </ol>
-            <p>
-              A free Personal Team profile expires after seven days. Repeat Product → Test after expiry or when an
-              XCUITest update replaces WebDriverAgent.
-            </p>
+            <p><%= it.t("documentation.content.ios.expiry") %></p>
           </div>
         </details>
         <details class="docs-accordion" id="ios-xcode-compatibility" name="ios-setup">
           <summary>
-            Fix “Logic Testing Unavailable” on iOS 16
+            <%= it.t("documentation.content.ios.compatTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
-            <p>
-              If the build succeeds but Xcode cannot start WebDriverAgentRunner, signing is already complete. Xcode 26.4
-              and 26.6 are known to report this error for physical iOS 16 devices.
-            </p>
+            <p><%= it.t("documentation.content.ios.compatIntro") %></p>
             <ol>
               <li>
-                Download Xcode 26.2 from Apple's
-                <a href="https://developer.apple.com/download/all/?q=Xcode%2026.2">More Downloads</a> page.
+                <%= it.t("documentation.content.ios.compat1Before") %>
+                <a href="https://developer.apple.com/download/all/?q=Xcode%2026.2"><%= it.t("documentation.content.ios.compatLink") %></a>
+                <%= it.t("documentation.content.ios.compat1After") %>
               </li>
-              <li>Extract it, rename it to <code>Xcode-26.2.app</code>, and move it to Applications.</li>
+              <li><%= it.t("documentation.content.ios.compat2") %></li>
               <li>
-                Select it and verify the version:
+                <%= it.t("documentation.content.ios.compat3") %>
                 <pre><code>sudo xcode-select --switch /Applications/Xcode-26.2.app/Contents/Developer
 xcodebuild -version</code></pre>
               </li>
-              <li>Under Xcode Settings → Components, install the iOS 26.2 platform component if Xcode offers it.</li>
-              <li>Return to Test targets and run the physical iPhone target again.</li>
+              <li><%= it.t("documentation.content.ios.compat4") %></li>
+              <li><%= it.t("documentation.content.ios.compat5") %></li>
             </ol>
           </div>
         </details>
         <details class="docs-accordion" id="ios-network-access" name="ios-setup">
           <summary>
-            Use the correct application address
+            <%= it.t("documentation.content.ios.networkTitle") %>
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
           </summary>
           <div class="docs-accordion__content">
+            <p><%= it.t("documentation.content.ios.networkIntro") %></p>
             <p>
-              The device needs network access to the <strong>tested application</strong>, not to the Testbench UI. USB
-              is used separately for device discovery and automation. On the device, <code>localhost</code> refers to
-              the device itself.
-            </p>
-            <p>
-              <% if (it.remoteExecution) { %>You must use the IP address of the Testbench that runs the tests. Do not use the IP
-              address of the local gateway.<% } else if (it.localNetworkAddress) { %>The current Testbench's detected LAN address is
-              <strong><code><%= it.localNetworkAddress %></code></strong
-              >. For an application on port 3000, you must use
-              <strong><code>http://<%= it.localNetworkAddress %>:3000</code></strong> instead of
-              <code>http://localhost:3000</code>.<% } else { %>Browser Testbench could not detect a LAN address
-              for this computer. Check its network settings before connecting the device.<% } %>
+              <% if (it.remoteExecution) { %><%= it.t("documentation.content.ios.networkRemote") %><% } else if (it.localNetworkAddress) { %><%=
+it.t("documentation.content.ios.networkLocal", {
+  address: it.localNetworkAddress,
+})
+%><% } else { %><%= it.t("documentation.content.ios.networkMissing") %><% } %>
             </p>
           </div>
         </details>
@@ -328,9 +259,9 @@ xcodebuild -version</code></pre>
   </section>
 
   <section id="mobile-controls">
-    <p class="eyebrow">Interaction</p>
-    <h2>Mobile controls</h2>
-    <p>Tap, swipe, pinch, portrait, and landscape are available through the Node client and MCP.</p>
+    <p class="eyebrow"><%= it.t("documentation.content.controls.eyebrow") %></p>
+    <h2><%= it.t("documentation.content.controls.title") %></h2>
+    <p><%= it.t("documentation.content.controls.intro") %></p>
     <pre><code>import { BrowserOrientation, PinchDirection, SwipeDirection } from "browser-testbench/client";
 
 await browser.setOrientation(BrowserOrientation.Landscape);
@@ -343,17 +274,17 @@ await browser.pinch({ direction: PinchDirection.Out });</code></pre>
   <div class="setup-checklist" :id="elementId" aria-live="polite">
     <div class="setup-checklist__heading">
       <div>
-        <p class="eyebrow">Guided setup</p>
+        <p class="eyebrow">{{ t('checklist.eyebrow') }}</p>
         <h3>{{ heading }}</h3>
         <p>{{ intro }}</p>
       </div>
       <button class="button button--secondary" type="button" :disabled="store.loading" @click="refresh">
         <i :class="['fa-solid', store.loading ? 'fa-spinner fa-spin' : 'fa-rotate']" aria-hidden="true"></i>
-        {{ store.loading ? 'Checking …' : 'Check again' }}
+        {{ store.loading ? t('common.actions.checking') : t('common.actions.checkAgain') }}
       </button>
     </div>
     <label class="setup-checklist__device-picker" v-if="physicalDevices.length > 1">
-      <span>Device</span>
+      <span>{{ t('checklist.deviceLabel') }}</span>
       <select v-model="selectedDeviceId">
         <option v-for="deviceOption in physicalDevices" :key="deviceOption.id" :value="deviceOption.id">
           {{ deviceOption.name }}{{ deviceOption.platformVersion ? ` · ${deviceOption.platformVersion}` : '' }}
@@ -364,7 +295,7 @@ await browser.pinch({ direction: PinchDirection.Out });</code></pre>
       <details class="setup-checklist__group is-complete" v-if="completedSteps.length">
         <summary>
           <span class="setup-checklist__icon"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
-          <strong>{{ completedSteps.length }} {{ completedSteps.length === 1 ? 'step' : 'steps' }} completed</strong>
+          <strong>{{ t('checklist.completed', { count: completedSteps.length }, completedSteps.length) }}</strong>
           <i class="fa-solid fa-chevron-down setup-checklist__chevron" aria-hidden="true"></i>
         </summary>
         <div class="setup-checklist__compact-list">
@@ -396,18 +327,18 @@ await browser.pinch({ direction: PinchDirection.Out });</code></pre>
           <p>{{ currentStep.detail }}</p>
           <label class="setup-checklist__confirmation" v-if="currentStep.manual">
             <input type="checkbox" @change="confirmManualStep($event.target.checked)" />
-            <span>I enabled these settings</span>
+            <span>{{ t('checklist.confirmation') }}</span>
           </label>
           <details class="setup-checklist__troubleshooting" v-if="currentStep.troubleshooting?.length">
-            <summary>If this does not work</summary>
+            <summary>{{ t('checklist.troubleshooting') }}</summary>
             <ul>
               <li v-for="hint in currentStep.troubleshooting" :key="hint.text">
                 {{ hint.text }}
-                <a v-if="hint.href" :href="hint.href">{{ hint.linkLabel ?? 'Open help' }}</a>
+                <a v-if="hint.href" :href="hint.href">{{ hint.linkLabel ?? t('checklist.openHelp') }}</a>
               </li>
             </ul>
           </details>
-          <a :href="currentStep.href" @click="openInstructions(currentStep.href)">Open instructions</a>
+          <a :href="currentStep.href" @click="openInstructions(currentStep.href)">{{ t('checklist.openInstructions') }}</a>
         </div>
       </article>
       <p class="setup-checklist__complete" v-else>
@@ -416,7 +347,7 @@ await browser.pinch({ direction: PinchDirection.Out });</code></pre>
       <details class="setup-checklist__group" v-if="laterSteps.length">
         <summary>
           <span class="setup-checklist__icon"><i class="fa-solid fa-clock" aria-hidden="true"></i></span>
-          <strong>{{ laterSteps.length }} later {{ laterSteps.length === 1 ? 'step' : 'steps' }}</strong>
+          <strong>{{ t('checklist.later', { count: laterSteps.length }, laterSteps.length) }}</strong>
           <i class="fa-solid fa-chevron-down setup-checklist__chevron" aria-hidden="true"></i>
         </summary>
         <div class="setup-checklist__compact-list">

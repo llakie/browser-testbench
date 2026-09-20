@@ -1,15 +1,16 @@
 import { defineComponent } from "vue";
+import { translator } from "../core/translator.js";
 
 export const CommandBlock = defineComponent({
   props: {
     value: { type: String, required: true },
     multiline: Boolean,
-    copyLabel: { type: String, default: "Command" },
+    copyLabel: { type: String, default: "command" },
   },
   data: () => ({ copied: false }),
   computed: {
     accessibleLabel(): string {
-      return this.copyLabel === "Target ID" ? "Copy target ID" : "Copy command";
+      return translator.t(this.copyLabel === "targetId" ? "common.actions.copyTargetId" : "common.actions.copyCommand");
     },
   },
   methods: {

@@ -4,6 +4,7 @@ import type { WorkbenchState } from "../../../setup/workbench-types.js";
 import { DocumentationDisclosure } from "../core/documentation-disclosure.js";
 import { workbenchStore } from "../stores/workbench-store.js";
 import { DeviceSetupSteps, type ChecklistStep } from "./device-setup-steps.js";
+import { translator } from "../core/translator.js";
 
 const IOS_SAFARI_CONFIRMATION_KEY = "browser-testbench-ios-safari-settings";
 
@@ -32,15 +33,15 @@ export const DeviceSetupChecklist = defineComponent({
       return `${this.platform}-setup-checklist`;
     },
     heading(): string {
-      return this.isIos ? "Set up your iPhone or iPad" : "Set up your Android device";
+      return translator.t(this.isIos ? "checklist.ios.heading" : "checklist.android.heading");
     },
     intro(): string {
       return this.workbench
-        ? `We show one step at a time for ${this.device?.name ?? "your device"}.`
-        : "Checking this Testbench and connected devices …";
+        ? translator.t("checklist.intro", { deviceName: this.device?.name ?? translator.t("checklist.yourDevice") })
+        : translator.t("checklist.checking");
     },
     completionText(): string {
-      return this.isIos ? "This device is ready for Safari testing." : "This device is ready for Chrome testing.";
+      return translator.t(this.isIos ? "checklist.ios.complete" : "checklist.android.complete");
     },
     check(): DoctorCheck | undefined {
       const id = this.isIos ? "safari-ios" : "chrome-android";
@@ -109,6 +110,7 @@ export const DeviceSetupChecklist = defineComponent({
     this.visibilityObserver?.disconnect();
   },
   methods: {
+    t: translator.t.bind(translator),
     status(step: ChecklistStep): ChecklistStatus {
       if (step.ready) return "complete";
       if (step.id !== this.currentStep?.id) return "pending";
@@ -126,12 +128,7 @@ export const DeviceSetupChecklist = defineComponent({
       }[status];
     },
     statusLabel(status: ChecklistStatus): string {
-      return {
-        complete: "Done",
-        attention: "Next step",
-        pending: "Later",
-        manual: "Confirm once",
-      }[status];
+      return translator.t(`checklist.status.${status}`);
     },
     confirmManualStep(confirmed: boolean): void {
       if (!this.isIos) return;

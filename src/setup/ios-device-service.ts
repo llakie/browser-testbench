@@ -18,6 +18,10 @@ export class IosDeviceService {
         status: "blocked",
         detail: "Xcode is not available.",
         action: "Install Xcode and select the installation with xcode-select.",
+        messages: {
+          detail: { key: "environment.xcodeMissing" },
+          action: { key: "environment.xcodeInstall" },
+        },
       };
     }
 
@@ -31,7 +35,14 @@ export class IosDeviceService {
     );
     const devices = [...inventory.simulators, ...physical];
     if (devices.some((device) => device.compatible)) {
-      return { id: "safari-ios", label, status: "ready", detail: this.readyDetail(devices), devices };
+      return {
+        id: "safari-ios",
+        label,
+        status: "ready",
+        detail: this.readyDetail(devices),
+        devices,
+        messages: { detail: this.readyMessage(devices) },
+      };
     }
 
     const physicalDevice = physical[0];
@@ -43,6 +54,12 @@ export class IosDeviceService {
         detail: physicalDevice.detail ?? "A physical Apple device needs attention.",
         action: this.physicalDeviceAction(physicalDevice),
         devices,
+        messages: {
+          detail: physicalDevice.messages?.detail ?? { key: "environment.iosPhysicalAttention" },
+          ...(physicalDevice.setupChecks?.find((check) => !check.ready)?.messages?.detail
+            ? { action: physicalDevice.setupChecks.find((check) => !check.ready)!.messages!.detail }
+            : {}),
+        },
       };
     }
     return {
@@ -51,6 +68,10 @@ export class IosDeviceService {
       status: "action",
       detail: "No iOS Simulator or recently connected physical iPhone or iPad was found.",
       action: "Connect an unlocked iPhone or iPad by USB and trust this Mac, or create an iOS Simulator in Xcode.",
+      messages: {
+        detail: { key: "environment.iosNone" },
+        action: { key: "environment.iosConnect" },
+      },
     };
   }
 
@@ -95,6 +116,9 @@ export class IosDeviceService {
       const signingRequired = connected && wired && paired && developerMode === "enabled" && !signing;
       const compatible = connected && wired && paired && developerMode === "enabled" && Boolean(signing);
       const problem = this.physicalDeviceProblem({ connected, wired, paired, developerMode, signing, signingProblem });
+      const problemMessage = signingProblem
+        ? undefined
+        : this.physicalDeviceProblemMessage({ connected, wired, paired, developerMode, signing });
       const detail =
         problem ??
         `Connected via USB with signing available. WebDriverAgent bundle ID: ${signing!.bundleId}. Enable UI Automation, Safari Web Inspector, and Remote Automation before the first test.`;
@@ -107,12 +131,21 @@ export class IosDeviceService {
           deviceKind: "physical" as const,
           compatible,
           detail,
+          messages: {
+            detail: problemMessage ?? {
+              key: "environment.iosReady",
+              parameters: { bundleId: signing?.bundleId ?? "" },
+            },
+          },
           setupChecks: [
             {
               id: "usb" as const,
               label: "USB connection",
               ready: connected && wired,
               detail: connected && wired ? "Connected directly by USB." : "Connect and unlock the device by USB.",
+              messages: {
+                detail: { key: connected && wired ? "environment.iosUsbReady" : "environment.iosUsbConnect" },
+              },
             },
             {
               id: "trust" as const,
@@ -121,6 +154,7 @@ export class IosDeviceService {
               detail: paired
                 ? "The device is paired and available to Xcode."
                 : "Accept “Trust This Computer” and wait for Xcode to finish preparing the device.",
+              messages: { detail: { key: paired ? "environment.iosTrustReady" : "environment.iosTrust" } },
             },
             {
               id: "developer-mode" as const,
@@ -130,6 +164,11 @@ export class IosDeviceService {
                 developerMode === "enabled"
                   ? "Developer Mode is enabled."
                   : "Enable Developer Mode, restart the device, and confirm it after restart.",
+              messages: {
+                detail: {
+                  key: developerMode === "enabled" ? "environment.iosDeveloperReady" : "environment.iosDeveloper",
+                },
+              },
             },
             {
               id: "signing" as const,
@@ -138,6 +177,15 @@ export class IosDeviceService {
               detail: signing
                 ? "The certificate, private key, and trust chain form a valid signing identity."
                 : (signingProblem ?? "Create and validate an Apple Development signing identity."),
+              ...(signingProblem
+                ? {}
+                : {
+                    messages: {
+                      detail: {
+                        key: signing ? ("environment.iosSigningReady" as const) : ("environment.iosSigning" as const),
+                      },
+                    },
+                  }),
             },
           ],
           ...(signingRequired ? { documentationUrl: "/docs#ios-signing" } : {}),
@@ -182,5 +230,30 @@ export class IosDeviceService {
     if (pending?.id === "developer-mode")
       return `${pending.detail} Then enable UI Automation and Safari Web Inspector.`;
     return pending?.detail ?? device.detail ?? "Complete the required setup on the device and refresh this page.";
+  }
+
+  private static physicalDeviceProblemMessage(input: {
+    connected: boolean;
+    wired: boolean;
+    paired: boolean;
+    developerMode?: string;
+    signing?: IosSigningConfiguration;
+  }) {
+    if (!input.connected) return { key: "environment.iosUnlock" as const };
+    if (!input.wired) return { key: "environment.iosWired" as const };
+    if (!input.paired) return { key: "environment.iosTrust" as const };
+    if (input.developerMode !== "enabled") return { key: "environment.iosDeveloper" as const };
+    if (!input.signing) return { key: "environment.iosAccount" as const };
+    return undefined;
+  }
+
+  private static readyMessage(devices: TargetDeviceOption[]) {
+    const count = devices.filter((device) => device.compatible).length;
+    const attention = devices.filter((device) => device.deviceKind === "physical" && !device.compatible).length;
+    return {
+      key: attention ? ("environment.iosTargetsReadyAttention" as const) : ("environment.iosTargetsReady" as const),
+      parameters: { count, attention },
+      count,
+    };
   }
 }

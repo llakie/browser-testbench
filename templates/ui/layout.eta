@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="<%= it.locale %>">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,12 +19,13 @@
       data-page="<%= it.activePage %>"
       data-live-reload="<%= it.liveReload %>"
       data-version="<%= it.version %>"
+      data-locale="<%= it.locale %>"
       v-cloak
     >
-      <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-        <a class="sidebar__brand" href="/setup" aria-label="Browser Testbench home">
+      <aside class="sidebar" id="sidebar" aria-label="<%= it.t("navigation.mainLabel") %>">
+        <a class="sidebar__brand" href="/setup" aria-label="<%= it.t("navigation.home") %>">
           <span class="brand__mark"><i class="fa-solid fa-flask-vial" aria-hidden="true"></i></span>
-          <span class="sidebar__label"><strong>Browser Testbench</strong><small>Local test environment</small></span>
+          <span class="sidebar__label"><strong><%= it.t("common.productName") %></strong><small><%= it.t("common.localTestEnvironment") %></small></span>
         </a>
         <nav class="sidebar__nav">
           <% for (const item of it.navigation) { %>
@@ -39,7 +40,7 @@
             <span class="sidebar__label"><%= item.label %></span>
           </a>
           <% if (item.id === it.activePage && it.subnavigation.length > 0) { %>
-          <div class="sidebar__subnav" aria-label="Documentation sections">
+          <div class="sidebar__subnav" aria-label="<%= it.t("navigation.documentationSections") %>">
             <% for (const subitem of it.subnavigation) { %>
             <a class="sidebar__sublink" href="<%= subitem.href %>">
               <span class="sidebar__label"><%= subitem.label %></span>
@@ -55,25 +56,31 @@
             id="sidebar-collapse"
             type="button"
             :aria-expanded="String(!sidebarCollapsed)"
-            :aria-label="sidebarCollapsed ? 'Expand menu' : 'Collapse menu'"
-            :title="sidebarCollapsed ? 'Expand menu' : 'Collapse menu'"
+            :aria-label="sidebarCollapsed ? t('navigation.expandMenu') : t('navigation.collapseMenu')"
+            :title="sidebarCollapsed ? t('navigation.expandMenu') : t('navigation.collapseMenu')"
             @click="toggleSidebar"
           >
             <i :class="['fa-solid', sidebarCollapsed ? 'fa-angles-right' : 'fa-angles-left']" aria-hidden="true"></i>
           </button>
           <footer class="sidebar__footer">
-            <nav class="sidebar__footer-links" aria-label="Status and legal">
-              <a class="sidebar__footer-link sidebar__footer-link--health" href="/health" title="Server status">
+            <nav class="sidebar__footer-links" aria-label="<%= it.t("navigation.statusAndLegal") %>">
+              <a
+                class="sidebar__footer-link sidebar__footer-link--health"
+                href="/health"
+                title="<%= it.t("navigation.serverStatus") %>">
                 <i class="fa-solid fa-heart-pulse" aria-hidden="true"></i>
-                <span class="sidebar__label">Server status</span>
+                <span class="sidebar__label"><%= it.t("navigation.serverStatus") %></span>
               </a>
-              <a class="sidebar__footer-link" href="/LICENSE.txt" title="License">
+              <a class="sidebar__footer-link" href="/LICENSE.txt" title="<%= it.t("navigation.license") %>">
                 <i class="fa-solid fa-scale-balanced" aria-hidden="true"></i>
-                <span class="sidebar__label">License</span>
+                <span class="sidebar__label"><%= it.t("navigation.license") %></span>
               </a>
-              <a class="sidebar__footer-link" href="/THIRD_PARTY_LICENSES.txt" title="Third-party licenses">
+              <a
+                class="sidebar__footer-link"
+                href="/THIRD_PARTY_LICENSES.txt"
+                title="<%= it.t("navigation.thirdPartyLicenses") %>">
                 <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
-                <span class="sidebar__label">Third-party licenses</span>
+                <span class="sidebar__label"><%= it.t("navigation.thirdPartyLicenses") %></span>
               </a>
             </nav>
           </footer>
@@ -84,7 +91,7 @@
         class="sidebar-backdrop"
         id="sidebar-backdrop"
         type="button"
-        aria-label="Close menu"
+        aria-label="<%= it.t("navigation.closeMenu") %>"
         :hidden="!mobileMenuOpen"
         @click="closeMobileMenu"
       ></button>
@@ -106,7 +113,7 @@
                 :disabled="shellBusy"
                 @click="retryRemote"
               >
-                Retry
+                {{ t('common.actions.retry') }}
               </button>
               <button
                 class="button button--secondary"
@@ -115,7 +122,7 @@
                 :disabled="shellBusy"
                 @click="disconnectRemote"
               >
-                Disconnect
+                {{ t('common.actions.disconnect') }}
               </button>
             </span>
           </div>
@@ -128,7 +135,8 @@
               :aria-expanded="String(mobileMenuOpen)"
               @click="toggleMobileMenu"
             >
-              <i class="fa-solid fa-bars" aria-hidden="true"></i><span class="visually-hidden">Open menu</span>
+              <i class="fa-solid fa-bars" aria-hidden="true"></i
+              ><span class="visually-hidden"><%= it.t("navigation.openMenu") %></span>
             </button>
             <a class="mobile-brand" href="/setup">Browser Testbench</a>
             <div class="topbar__actions">
@@ -144,7 +152,9 @@
                 @click="store.refresh({ analyze: true })"
               >
                 <i :class="['fa-solid', store.loading ? 'fa-spinner fa-spin' : 'fa-rotate']" aria-hidden="true"></i>
-                <span class="topbar__refresh-label">{{ store.loading ? 'Checking …' : 'Check again' }}</span>
+                <span class="topbar__refresh-label"
+                  >{{ store.loading ? t('common.actions.checking') : t('common.actions.checkAgain') }}</span
+                >
               </button>
               <% } %>
             </div>
@@ -162,8 +172,8 @@
         >
           <div class="content-analysis__content">
             <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
-            <strong>Please wait</strong>
-            <span>Analyzing the system environment …</span>
+            <strong><%= it.t("common.pleaseWait") %></strong>
+            <span><%= it.t("common.analyzingEnvironment") %></span>
           </div>
         </div>
         <% } %>
