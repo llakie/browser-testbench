@@ -10,13 +10,7 @@ import type {
 import type { ConnectionStatus, PairingRequired } from "../../../remote/remote-types.js";
 import { ApiClient } from "../core/api-client.js";
 import { workbenchStore } from "../stores/workbench-store.js";
-
-const actionLabels: Record<SetupAction["status"], string> = {
-  completed: "Installed",
-  planned: "Not installed",
-  manual: "Action required",
-  failed: "Failed",
-};
+import { localized, translator } from "../core/translator.js";
 
 const actionIcons: Record<SetupAction["status"], string> = {
   completed: "fa-check",
@@ -50,14 +44,16 @@ export const OverviewPage = defineComponent({
     },
     remoteTitle(): string {
       return this.connection.mode === "remote" || this.workbench?.remoteMode
-        ? "Connected test clients"
-        : "Connect to a central Testbench";
+        ? translator.t("overview.remote.clients")
+        : translator.t("overview.remote.connect");
     },
     remoteSummary(): string {
       if (this.connection.mode === "remote")
-        return `Manage clients paired with ${this.connection.remote?.instanceName ?? "the remote Testbench"}.`;
-      if (this.workbench?.remoteMode) return "Pair and manage clients that use this Testbench over the network.";
-      return "Use browsers and devices provided by another computer on your network.";
+        return translator.t("overview.remote.manage", {
+          instanceName: this.connection.remote?.instanceName ?? translator.t("overview.remote.remoteFallback"),
+        });
+      if (this.workbench?.remoteMode) return translator.t("overview.remote.manageLocal");
+      return translator.t("overview.remote.useRemote");
     },
     managesClients(): boolean {
       return Boolean(this.workbench?.remoteMode || this.connection.mode === "remote");
@@ -71,8 +67,12 @@ export const OverviewPage = defineComponent({
       const completed = actions.filter((action) => action.status === "completed").length;
       const pending = actions.length - completed;
       return pending
-        ? `${completed} installed · ${pending} ${pending === 1 ? "step" : "steps"} remaining`
-        : "All required extensions are installed.";
+        ? translator.t("overview.setupSummary", {
+            completed,
+            pending,
+            pendingLabel: translator.t("overview.step", { count: pending }, pending),
+          })
+        : translator.t("overview.extensionsReady");
     },
   },
   watch: {
@@ -101,38 +101,49 @@ export const OverviewPage = defineComponent({
     clearTimeout(this.pairingExpiryTimer);
   },
   methods: {
+    t: translator.t.bind(translator),
+    localized,
+    mcpLabel(client: McpIntegrationStatus): string {
+      return translator.message(client.labelMessage, client.label);
+    },
+    mcpDetail(client: McpIntegrationStatus): string {
+      return translator.message(client.detailMessage, client.detail);
+    },
+    mcpInstruction(client: McpIntegrationStatus): string {
+      return translator.message(client.instructionMessage, client.instruction);
+    },
     statusIcon(status: CheckStatus): string {
       return { ready: "fa-check", action: "fa-triangle-exclamation", blocked: "fa-xmark", skip: "fa-minus" }[status];
     },
     actionStatus(status: SetupAction["status"]): string {
-      return actionLabels[status];
+      return translator.t(`overview.actionStatus.${status}`);
     },
     actionStatusIcon(status: SetupAction["status"]): string {
       return actionIcons[status];
     },
     deviceKind(kind?: MobileDeviceKind): string {
-      return kind ? { physical: "Physical device", emulator: "Emulator", simulator: "Simulator" }[kind] : "";
+      return kind ? translator.t(`overview.deviceKind.${kind}`) : "";
     },
     deviceState(state?: string): string {
       return state
         ? ({
-            Booted: "Running",
-            Shutdown: "Shut down",
-            Creating: "Creating",
-            Connected: "Connected via USB",
-            Wireless: "Connected wirelessly",
-            Unavailable: "Reconnect and unlock the device",
-            unauthorized: "USB debugging authorization required",
-            offline: "Device offline",
-            "no permissions": "USB permission required",
-            Available: "Available",
+            Booted: translator.t("overview.deviceState.Booted"),
+            Shutdown: translator.t("overview.deviceState.Shutdown"),
+            Creating: translator.t("overview.deviceState.Creating"),
+            Connected: translator.t("overview.deviceState.Connected"),
+            Wireless: translator.t("overview.deviceState.Wireless"),
+            Unavailable: translator.t("overview.deviceState.Unavailable"),
+            unauthorized: translator.t("overview.deviceState.unauthorized"),
+            offline: translator.t("overview.deviceState.offline"),
+            "no permissions": translator.t("overview.deviceState.no permissions"),
+            Available: translator.t("overview.deviceState.Available"),
           }[state] ?? state)
         : "";
     },
     deviceMeta(device: TargetDeviceOption): string {
       return [
         this.deviceKind(device.deviceKind),
-        device.platformVersion ? `Version ${device.platformVersion}` : "",
+        device.platformVersion ? translator.t("overview.version", { version: device.platformVersion }) : "",
         this.deviceState(device.state),
       ]
         .filter(Boolean)
@@ -161,8 +172,8 @@ export const OverviewPage = defineComponent({
     },
     actionDetail(action: SetupAction): string {
       if (!this.workbench?.permissions.configure && action.status !== "completed")
-        return "Administrative setup requires an admin pairing.";
-      return action.detail ?? "This step must be completed manually.";
+        return translator.t("overview.adminRequired");
+      return localized(action, "detail") || translator.t("overview.manualStep");
     },
     async perform<T>(key: string, operation: () => Promise<T>): Promise<T | undefined> {
       this.actionBusy = key;
@@ -183,7 +194,9 @@ export const OverviewPage = defineComponent({
         });
         const failures = actions.filter((item) => item.status === "failed");
         this.store.setNotice(
-          failures.length ? `${failures.length} setup steps failed.` : "Setup completed.",
+          failures.length
+            ? translator.t("overview.setupFailed", { count: failures.length }, failures.length)
+            : translator.t("overview.setupCompleted"),
           failures.length ? "error" : "success",
         );
       });
@@ -196,7 +209,7 @@ export const OverviewPage = defineComponent({
           method: "POST",
           body: JSON.stringify({ client: client.id }),
         });
-        this.store.setNotice(`${client.label} is connected to Browser Testbench.`, "success");
+        this.store.setNotice(translator.t("overview.mcpConnected", { clientName: client.label }), "success");
       });
     },
     async discoverRemotes(): Promise<void> {
@@ -220,7 +233,7 @@ export const OverviewPage = defineComponent({
         });
         if ("pairingRequired" in result) {
           this.pendingPairingId = result.pairingId;
-          this.store.setNotice("Enter the pairing code shown on the remote computer.");
+          this.store.setNotice(translator.t("overview.pairingPrompt"));
           this.$nextTick(() => document.querySelector<HTMLInputElement>("#pairing-code")?.focus());
           return;
         }
@@ -248,7 +261,7 @@ export const OverviewPage = defineComponent({
       );
     },
     async revoke(client: AuthorizedRemoteClientView): Promise<void> {
-      if (!window.confirm(`Revoke access for ${client.name}?`)) return;
+      if (!window.confirm(translator.t("overview.remote.revoke", { clientName: client.name }))) return;
       await this.perform(`revoke:${client.clientId}`, () =>
         this.store.mutate(`/v1/remote/clients/${encodeURIComponent(client.clientId)}`, { method: "DELETE" }),
       );
@@ -257,7 +270,7 @@ export const OverviewPage = defineComponent({
       value: string,
       options: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" },
     ): string {
-      return new Intl.DateTimeFormat("en", options).format(new Date(value));
+      return translator.formatDate(value, options);
     },
   },
 });

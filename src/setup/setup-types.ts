@@ -1,4 +1,5 @@
 import type { TargetName } from "../config/types.js";
+import type { LocalizedFields } from "../config/types.js";
 
 export interface SetupAction {
   id: string;
@@ -8,4 +9,5 @@ export interface SetupAction {
   status: "planned" | "completed" | "failed" | "manual";
   detail?: string;
   targets?: TargetName[];
+  messages?: LocalizedFields;
 }

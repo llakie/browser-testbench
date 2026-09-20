@@ -25,6 +25,10 @@ export class AndroidDeviceService {
         status: "blocked",
         detail: "Android SDK not found.",
         action: "Install Android Studio or set the ANDROID_HOME environment variable.",
+        messages: {
+          detail: { key: "environment.androidSdkMissing" },
+          action: { key: "environment.androidSdkAction" },
+        },
       };
     }
 
@@ -38,6 +42,7 @@ export class AndroidDeviceService {
         status: "ready",
         detail: this.readyDetail(devices),
         devices,
+        messages: { detail: this.readyMessage(devices) },
       };
     }
 
@@ -50,6 +55,10 @@ export class AndroidDeviceService {
         detail: unavailablePhysical.detail ?? "A connected Android device is not ready.",
         action: this.physicalDeviceAction(unavailablePhysical.state),
         devices,
+        messages: {
+          detail: unavailablePhysical.messages?.detail ?? { key: "environment.androidPhysicalAttention" },
+          action: { key: this.physicalDeviceActionKey(unavailablePhysical.state) },
+        },
       };
     }
     if (virtual.length > 0) {
@@ -60,6 +69,10 @@ export class AndroidDeviceService {
         detail: "Android emulators were found, but none has a Chrome-compatible Google Play system image.",
         action: "Create an AVD with a Google Play system image.",
         devices,
+        messages: {
+          detail: { key: "environment.androidEmulatorIncompatible" },
+          action: { key: "environment.androidCreateAvd" },
+        },
       };
     }
     return {
@@ -68,6 +81,10 @@ export class AndroidDeviceService {
       status: "action",
       detail: "No Android device or compatible emulator was found.",
       action: "Connect a USB-debug-enabled Android device or create a Google Play AVD in Android Studio.",
+      messages: {
+        detail: { key: "environment.androidNone" },
+        action: { key: "environment.androidConnect" },
+      },
     };
   }
 
@@ -170,6 +187,12 @@ export class AndroidDeviceService {
         deviceKind: "physical",
         compatible: false,
         detail: `Android device ${fallbackName} is ${device.state}.`,
+        messages: {
+          detail: {
+            key: "environment.androidDeviceState",
+            parameters: { deviceName: fallbackName, state: device.state },
+          },
+        },
         config: { name: "chrome-android", deviceKind: "physical", deviceName: fallbackName, udid: device.serial },
       };
     }
@@ -187,7 +210,12 @@ export class AndroidDeviceService {
       state: "Connected",
       deviceKind: "physical",
       compatible,
-      ...(!compatible ? { detail: `Chrome is not installed on ${name}.` } : {}),
+      ...(!compatible
+        ? {
+            detail: `Chrome is not installed on ${name}.`,
+            messages: { detail: { key: "environment.chromeMissing" as const, parameters: { deviceName: name } } },
+          }
+        : {}),
       config: {
         name: "chrome-android",
         deviceKind: "physical",
@@ -217,6 +245,23 @@ export class AndroidDeviceService {
     if (state === "offline") return "Reconnect the USB cable and restart USB debugging on the device.";
     if (state === "no permissions") return "Grant this user access to the Android USB device, then reconnect it.";
     return "Install or enable Chrome on the connected Android device.";
+  }
+
+  private static physicalDeviceActionKey(state?: string) {
+    if (state === "unauthorized") return "environment.androidUnauthorized" as const;
+    if (state === "offline") return "environment.androidOffline" as const;
+    if (state === "no permissions") return "environment.androidPermissions" as const;
+    return "environment.androidChromeAction" as const;
+  }
+
+  private static readyMessage(devices: TargetDeviceOption[]) {
+    const count = devices.filter((device) => device.compatible).length;
+    const attention = devices.filter((device) => device.deviceKind === "physical" && !device.compatible).length;
+    return {
+      key: attention ? ("environment.androidReadyAttention" as const) : ("environment.androidReady" as const),
+      parameters: { count, attention },
+      count,
+    };
   }
 
   private static async exists(path: string): Promise<boolean> {

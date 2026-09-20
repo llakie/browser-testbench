@@ -30,6 +30,7 @@ export interface DoctorCheck {
   action?: string;
   commands?: string[];
   devices?: TargetDeviceOption[];
+  messages?: LocalizedFields;
 }
 
 export interface TargetDeviceOption {
@@ -43,6 +44,7 @@ export interface TargetDeviceOption {
   setupChecks?: DeviceSetupCheck[];
   compatible: boolean;
   config: TargetConfig;
+  messages?: LocalizedFields;
 }
 
 export interface DeviceSetupCheck {
@@ -50,6 +52,7 @@ export interface DeviceSetupCheck {
   label: string;
   ready: boolean;
   detail: string;
+  messages?: LocalizedFields;
 }
 
 export interface TargetDefinition {
@@ -73,6 +76,7 @@ export interface TestTarget {
   detail: string;
   verifiedAt?: string;
   config: TargetConfig;
+  messages?: LocalizedFields;
 }
 export type TestTargetInfo = Omit<TestTarget, "config">;
 
@@ -82,3 +86,6 @@ export interface VerificationResult {
   durationMs: number;
   runtime: Record<string, unknown>;
 }
+import type { MessageDescriptor } from "../i18n/translator.js";
+
+export type LocalizedFields = Partial<Record<"label" | "detail" | "action", MessageDescriptor>>;

@@ -18,16 +18,18 @@ export class ApiClient {
     const headers = this.headers(options.headers);
     if (options.body) headers.set("content-type", "application/json");
     const response = await fetch(path, { ...options, headers });
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: MessageDescriptor };
     if (response.status === 401 && payload.error === "Unauthorized" && retry) {
-      const token = window.prompt("Browser Testbench bearer token:");
+      const token = window.prompt(translator.t("auth.tokenPrompt"));
       if (token) {
         sessionStorage.setItem(authorizationStorageKey, token);
         window.dispatchEvent(new Event("browser-testbench:authorization-changed"));
         return this.request<T>(path, options, false);
       }
     }
-    if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+    if (!response.ok) throw new Error(translator.message(payload.message, payload.error || `HTTP ${response.status}`));
     return payload as T;
   }
 }
+import type { MessageDescriptor } from "../../../i18n/translator.js";
+import { translator } from "./translator.js";

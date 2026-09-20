@@ -39,6 +39,14 @@ export class SetupService {
           detail: driver.installed
             ? `Version ${driver.version ?? "unknown"} is installed locally.`
             : "The driver is not installed yet.",
+          messages: {
+            detail: driver.installed
+              ? {
+                  key: "environment.setupDriverInstalled",
+                  parameters: { version: driver.version ?? "unknown" },
+                }
+              : { key: "environment.setupDriverMissing" },
+          },
         });
       }
     }
@@ -57,6 +65,10 @@ export class SetupService {
         automatic: false,
         status: "manual",
         detail: device.detail,
+        messages: {
+          label: { key: "environment.setupSafariOn", parameters: { deviceName: device.name } },
+          ...(device.messages?.detail ? { detail: device.messages.detail } : {}),
+        },
         ...(device.setupChecks?.some((check) => check.id === "signing" && !check.ready)
           ? { command: IosSigningService.openWdaCommand() }
           : {}),
@@ -73,6 +85,10 @@ export class SetupService {
           automatic: false,
           status: "manual",
           detail: check.action,
+          messages: {
+            ...(check.messages?.label ? { label: check.messages.label } : {}),
+            ...(check.messages?.action ? { detail: check.messages.action } : {}),
+          },
           command: check.commands?.[0],
         });
       }
@@ -95,6 +111,7 @@ export class SetupService {
           automatic: false,
           status: "failed",
           detail: "Appium setup requires Node.js 22.12 LTS or Node.js 24 or newer.",
+          messages: { detail: { key: "environment.setupNodeRequired" } },
         },
       ];
     }
@@ -114,6 +131,12 @@ export class SetupService {
             automatic: true,
             status: "completed",
             detail: `Version ${existing.version ?? "unknown"} is already installed locally.`,
+            messages: {
+              detail: {
+                key: "environment.setupDriverAlreadyInstalled",
+                parameters: { version: existing.version ?? "unknown" },
+              },
+            },
           });
           continue;
         }

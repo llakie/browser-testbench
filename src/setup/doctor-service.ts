@@ -27,7 +27,12 @@ export class DoctorService {
       label: "Node.js",
       status: supported ? "ready" : "blocked",
       detail: process.version,
-      ...(!supported ? { action: "Install Node.js 22.12 LTS or Node.js 24 or newer." } : {}),
+      ...(!supported
+        ? {
+            action: "Install Node.js 22.12 LTS or Node.js 24 or newer.",
+            messages: { action: { key: "environment.nodeUnsupported" as const } },
+          }
+        : {}),
     };
   }
 
@@ -38,29 +43,42 @@ export class DoctorService {
 
   private static async targetCheck(name: TargetName): Promise<DoctorCheck> {
     const definition = TargetRegistry.definitions[name];
+    const label = this.targetLabelMessage(name);
     if (!TargetRegistry.isSupported(name)) {
       return {
         id: name,
         label: definition.label,
         status: "skip",
         detail: `Not available on ${this.platformLabel()}.`,
+        messages: {
+          ...(label ? { label } : {}),
+          detail: { key: "environment.notAvailablePlatform", parameters: { platform: this.platformLabel() } },
+        },
       };
     }
 
+    let check: DoctorCheck;
     switch (name) {
       case "chrome":
-        return this.applicationCheck(name, definition.label, this.chromePaths());
+        check = await this.applicationCheck(name, definition.label, this.chromePaths());
+        break;
       case "firefox":
-        return this.applicationCheck(name, definition.label, this.firefoxPaths());
+        check = await this.applicationCheck(name, definition.label, this.firefoxPaths());
+        break;
       case "edge":
-        return this.applicationCheck(name, definition.label, this.edgePaths());
+        check = await this.applicationCheck(name, definition.label, this.edgePaths());
+        break;
       case "safari":
-        return this.safariCheck();
+        check = await this.safariCheck();
+        break;
       case "safari-ios":
-        return IosDeviceService.inspect();
+        check = await IosDeviceService.inspect();
+        break;
       case "chrome-android":
-        return AndroidDeviceService.inspect();
+        check = await AndroidDeviceService.inspect();
+        break;
     }
+    return label ? { ...check, messages: { ...check.messages, label } } : check;
   }
 
   private static async applicationCheck(id: string, label: string, paths: string[]): Promise<DoctorCheck> {
@@ -73,13 +91,23 @@ export class DoctorService {
       status: "blocked",
       detail: "Browser not found.",
       action: `Install ${label}.`,
+      messages: {
+        detail: { key: "environment.browserNotFound" },
+        action: { key: "environment.installProduct", parameters: { product: label } },
+      },
     };
   }
 
   private static async safariCheck(): Promise<DoctorCheck> {
     const binary = "/usr/bin/safaridriver";
     if (!(await this.exists(binary))) {
-      return { id: "safari", label: "Apple Safari", status: "blocked", detail: "Safari WebDriver not found." };
+      return {
+        id: "safari",
+        label: "Apple Safari",
+        status: "blocked",
+        detail: "Safari WebDriver not found.",
+        messages: { detail: { key: "environment.safariNotFound" } },
+      };
     }
     const verified = await VerificationStore.read("safari");
     if (verified) {
@@ -88,6 +116,13 @@ export class DoctorService {
         label: "Apple Safari",
         status: "ready",
         detail: `WebDriver verified on ${this.formatDate(verified.verifiedAt)}.`,
+        messages: {
+          detail: {
+            key: "environment.safariVerified",
+            parameters: { date: verified.verifiedAt },
+            formats: { date: "date" },
+          },
+        },
       };
     }
     return {
@@ -96,6 +131,10 @@ export class DoctorService {
       status: "action",
       detail: "Safari WebDriver is installed. Permission is not checked automatically to avoid opening macOS dialogs.",
       action: "Enable Safari WebDriver once, then verify it for Browser Testbench.",
+      messages: {
+        detail: { key: "environment.safariPermission" },
+        action: { key: "environment.safariEnable" },
+      },
       commands: ["sudo safaridriver --enable", TestbenchPaths.cliCommand("verify", "safari")],
     };
   }
@@ -157,5 +196,11 @@ export class DoctorService {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(date);
+  }
+
+  private static targetLabelMessage(name: TargetName) {
+    if (name === "safari-ios") return { key: "environment.safariIosLabel" as const };
+    if (name === "chrome-android") return { key: "environment.chromeAndroidLabel" as const };
+    return undefined;
   }
 }

@@ -8,6 +8,7 @@ import { DeviceSetupChecklist } from "./components/device-setup-checklist.js";
 import { OverviewPage } from "./components/overview-page.js";
 import { TargetsPage } from "./components/targets-page.js";
 import { workbenchStore } from "./stores/workbench-store.js";
+import { translator } from "./core/translator.js";
 
 const collapsedStorageKey = "browser-testbench-sidebar-collapsed";
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -51,14 +52,16 @@ const RootApp = defineComponent({
           : "fa-terminal";
     },
     badgeLabel(): string {
-      if (this.page === "docs") return "Local documentation";
+      if (this.page === "docs") return translator.t("common.status.localDocumentation");
       const workbench = this.store.workbench;
-      return workbench ? `${workbench.platformLabel} · ${workbench.architecture}` : "Checking system";
+      return workbench
+        ? `${this.platformLabel(workbench.platform)} · ${workbench.architecture}`
+        : translator.t("common.status.checkingSystem");
     },
     remoteBannerDetail(): string {
       const remote = this.connection.remote;
       if (!remote) return "";
-      return ` · ${this.platformLabel(remote.platform)} · ${remote.role} · ${this.connection.reachable === false ? "unreachable" : "connected"} · ${remote.url}`;
+      return ` · ${this.platformLabel(remote.platform)} · ${translator.t(`common.remoteRole.${remote.role}`)} · ${translator.t(this.connection.reachable === false ? "common.connection.unreachable" : "common.connection.connected")} · ${remote.url}`;
     },
   },
   mounted(): void {
@@ -82,10 +85,11 @@ const RootApp = defineComponent({
     window.removeEventListener("browser-testbench:authorization-changed", this.refreshConnection);
   },
   methods: {
+    t: translator.t.bind(translator),
     platformLabel(platform: NodeJS.Platform): string {
-      if (platform === "darwin") return "macOS";
-      if (platform === "win32") return "Windows";
-      if (platform === "linux") return "Linux";
+      if (platform === "darwin") return translator.t("common.platform.darwin");
+      if (platform === "win32") return translator.t("common.platform.win32");
+      if (platform === "linux") return translator.t("common.platform.linux");
       return platform;
     },
     toggleSidebar(): void {

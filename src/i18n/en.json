@@ -1,0 +1,546 @@
+{
+  "common": {
+    "productName": "Browser Testbench",
+    "localTestEnvironment": "Local test environment",
+    "pleaseWait": "Please wait",
+    "analyzingEnvironment": "Analyzing the system environment …",
+    "actions": {
+      "checkAgain": "Check again",
+      "checking": "Checking …",
+      "copyCommand": "Copy command",
+      "copyTargetId": "Copy target ID",
+      "disconnect": "Disconnect",
+      "retry": "Retry"
+    },
+    "status": {
+      "checkingSystem": "Checking system",
+      "localDocumentation": "Local documentation"
+    },
+    "platform": {
+      "darwin": "macOS",
+      "linux": "Linux",
+      "win32": "Windows"
+    },
+    "connection": {
+      "connected": "connected",
+      "unreachable": "unreachable"
+    },
+    "remoteRole": {
+      "admin": "administrative",
+      "control": "control"
+    }
+  },
+  "navigation": {
+    "overview": "Overview",
+    "targets": "Test targets",
+    "documentation": "Documentation",
+    "home": "Browser Testbench home",
+    "mainLabel": "Main navigation",
+    "documentationSections": "Documentation sections",
+    "expandMenu": "Expand menu",
+    "collapseMenu": "Collapse menu",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "statusAndLegal": "Status and legal",
+    "serverStatus": "Server status",
+    "license": "License",
+    "thirdPartyLicenses": "Third-party licenses"
+  },
+  "documentation": {
+    "navigation": {
+      "quickStart": "Quick start",
+      "remote": "Remote Testbench",
+      "targetIds": "Target IDs",
+      "automatedTests": "Automated tests",
+      "debugging": "Interactive debugging",
+      "mobile": "Mobile devices",
+      "android": "Android device setup",
+      "ios": "iOS device setup",
+      "signing": "iOS signing"
+    },
+    "content": {
+      "reference": "Reference",
+      "title": "Documentation",
+      "intro": "From your first target to parallel project tests and interactive debugging.",
+      "quick": {
+        "eyebrow": "In five minutes",
+        "title": "Quick start",
+        "step1": "Install and start Browser Testbench once on your machine.",
+        "step2Before": "Check and complete the environment on the",
+        "step2Link": "Overview",
+        "step2After": "page.",
+        "step3": "Install the client as a development dependency in your project.",
+        "step4Before": "Copy a concrete ID from the",
+        "step4Link": "Test targets",
+        "step4After": "page.",
+        "step5": "Start your application and use its URL in your test.",
+        "projectCommand": "Run this command in each project that contains automated tests:"
+      },
+      "remote": {
+        "eyebrow": "Windows, macOS, and Linux",
+        "title": "Remote Testbench",
+        "intro": "Start the machine that owns the browsers and devices with browser-testbench start --remote. Start the development computer normally, then use Discover on the Overview page. The first connection asks for the six-digit code shown by the remote computer; later explicit connections reuse the saved pairing.",
+        "network": "If discovery is blocked, use browser-testbench connect --server http://HOST:55808. A remote browser cannot reach an application through the development computer's localhost address. Bind the application to the LAN and use its explicit LAN URL. Use remote mode only on a trusted private network."
+      },
+      "targetIds": {
+        "eyebrow": "Convention over Configuration",
+        "title": "Target IDs",
+        "intro": "Desktop browsers use short IDs such as chrome. Mobile targets include the device and version, for example safari-ios-iphone-17-pro-26-5. IDs are generated from the detected environment."
+      },
+      "automation": {
+        "eyebrow": "Project-controlled",
+        "title": "Automated tests",
+        "intro": "Install the Node client in your project:"
+      },
+      "debugging": {
+        "eyebrow": "Remote control",
+        "title": "Interactive debugging",
+        "intro": "Open a long-lived session from the command line or control it through a connected MCP client."
+      },
+      "mobile": {
+        "eyebrow": "Physical and virtual devices",
+        "title": "Mobile devices",
+        "intro": "Browser Testbench detects connected devices and shows their concrete target IDs on the Test targets page. Use the matching setup below before running the first verification."
+      },
+      "android": {
+        "eyebrow": "USB setup",
+        "title": "Connect a physical Android device",
+        "showGuide": "Show full Android setup guide",
+        "toolsTitle": "Install Android Platform Tools and Appium",
+        "tools1": "Install Android Studio or the Android SDK Platform Tools on the Testbench computer.",
+        "tools2Before": "Install Appium UiAutomator2 under",
+        "environmentSetup": "Environment setup",
+        "tools2After": ".",
+        "deviceTitle": "Prepare and connect the device",
+        "device1": "On the device, enable Developer options by tapping the build number seven times.",
+        "device2": "Open Developer options and enable USB debugging.",
+        "device3": "Connect and unlock the device with a data-capable USB cable.",
+        "debugTitle": "Allow debugging and check Chrome",
+        "debug1": "Accept the USB debugging authorization prompt on the unlocked device.",
+        "debug2": "Install or enable Google Chrome on the device.",
+        "debug3Before": "Open the",
+        "overview": "Overview",
+        "debug3After": "page and confirm that the device is listed as ready under Chrome on Android.",
+        "testTitle": "Run the first test",
+        "test1Before": "Open",
+        "testTargets": "Test targets",
+        "test1After": "and run the generated physical-device target once.",
+        "test2": "Connecting, disconnecting, or changing USB authorization updates the interface automatically. Localhost URLs are forwarded over USB for the session, so the Android device does not need access to the development computer's LAN address."
+      },
+      "ios": {
+        "eyebrow": "USB and Xcode setup",
+        "title": "Connect a physical iPhone or iPad",
+        "showGuide": "Show full iPhone and iPad setup guide",
+        "toolsTitle": "Install Xcode and the iOS test tools",
+        "tools1": "Install and open Xcode on the Mac that runs Browser Testbench.",
+        "tools2": "Under Xcode Settings → Accounts, add a free Apple Account or an account belonging to a paid Apple Developer team. Browser Testbench never asks for or stores the account credentials.",
+        "tools3Before": "Install Appium XCUITest under",
+        "tools3After": "if Browser Testbench offers that action.",
+        "deviceTitle": "Connect and trust the device",
+        "device1": "Connect the unlocked iPhone or iPad by USB and accept Trust This Computer.",
+        "device2": "Under Settings → Privacy & Security, enable Developer Mode, restart the device, and confirm it after the restart.",
+        "device3": "In Xcode, open Window → Devices and Simulators, select the device, and wait until it appears without a warning or a Preparing status.",
+        "safariTitle": "Enable Safari automation",
+        "safari1": "Under Settings → Developer, enable UI Automation.",
+        "safari2": "Under Settings → Safari → Advanced on iOS 16, or Settings → Apps → Safari → Advanced on newer iOS versions, enable Web Inspector and Remote Automation.",
+        "signingTitle": "Sign and run WebDriverAgent",
+        "signingIntro": "Appium controls a real iPhone through WebDriverAgent. Apple requires this helper app to have an Apple Development certificate and a provisioning profile. A free Apple Account is sufficient.",
+        "identityTitle": "Create the signing identity",
+        "identity1Before": "Under",
+        "identity1After": "run the WebDriverAgent command shown for the iPhone. Keep the opened WebDriverAgent.xcodeproj project open.",
+        "identity2": "In Xcode Settings → Accounts, select the team, open Manage Certificates, and create an Apple Development certificate if none exists.",
+        "identity3": "Return to the Overview page, select Check again, and copy the exact WebDriverAgent bundle ID shown for the device.",
+        "teamId": "If more than one team is installed, set BROWSER_TESTBENCH_IOS_TEAM_ID to the intended ten-character team ID and restart Browser Testbench.",
+        "certificateTitle": "If the certificate is not detected",
+        "certificate1": "In Keychain Access, select login → My Certificates and expand Apple Development. A private key must appear below it.",
+        "certificate2Before": "If the identity remains invalid, install Apple's",
+        "certificateLink": "WWDR G3 intermediate",
+        "certificate2After": "in the login keychain and keep Use System Defaults.",
+        "runTitle": "Run WebDriverAgent",
+        "run1": "A paid Developer team can first run the physical target and let Xcode provision automatically.",
+        "run2": "For a Personal Team or failed automatic provisioning, select WebDriverAgentRunner → Signing & Capabilities, enable automatic signing, select the team, and enter the bundle ID shown by Browser Testbench.",
+        "run3": "Select Product → Scheme → WebDriverAgentRunner, select the iPhone under Product → Destination, and choose Product → Test.",
+        "run4": "If iOS blocks the app, open Settings → General → VPN & Device Management, select the developer entry, and trust it. The device needs internet access for this confirmation.",
+        "run5Before": "Return to",
+        "run5After": "and run the physical iPhone target again.",
+        "expiry": "A free Personal Team profile expires after seven days. Repeat Product → Test after expiry or when an XCUITest update replaces WebDriverAgent.",
+        "compatTitle": "Fix “Logic Testing Unavailable” on iOS 16",
+        "compatIntro": "If the build succeeds but Xcode cannot start WebDriverAgentRunner, signing is already complete. Xcode 26.4 and 26.6 are known to report this error for physical iOS 16 devices.",
+        "compat1Before": "Download Xcode 26.2 from Apple's",
+        "compatLink": "More Downloads",
+        "compat1After": "page.",
+        "compat2": "Extract it, rename it to Xcode-26.2.app, and move it to Applications.",
+        "compat3": "Select it and verify the version:",
+        "compat4": "Under Xcode Settings → Components, install the iOS 26.2 platform component if Xcode offers it.",
+        "compat5": "Return to Test targets and run the physical iPhone target again.",
+        "networkTitle": "Use the correct application address",
+        "networkIntro": "The device needs network access to the tested application, not to the Testbench UI. USB is used separately for device discovery and automation. On the device, localhost refers to the device itself.",
+        "networkRemote": "You must use the IP address of the Testbench that runs the tests. Do not use the IP address of the local gateway.",
+        "networkLocal": "The current Testbench's detected LAN address is {address}. For an application on port 3000, you must use http://{address}:3000 instead of http://localhost:3000.",
+        "networkMissing": "Browser Testbench could not detect a LAN address for this computer. Check its network settings before connecting the device."
+      },
+      "controls": {
+        "eyebrow": "Interaction",
+        "title": "Mobile controls",
+        "intro": "Tap, swipe, pinch, portrait, and landscape are available through the Node client and MCP."
+      }
+    }
+  },
+  "auth": {
+    "tokenPrompt": "Browser Testbench bearer token:"
+  },
+  "checklist": {
+    "eyebrow": "Guided setup",
+    "deviceLabel": "Device",
+    "yourDevice": "your device",
+    "intro": "We show one step at a time for {deviceName}.",
+    "checking": "Checking this Testbench and connected devices …",
+    "completed": {
+      "one": "{count} step completed",
+      "other": "{count} steps completed"
+    },
+    "later": {
+      "one": "{count} later step",
+      "other": "{count} later steps"
+    },
+    "status": {
+      "complete": "Done",
+      "attention": "Next step",
+      "pending": "Later",
+      "manual": "Confirm once"
+    },
+    "confirmation": "I enabled these settings",
+    "troubleshooting": "If this does not work",
+    "openHelp": "Open help",
+    "openInstructions": "Open instructions",
+    "ios": {
+      "heading": "Set up your iPhone or iPad",
+      "complete": "This device is ready for Safari testing.",
+      "tools": {
+        "label": "Install Xcode and the iOS test tools",
+        "installXcode": "Install Xcode and open it once.",
+        "installDriver": "Install Appium XCUITest under Environment setup.",
+        "ready": "Xcode and Appium XCUITest are ready.",
+        "hintOpen": "Open Xcode once and accept its license or component installation prompts.",
+        "hintDriver": "No separate iPhone driver is required; install Appium XCUITest from Environment setup."
+      },
+      "device": {
+        "label": "Connect and trust the device",
+        "ready": "The device is connected, trusted, and in Developer Mode.",
+        "connect": "Connect and unlock the device by USB.",
+        "hintCable": "Use a data-capable USB cable and keep the device unlocked.",
+        "hintXcode": "In Xcode, open Window → Devices and Simulators and wait until the warning disappears.",
+        "hintDeveloperMode": "Developer Mode requires a restart and a second confirmation after the restart."
+      },
+      "access": {
+        "label": "Allow browser automation",
+        "createSigning": "Create an Apple Development signing identity in Xcode.",
+        "ready": "Signing and the Safari automation settings are ready.",
+        "enable": "Enable UI Automation, Web Inspector, and Remote Automation, then confirm below.",
+        "hintSettings": "On iOS 16, Safari is directly under Settings; newer versions place it under Settings → Apps.",
+        "hintAutomation": "UI Automation appears under Settings → Developer after Developer Mode is enabled.",
+        "hintKeychain": "In Keychain Access select login → My Certificates and expand Apple Development. A private key must appear below it.",
+        "hintCertificate": "If the identity remains invalid, install Apple's WWDR G3 intermediate certificate.",
+        "downloadCertificate": "Download WWDR G3"
+      },
+      "test": {
+        "label": "Run the first Safari test",
+        "ready": "Browser Testbench has successfully controlled Safari on this device.",
+        "run": "Run the physical Safari target once to finish setup.",
+        "hintUnlock": "Keep the iPhone unlocked while WebDriverAgent starts for the first time.",
+        "hintTrust": "If iOS blocks WebDriverAgent, trust the Apple Account under Settings → General → VPN & Device Management.",
+        "hintExpiry": "A free Personal Team profile expires after seven days and must then be signed again."
+      }
+    },
+    "android": {
+      "heading": "Set up your Android device",
+      "complete": "This device is ready for Chrome testing.",
+      "tools": {
+        "label": "Install Android Platform Tools and Appium",
+        "installSdk": "Install Android Studio or the Android SDK Platform Tools.",
+        "installDriver": "Install Appium UiAutomator2 under Environment setup.",
+        "ready": "Android Platform Tools and Appium UiAutomator2 are ready.",
+        "hintSdk": "Android Studio includes the required Platform Tools.",
+        "hintDriver": "Install Appium UiAutomator2 from Environment setup."
+      },
+      "device": {
+        "label": "Connect the device",
+        "detected": "{deviceName} was detected over USB.",
+        "connect": "Enable USB debugging, then connect and unlock the device.",
+        "hintDeveloperOptions": "Enable Developer options by tapping the Android build number seven times.",
+        "hintCable": "Use a data-capable USB cable and keep the device unlocked."
+      },
+      "access": {
+        "label": "Allow debugging and Chrome",
+        "authorize": "Accept the USB debugging prompt on the device.",
+        "ready": "USB debugging is authorized and Chrome is available.",
+        "installChrome": "Install or enable Google Chrome on the device.",
+        "hintReconnect": "Reconnect the unlocked device if the USB debugging prompt does not appear.",
+        "hintAuthorization": "If authorization is stuck, revoke USB debugging authorizations and connect again.",
+        "hintChrome": "Install or enable Google Chrome before running the first test."
+      },
+      "test": {
+        "label": "Run the first Chrome test",
+        "ready": "Browser Testbench has successfully controlled Chrome on this device.",
+        "run": "Run the physical Android target once to finish setup.",
+        "hintUnlock": "Keep the device unlocked during the first Appium session.",
+        "hintPrompt": "Accept any additional debugging prompt shown by Android."
+      }
+    }
+  },
+  "targets": {
+    "mobileLabel": {
+      "safari": "Safari on iOS · {deviceName} · {version}",
+      "safariNoVersion": "Safari on iOS · {deviceName}",
+      "safariPhysical": "Safari on iOS · {deviceName} · {version} · USB device",
+      "safariPhysicalNoVersion": "Safari on iOS · {deviceName} · USB device",
+      "android": "Chrome on Android · {deviceName} · {version}",
+      "androidNoVersion": "Chrome on Android · {deviceName}",
+      "androidPhysical": "Chrome on Android · {deviceName} · {version} · USB device",
+      "androidPhysicalNoVersion": "Chrome on Android · {deviceName} · USB device",
+      "androidEmulator": "Chrome on Android · {deviceName} · {version} · Emulator",
+      "androidEmulatorNoVersion": "Chrome on Android · {deviceName} · Emulator"
+    },
+    "page": {
+      "eyebrow": "Remote control and verification",
+      "title": "Test targets",
+      "intro": "Use stable IDs in your projects or verify all available browsers and devices right here.",
+      "convention": "Convention over Configuration",
+      "targetsTitle": "Targets for your tests",
+      "targetsIntro": "Use these unique IDs directly in your tests. “Ready” confirms the environment; a successful test run also displays its date.",
+      "checkingTargets": "Checking targets …",
+      "runAll": "Run all tests",
+      "runTest": "Run test",
+      "runningShort": "Test running …",
+      "targetId": "targetId",
+      "projectEyebrow": "In your project",
+      "useTitle": "Use Browser Testbench",
+      "useIntro": "URLs, assertions, and result directories remain entirely in your project.",
+      "installTitle": "Install the client in your project",
+      "installIntro": "Install Browser Testbench as a development dependency in your project.",
+      "testTitle": "Use it in your own test",
+      "testIntro": "Your test opens the session. The flow and assertions remain with your test runner.",
+      "debugTitle": "Open a browser for debugging",
+      "debugIntro": "Open a URL directly. The session stays active until you press Ctrl + C in the terminal.",
+      "applicationUrl": "Application URL",
+      "browserOrDevice": "Browser or device",
+      "setupRequiredSuffix": "Setup required",
+      "remoteLocalhost": "Remote browsers cannot use this computer's localhost.",
+      "remoteAddress": "Bind your application to the LAN and use {url}.",
+      "remoteAddressFallback": "Bind your application to the LAN and use this computer's LAN address."
+    },
+    "status": {
+      "busy": "Busy",
+      "readyLocal": "Ready on this machine",
+      "readyRemote": "Ready on remote machine",
+      "action": "Setup required",
+      "blocked": "Not available yet",
+      "skipLocal": "Not available on this operating system",
+      "skipRemote": "Not available on remote operating system"
+    },
+    "lastVerified": "Last successfully tested: {date}",
+    "running": "Test running.",
+    "runningIos": "Test running. On first launch, Xcode may take a few minutes to check the iOS runtime.",
+    "runningAndroidDevice": "Test running on the connected Android device. The first Appium session can take a moment.",
+    "runningAndroidEmulator": "Test running. On first launch, the Android Emulator may take a few minutes to start.",
+    "passed": "Test passed ({duration} ms).",
+    "failed": "Test failed: {message}",
+    "targetPassed": "{targetName} was tested successfully ({duration} ms).",
+    "partialResult": "{passed} of {total} tests passed; {failed} failed.",
+    "allPassed": {
+      "one": "The test completed successfully.",
+      "other": "All {count} tests completed successfully."
+    },
+    "devtools": {
+      "desktop": "You can open DevTools as usual directly in the desktop browser.",
+      "ios": "DevTools: Open Safari's Develop menu and select the simulator and open page.",
+      "android": "DevTools: Open chrome://inspect/#devices in Chrome on your machine."
+    }
+  },
+  "overview": {
+    "page": {
+      "eyebrow": "Central test environment",
+      "title": "Browsers and devices for your projects",
+      "intro": "Set up browsers, physical devices, simulators, and emulators once in one place. Your application and test cases remain in their respective projects.",
+      "remoteEyebrow": "Remote Testbench",
+      "searching": "Searching …",
+      "findTestbenches": "Find Testbenches",
+      "connect": "Connect",
+      "noneFound": "No central Testbench was found. Check that remote mode is running on the same LAN and that multicast UDP 5353 and Node.js private-network access are allowed, or enter its URL below.",
+      "testbenchUrl": "Testbench URL",
+      "requestAdmin": "Request administrative access",
+      "pairingCode": "Pairing code shown on the remote computer",
+      "pairAndConnect": "Pair and connect",
+      "administrativePairing": "Administrative pairing",
+      "controlPairing": "Control pairing",
+      "pairingMeta": "Code {code} · expires {date}",
+      "pairedClients": "Paired clients",
+      "pairedClientsIntro": "Change administrative access or revoke a client credential.",
+      "noClients": "No clients have connected yet.",
+      "lastUsed": "last used {date}",
+      "setControl": "Set control",
+      "makeAdmin": "Make admin",
+      "revoke": "Revoke",
+      "environmentTitle": "Browsers and devices",
+      "environmentIntro": "See what is ready and what still needs to be set up.",
+      "availability": "Availability on this machine",
+      "availabilityIntro": "Browser Testbench detects these capabilities directly on your machine.",
+      "physicalDocumentationBefore": "For connecting real devices, see",
+      "documentationLink": "documentation",
+      "showDevices": {
+        "one": "Show {count} device",
+        "other": "Show {count} devices"
+      },
+      "ready": "Ready",
+      "needsAttention": "Needs attention",
+      "openSigningGuide": "Open signing guide",
+      "environmentSetup": "Environment setup",
+      "installing": "Installing …",
+      "install": "Install",
+      "mcpTitle": "Connect an AI assistant through MCP",
+      "mcpIntro": "Browser Testbench uses the open MCP standard and is not tied to a provider.",
+      "connecting": "Connecting …",
+      "automaticSetup": "Set up automatically",
+      "assistant": "AI assistant",
+      "selectAssistant": "Select AI assistant"
+    },
+    "setupSummary": "{completed} installed · {pending} {pendingLabel} remaining",
+    "step": { "one": "step", "other": "steps" },
+    "mcpConnected": "{clientName} is connected to Browser Testbench.",
+    "pairingPrompt": "Enter the pairing code shown on the remote computer.",
+    "actionStatus": {
+      "completed": "Installed",
+      "planned": "Not installed",
+      "manual": "Action required",
+      "failed": "Failed"
+    },
+    "remote": {
+      "clients": "Connected test clients",
+      "connect": "Connect to a central Testbench",
+      "manage": "Manage clients paired with {instanceName}.",
+      "manageLocal": "Pair and manage clients that use this Testbench over the network.",
+      "useRemote": "Use browsers and devices provided by another computer on your network.",
+      "pairingCode": "Enter the pairing code shown on the remote computer.",
+      "revoke": "Revoke access for {clientName}?",
+      "remoteFallback": "the remote Testbench"
+    },
+    "extensionsReady": "All required extensions are installed.",
+    "deviceKind": {
+      "physical": "Physical device",
+      "emulator": "Emulator",
+      "simulator": "Simulator"
+    },
+    "deviceState": {
+      "Booted": "Running",
+      "Shutdown": "Shut down",
+      "Creating": "Creating",
+      "Connected": "Connected via USB",
+      "Wireless": "Connected wirelessly",
+      "Unavailable": "Reconnect and unlock the device",
+      "unauthorized": "USB debugging authorization required",
+      "offline": "Device offline",
+      "no permissions": "USB permission required",
+      "Available": "Available"
+    },
+    "version": "Version {version}",
+    "adminRequired": "Administrative setup requires an admin pairing.",
+    "manualStep": "This step must be completed manually.",
+    "setupFailed": {
+      "one": "{count} setup step failed.",
+      "other": "{count} setup steps failed."
+    },
+    "setupCompleted": "Setup completed."
+  },
+  "errors": {
+    "clientVersionMissing": "Client version is missing. Install Browser Testbench {expectedVersion}.",
+    "clientVersionMismatch": "Client version {actualVersion} is incompatible with Browser Testbench {expectedVersion}. Install the same version on every client and Testbench."
+  },
+  "environment": {
+    "safariIosLabel": "Safari on iOS",
+    "chromeAndroidLabel": "Chrome on Android",
+    "notAvailablePlatform": "Not available on {platform}.",
+    "browserNotFound": "Browser not found.",
+    "installProduct": "Install {product}.",
+    "nodeUnsupported": "Install Node.js 22.12 LTS or Node.js 24 or newer.",
+    "safariNotFound": "Safari WebDriver not found.",
+    "safariVerified": "WebDriver verified on {date}.",
+    "safariPermission": "Safari WebDriver is installed. Permission is not checked automatically to avoid opening macOS dialogs.",
+    "safariEnable": "Enable Safari WebDriver once, then verify it for Browser Testbench.",
+    "androidSdkMissing": "Android SDK not found.",
+    "androidSdkAction": "Install Android Studio or set the ANDROID_HOME environment variable.",
+    "androidDeviceState": "Android device {deviceName} is {state}.",
+    "chromeMissing": "Chrome is not installed on {deviceName}.",
+    "androidPhysicalAttention": "A connected Android device is not ready.",
+    "androidEmulatorIncompatible": "Android emulators were found, but none has a Chrome-compatible Google Play system image.",
+    "androidCreateAvd": "Create an AVD with a Google Play system image.",
+    "androidNone": "No Android device or compatible emulator was found.",
+    "androidConnect": "Connect a USB-debug-enabled Android device or create a Google Play AVD in Android Studio.",
+    "androidUnauthorized": "Unlock the device and accept the USB debugging authorization prompt.",
+    "androidOffline": "Reconnect the USB cable and restart USB debugging on the device.",
+    "androidPermissions": "Grant this user access to the Android USB device, then reconnect it.",
+    "androidChromeAction": "Install or enable Chrome on the connected Android device.",
+    "androidReady": {
+      "one": "{count} Android test target is ready for Chrome testing.",
+      "other": "{count} Android test targets are ready for Chrome testing."
+    },
+    "androidReadyAttention": {
+      "one": "{count} Android test target is ready for Chrome testing; physical devices requiring attention: {attention}.",
+      "other": "{count} Android test targets are ready for Chrome testing; physical devices requiring attention: {attention}."
+    },
+    "xcodeMissing": "Xcode is not available.",
+    "xcodeInstall": "Install Xcode and select the installation with xcode-select.",
+    "iosPhysicalAttention": "A physical Apple device needs attention.",
+    "iosNone": "No iOS Simulator or recently connected physical iPhone or iPad was found.",
+    "iosConnect": "Connect an unlocked iPhone or iPad by USB and trust this Mac, or create an iOS Simulator in Xcode.",
+    "iosReady": "Connected via USB with signing available. WebDriverAgent bundle ID: {bundleId}. Enable UI Automation, Safari Web Inspector, and Remote Automation before the first test.",
+    "iosUsbReady": "Connected directly by USB.",
+    "iosUsbConnect": "Connect and unlock the device by USB.",
+    "iosTrustReady": "The device is paired and available to Xcode.",
+    "iosTrust": "Accept “Trust This Computer” and wait for Xcode to finish preparing the device.",
+    "iosDeveloperReady": "Developer Mode is enabled.",
+    "iosDeveloper": "Enable Developer Mode, restart the device, and confirm it after restart.",
+    "iosSigningReady": "The certificate, private key, and trust chain form a valid signing identity.",
+    "iosSigning": "Create and validate an Apple Development signing identity.",
+    "iosUnlock": "Unlock the device, connect it by USB, and keep it connected during setup.",
+    "iosWired": "Connect the device directly by USB; wireless iOS connections are not supported yet.",
+    "iosAccount": "Add a free Apple Account or paid Developer team in Xcode and prepare WebDriverAgent signing.",
+    "iosTargetsReady": {
+      "one": "{count} iOS test target is ready for Safari testing.",
+      "other": "{count} iOS test targets are ready for Safari testing."
+    },
+    "iosTargetsReadyAttention": {
+      "one": "{count} iOS test target is ready for Safari testing; physical devices requiring attention: {attention}.",
+      "other": "{count} iOS test targets are ready for Safari testing; physical devices requiring attention: {attention}."
+    },
+    "setupDriverInstalled": "Version {version} is installed locally.",
+    "setupDriverMissing": "The driver is not installed yet.",
+    "setupDriverAlreadyInstalled": "Version {version} is already installed locally.",
+    "setupNodeRequired": "Appium setup requires Node.js 22.12 LTS or Node.js 24 or newer.",
+    "setupSafariOn": "Safari on {deviceName}",
+    "avdInstallSdk": "Install the Android SDK and Android Emulator, then run setup again.",
+    "avdLabel": "Android Virtual Device",
+    "avdExisting": "Using existing compatible AVD {name}.",
+    "avdCreated": "Created from {image} with hardware profile {profile}.",
+    "avdCommandTools": "Install the Android SDK Command-line Tools, then run setup again.",
+    "avdImageLabel": "Google Play system image",
+    "avdImageMissing": "No compatible Google Play system image for {architecture} is installed. Install the latest available image in Android Studio → SDK Manager, then run setup again.",
+    "avdProfileLabel": "Pixel hardware profile",
+    "avdProfileMissing": "No Pixel hardware profile is available. Install or create one in Android Studio, then run setup again.",
+    "avdCreate": "Create {name} from {image} with hardware profile {profile}."
+  },
+  "mcp": {
+    "configurationReady": "Configuration ready to copy.",
+    "configuredPathInvalid": "{clientName} could not be started through {environmentVariable}. Check the configured executable path.",
+    "notFound": "{clientName} was not found by the Browser Testbench server. Install its CLI or set {environmentVariable} before starting the server.",
+    "available": "{clientName} is available. Run the command below to connect Browser Testbench.",
+    "current": "Configured for new sessions.",
+    "outdated": "Configured with an outdated or project-dependent Browser Testbench launcher.",
+    "notConnected": "Not connected to Browser Testbench yet.",
+    "codexInstruction": "The connection applies to new Codex sessions in every project. Restart Codex after setup.",
+    "claudeInstruction": "The connection applies to new Claude Code sessions in every project. Restart after setup.",
+    "geminiInstruction": "The connection applies to new Gemini CLI sessions in every project. Restart after setup.",
+    "copilotInstruction": "Run the command, then confirm the new MCP server in VS Code.",
+    "otherLabel": "Other MCP client",
+    "otherInstruction": "Add this project-independent MCP entry to your client's configuration, then restart it."
+  }
+}

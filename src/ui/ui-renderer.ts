@@ -3,23 +3,24 @@ import { Eta } from "eta";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { RemoteUrlGuard } from "../remote/remote-url-guard.js";
 import { PackageMetadata } from "../config/package-metadata.js";
+import { LocaleResolver, Translator, type MessageKey } from "../i18n/translator.js";
 
-const navigation = [
-  { id: "dashboard", href: "/setup", label: "Overview", icon: "fa-gauge-high" },
-  { id: "targets", href: "/targets", label: "Test targets", icon: "fa-display" },
-  { id: "docs", href: "/docs", label: "Documentation", icon: "fa-book-open" },
+const navigation: Array<{ id: string; href: string; label: MessageKey; icon: string }> = [
+  { id: "dashboard", href: "/setup", label: "navigation.overview", icon: "fa-gauge-high" },
+  { id: "targets", href: "/targets", label: "navigation.targets", icon: "fa-display" },
+  { id: "docs", href: "/docs", label: "navigation.documentation", icon: "fa-book-open" },
 ];
 
-const documentationNavigation = [
-  { href: "#start", label: "Quick start" },
-  { href: "#remote", label: "Remote Testbench" },
-  { href: "#targets", label: "Target-IDs" },
-  { href: "#automation", label: "Automated tests" },
-  { href: "#debugging", label: "Interactive debugging" },
-  { href: "#mobile", label: "Mobile devices" },
-  { href: "#physical-android", label: "Android device setup" },
-  { href: "#physical-ios", label: "iOS device setup" },
-  { href: "#ios-signing", label: "iOS signing" },
+const documentationNavigation: Array<{ href: string; label: MessageKey }> = [
+  { href: "#start", label: "documentation.navigation.quickStart" },
+  { href: "#remote", label: "documentation.navigation.remote" },
+  { href: "#targets", label: "documentation.navigation.targetIds" },
+  { href: "#automation", label: "documentation.navigation.automatedTests" },
+  { href: "#debugging", label: "documentation.navigation.debugging" },
+  { href: "#mobile", label: "documentation.navigation.mobile" },
+  { href: "#physical-android", label: "documentation.navigation.android" },
+  { href: "#physical-ios", label: "documentation.navigation.ios" },
+  { href: "#ios-signing", label: "documentation.navigation.signing" },
 ];
 
 export class UiRenderer {
@@ -32,45 +33,52 @@ export class UiRenderer {
     cache: false,
   });
 
-  static setup(liveReload = false): string {
-    return this.page("dashboard", "Overview", { refreshEnvironment: true }, liveReload);
+  static setup(liveReload = false, acceptLanguage?: string | string[]): string {
+    return this.page("dashboard", "navigation.overview", { refreshEnvironment: true }, liveReload, acceptLanguage);
   }
 
-  static targets(liveReload = false): string {
-    return this.page("targets", "Test targets", {}, liveReload);
+  static targets(liveReload = false, acceptLanguage?: string | string[]): string {
+    return this.page("targets", "navigation.targets", {}, liveReload, acceptLanguage);
   }
 
-  static documentation(liveReload = false, remoteExecution = false): string {
+  static documentation(liveReload = false, remoteExecution = false, acceptLanguage?: string | string[]): string {
     return this.page(
       "documentation",
-      "Documentation",
+      "navigation.documentation",
       {
         activePage: "docs",
         badgeIcon: "fa-book-open",
-        badgeLabel: "Local documentation",
-        subnavigation: documentationNavigation,
+        badgeLabelKey: "common.status.localDocumentation",
         localNetworkAddress: remoteExecution ? undefined : RemoteUrlGuard.lanAddress(),
         remoteExecution,
       },
       liveReload,
+      acceptLanguage,
     );
   }
 
   private static page(
     template: string,
-    pageTitle: string,
+    pageTitleKey: MessageKey,
     data: Record<string, unknown> = {},
     liveReload = false,
+    acceptLanguage?: string | string[],
   ): string {
+    const locale = LocaleResolver.resolve(acceptLanguage);
+    const translator = new Translator(locale);
+    const t = (key: MessageKey, parameters = {}, count?: number) => translator.t(key, parameters, count);
     const activePage = (data.activePage as string | undefined) ?? template;
     const shared = {
-      title: "Browser Testbench",
-      pageTitle,
+      title: t("common.productName"),
+      pageTitle: t(pageTitleKey),
+      locale,
+      t,
       activePage,
-      navigation,
-      subnavigation: [],
+      navigation: navigation.map((item) => ({ ...item, label: t(item.label) })),
+      subnavigation:
+        activePage === "docs" ? documentationNavigation.map((item) => ({ ...item, label: t(item.label) })) : [],
       badgeIcon: "fa-circle-notch fa-spin",
-      badgeLabel: "Checking system",
+      badgeLabel: t((data.badgeLabelKey as MessageKey | undefined) ?? "common.status.checkingSystem"),
       liveReload,
       version: PackageMetadata.VERSION,
       ...data,

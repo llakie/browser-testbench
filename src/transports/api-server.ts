@@ -39,6 +39,9 @@ import { RemoteApiController } from "../remote/remote-api-controller.js";
 import { RemoteSessionPolicy, RemoteSessionPolicyError } from "../remote/remote-session-policy.js";
 import { IosPhysicalLoopbackUrlError } from "../automation/ios-physical-url-guard.js";
 import { ClientVersion } from "../config/client-version.js";
+import { Translator, type MessageDescriptor } from "../i18n/translator.js";
+
+const english = new Translator("en");
 
 export interface ApiServerOptions {
   host: string;
@@ -185,16 +188,19 @@ export class ApiServer {
 
   private registerPublicRoutes(): void {
     this.app.get("/", (_request, response) => response.redirect("/setup"));
-    this.app.get("/setup", (_request, response) => this.sendUi(response, UiRenderer.setup(this.options.liveReload)));
-    this.app.get("/targets", (_request, response) =>
-      this.sendUi(response, UiRenderer.targets(this.options.liveReload)),
+    this.app.get("/setup", (request, response) =>
+      this.sendUi(response, UiRenderer.setup(this.options.liveReload, request.headers["accept-language"])),
     );
-    this.app.get("/docs", (_request, response) =>
+    this.app.get("/targets", (request, response) =>
+      this.sendUi(response, UiRenderer.targets(this.options.liveReload, request.headers["accept-language"])),
+    );
+    this.app.get("/docs", (request, response) =>
       this.sendUi(
         response,
         UiRenderer.documentation(
           this.options.liveReload,
           Boolean(this.options.remote) || this.connections.status().mode === "remote",
+          request.headers["accept-language"],
         ),
       ),
     );
@@ -230,10 +236,15 @@ export class ApiServer {
       return;
     }
     const missing = !actualVersion;
+    const message: MessageDescriptor = missing
+      ? { key: "errors.clientVersionMissing", parameters: { expectedVersion: ClientVersion.CURRENT } }
+      : {
+          key: "errors.clientVersionMismatch",
+          parameters: { actualVersion, expectedVersion: ClientVersion.CURRENT },
+        };
     response.status(409).json({
-      error: missing
-        ? `Client version is missing. Install Browser Testbench ${ClientVersion.CURRENT}.`
-        : `Client version ${actualVersion} is incompatible with Browser Testbench ${ClientVersion.CURRENT}. Install the same version on every client and Testbench.`,
+      error: english.message(message, ""),
+      message,
       code: missing ? "client_version_missing" : "client_version_mismatch",
       expectedVersion: ClientVersion.CURRENT,
       ...(actualVersion ? { actualVersion } : {}),

@@ -7,6 +7,7 @@ import {
   type ResolvedMcpClientExecutable,
 } from "./mcp-client-executable-resolver.js";
 import { McpServerLauncher } from "./mcp-server-launcher.js";
+import type { MessageDescriptor, MessageKey } from "../i18n/translator.js";
 
 const REGISTRATION_STATUS_TIMEOUT_MS = 8_000;
 const REGISTRATION_UPDATE_TIMEOUT_MS = 15_000;
@@ -26,6 +27,9 @@ export interface McpIntegrationStatus {
   format: "command" | "json";
   detail: string;
   instruction: string;
+  labelMessage?: MessageDescriptor;
+  detailMessage?: MessageDescriptor;
+  instructionMessage?: MessageDescriptor;
   executable?: string;
   executableSource?: ResolvedMcpClientExecutable["source"];
 }
@@ -65,6 +69,9 @@ export class McpIntegrationService {
         format: definition.format ?? "command",
         detail: "Configuration ready to copy.",
         instruction: definition.instruction,
+        ...(id === "other" ? { labelMessage: { key: "mcp.otherLabel" } } : {}),
+        detailMessage: { key: "mcp.configurationReady" },
+        instructionMessage: { key: this.instructionKey(id) },
       };
     }
 
@@ -89,6 +96,16 @@ export class McpIntegrationService {
           ? `${definition.label} could not be started through ${definition.environmentVariable}. Check the configured executable path.`
           : `${definition.label} was not found by the Browser Testbench server. Install its CLI or set ${definition.environmentVariable} before starting the server.`,
         instruction: definition.instruction,
+        detailMessage: configuredPath
+          ? {
+              key: "mcp.configuredPathInvalid",
+              parameters: { clientName: definition.label, environmentVariable: definition.environmentVariable! },
+            }
+          : {
+              key: "mcp.notFound",
+              parameters: { clientName: definition.label, environmentVariable: definition.environmentVariable! },
+            },
+        instructionMessage: { key: this.instructionKey(id) },
       };
     }
 
@@ -104,6 +121,8 @@ export class McpIntegrationService {
         format: "command",
         detail: `${definition.label} is available. Run the command below to connect Browser Testbench.`,
         instruction: definition.instruction,
+        detailMessage: { key: "mcp.available", parameters: { clientName: definition.label } },
+        instructionMessage: { key: this.instructionKey(id) },
         executable: executable.command,
         executableSource: executable.source,
       };
@@ -130,6 +149,10 @@ export class McpIntegrationService {
           ? "Configured with an outdated or project-dependent Browser Testbench launcher."
           : "Not connected to Browser Testbench yet.",
       instruction: definition.instruction,
+      detailMessage: {
+        key: current ? "mcp.current" : registered ? "mcp.outdated" : "mcp.notConnected",
+      },
+      instructionMessage: { key: this.instructionKey(id) },
       executable: executable.command,
       executableSource: executable.source,
     };
@@ -224,6 +247,17 @@ export class McpIntegrationService {
         instruction: "Add this project-independent MCP entry to your client's configuration, then restart it.",
       },
     ];
+  }
+
+  private static instructionKey(id: McpClientId): MessageKey {
+    const keys: Record<McpClientId, MessageKey> = {
+      codex: "mcp.codexInstruction",
+      "claude-code": "mcp.claudeInstruction",
+      "gemini-cli": "mcp.geminiInstruction",
+      "copilot-vscode": "mcp.copilotInstruction",
+      other: "mcp.otherInstruction",
+    };
+    return keys[id];
   }
 
   private static definition(id: McpClientId): McpClientDefinition {

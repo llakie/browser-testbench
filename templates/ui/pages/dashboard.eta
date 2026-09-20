@@ -2,12 +2,9 @@
   <div>
     <section class="hero">
       <div>
-        <p class="eyebrow">Central test environment</p>
-        <h1>Browsers and devices for your projects</h1>
-        <p class="hero__copy">
-          Set up browsers, physical devices, simulators, and emulators once in one place. Your application and test
-          cases remain in their respective projects.
-        </p>
+        <p class="eyebrow">{{ t('overview.page.eyebrow') }}</p>
+        <h1><%= it.t("overview.page.title") %></h1>
+        <p class="hero__copy">{{ t('overview.page.intro') }}</p>
       </div>
     </section>
     <div
@@ -23,7 +20,7 @@
       <details class="panel accordion-panel" id="remote-connection" name="overview-panel" :hidden="!remotePanelVisible">
         <summary class="accordion-panel__summary">
           <div>
-            <p class="eyebrow">Remote Testbench</p>
+            <p class="eyebrow">{{ t('overview.page.remoteEyebrow') }}</p>
             <h2 id="remote-connection-title">{{ remoteTitle }}</h2>
             <p id="remote-connection-summary">{{ remoteSummary }}</p>
           </div>
@@ -44,7 +41,7 @@
                   :class="['fa-solid', actionBusy === 'discover' ? 'fa-spinner fa-spin' : 'fa-satellite-dish']"
                   aria-hidden="true"
                 ></i>
-                {{ actionBusy === 'discover' ? 'Searching …' : 'Find Testbenches' }}
+                {{ actionBusy === 'discover' ? t('overview.page.searching') : t('overview.page.findTestbenches') }}
               </button>
             </div>
             <div class="remote-discovery" id="remote-discovery" v-if="discovered">
@@ -62,17 +59,14 @@
                   :disabled="actionBusy === `connect:${instance.instanceId}`"
                   @click="connectRemote(instance)"
                 >
-                  Connect
+                  {{ t('overview.page.connect') }}
                 </button>
               </article>
-              <p v-if="discovered.length === 0">
-                No central Testbench was found. Check that remote mode is running on the same LAN and that multicast UDP
-                5353 and Node.js private-network access are allowed, or enter its URL below.
-              </p>
+              <p v-if="discovered.length === 0">{{ t('overview.page.noneFound') }}</p>
             </div>
             <form class="remote-manual" id="remote-manual" :hidden="managesClients" @submit.prevent="connectManual">
               <label
-                ><span>Testbench URL</span>
+                ><span>{{ t('overview.page.testbenchUrl') }}</span>
                 <div class="input-with-icon">
                   <i class="fa-solid fa-link" aria-hidden="true"></i
                   ><input
@@ -83,14 +77,15 @@
                     required
                   /></div></label
               ><label class="remote-admin-option"
-                ><input id="remote-admin" v-model="requestAdmin" type="checkbox" /> Request administrative access</label
+                ><input id="remote-admin" v-model="requestAdmin" type="checkbox" /> {{ t('overview.page.requestAdmin')
+                }}</label
               ><button class="button button--secondary" type="submit" :disabled="actionBusy === 'connect-manual'">
-                Connect
+                {{ t('overview.page.connect') }}
               </button>
             </form>
             <form class="pairing-form" id="pairing-form" v-if="pendingPairingId" @submit.prevent="completePairing">
               <label
-                ><span>Pairing code shown on the remote computer</span
+                ><span>{{ t('overview.page.pairingCode') }}</span
                 ><input
                   id="pairing-code"
                   v-model="pairingCode"
@@ -99,40 +94,48 @@
                   maxlength="6"
                   autocomplete="one-time-code"
                   required /></label
-              ><button class="button" type="submit" :disabled="actionBusy === 'pair'">Pair and connect</button>
+              ><button class="button" type="submit" :disabled="actionBusy === 'pair'">
+                {{ t('overview.page.pairAndConnect') }}
+              </button>
             </form>
           </div>
           <div class="pairing-requests" id="pairing-requests" v-if="workbench.pairingRequests?.length">
             <article class="remote-instance" v-for="request in workbench.pairingRequests" :key="request.pairingId">
               <div>
-                <strong>{{ request.role === 'admin' ? 'Administrative' : 'Control' }} pairing</strong
+                <strong
+                  >{{ t(request.role === 'admin' ? 'overview.page.administrativePairing' :
+                  'overview.page.controlPairing') }}</strong
                 ><small
-                  >Code {{ request.code }} · expires {{ formatDate(request.expiresAt, { timeStyle: 'short' }) }}</small
+                  >{{ t('overview.page.pairingMeta', { code: request.code, date: formatDate(request.expiresAt, {
+                  timeStyle: 'short' }) }) }}</small
                 >
               </div>
             </article>
           </div>
           <div class="remote-clients" id="remote-clients" v-if="managesClients">
             <div class="subsection-heading">
-              <h3>Paired clients</h3>
-              <p>Change administrative access or revoke a client credential.</p>
+              <h3>{{ t('overview.page.pairedClients') }}</h3>
+              <p>{{ t('overview.page.pairedClientsIntro') }}</p>
             </div>
             <p class="remote-clients__empty" id="remote-clients-empty" v-if="!workbench.authorizedClients?.length">
-              No clients have connected yet.
+              {{ t('overview.page.noClients') }}
             </p>
             <div class="remote-discovery" id="remote-client-list">
               <article class="remote-instance" v-for="client in workbench.authorizedClients" :key="client.clientId">
                 <div>
                   <strong>{{ client.name }}</strong
                   ><small
-                    >{{ client.role }} · {{ client.connected ? 'connected' : `last used
-                    ${formatDate(client.lastUsedAt)}` }}</small
+                    >{{ t(`common.remoteRole.${client.role}`) }} · {{ client.connected ?
+                    t('common.connection.connected') : t('overview.page.lastUsed', { date: formatDate(client.lastUsedAt)
+                    }) }}</small
                   >
                 </div>
                 <div class="remote-client-actions">
                   <button class="button button--secondary" type="button" @click="setRole(client)">
-                    {{ client.role === 'admin' ? 'Set control' : 'Make admin' }}</button
-                  ><button class="button button--secondary" type="button" @click="revoke(client)">Revoke</button>
+                    {{ t(client.role === 'admin' ? 'overview.page.setControl' : 'overview.page.makeAdmin') }}</button
+                  ><button class="button button--secondary" type="button" @click="revoke(client)">
+                    {{ t('overview.page.revoke') }}
+                  </button>
                 </div>
               </article>
             </div>
@@ -142,17 +145,17 @@
       <details class="panel accordion-panel" id="environment" name="overview-panel" open>
         <summary class="accordion-panel__summary">
           <div>
-            <p class="eyebrow">Local test environment</p>
-            <h2>Browsers and devices</h2>
-            <p>See what is ready and what still needs to be set up.</p>
+            <p class="eyebrow">{{ t('common.localTestEnvironment') }}</p>
+            <h2>{{ t('overview.page.environmentTitle') }}</h2>
+            <p>{{ t('overview.page.environmentIntro') }}</p>
           </div>
           <i class="fa-solid fa-chevron-down accordion-panel__icon" aria-hidden="true"></i>
         </summary>
         <div class="accordion-panel__body">
           <div class="environment-group environment-group--capabilities">
             <div class="subsection-heading">
-              <h3>Availability on this machine</h3>
-              <p>Browser Testbench detects these capabilities directly on your machine.</p>
+              <h3>{{ t('overview.page.availability') }}</h3>
+              <p>{{ t('overview.page.availabilityIntro') }}</p>
             </div>
             <div class="check-grid" id="checks" aria-live="polite">
               <article
@@ -162,21 +165,21 @@
                 :class="['check-card', `is-${check.status}`, { 'check-card--device': ['safari-ios', 'chrome-android'].includes(check.id) }]"
               >
                 <div class="check-card__title">
-                  {{ check.label }}<span class="status-icon"
+                  {{ localized(check, 'label') }}<span class="status-icon"
                     ><i :class="['fa-solid', statusIcon(check.status)]" aria-hidden="true"></i
                   ></span>
                 </div>
-                <p class="check-card__detail" :title="check.detail">{{ check.detail }}</p>
-                <p class="check-card__action" v-if="check.action">{{ check.action }}</p>
+                <p class="check-card__detail" :title="localized(check, 'detail')">{{ localized(check, 'detail') }}</p>
+                <p class="check-card__action" v-if="check.action">{{ localized(check, 'action') }}</p>
                 <p class="check-card__action" v-if="physicalDeviceDocumentation(check.id)">
-                  For connecting real devices, see
-                  <a :href="physicalDeviceDocumentation(check.id)">documentation</a>.
+                  {{ t('overview.page.physicalDocumentationBefore') }}
+                  <a :href="physicalDeviceDocumentation(check.id)">{{ t('overview.page.documentationLink') }}</a>.
                 </p>
                 <command-block v-for="command in check.commands ?? []" :key="command" :value="command"></command-block>
                 <details class="device-options" v-if="check.devices?.length">
                   <summary>
-                    <i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i> Show {{ check.devices.length }}
-                    {{ check.devices.length === 1 ? 'device' : 'devices' }}
+                    <i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i> {{
+                    t('overview.page.showDevices', { count: check.devices.length }, check.devices.length) }}
                   </summary>
                   <div class="device-options__list">
                     <article
@@ -186,11 +189,15 @@
                     >
                       <div class="device-option__heading">
                         <strong>{{ device.name }}</strong
-                        ><span>{{ device.compatible ? 'Ready' : 'Needs attention' }}</span>
+                        ><span
+                          >{{ t(device.compatible ? 'overview.page.ready' : 'overview.page.needsAttention') }}</span
+                        >
                       </div>
                       <small>{{ deviceMeta(device) }}</small
-                      ><small class="device-option__detail" v-if="device.detail">{{ device.detail }}</small
-                      ><a v-if="device.documentationUrl" :href="device.documentationUrl">Open signing guide</a
+                      ><small class="device-option__detail" v-if="device.detail"
+                        >{{ localized(device, 'detail') }}</small
+                      ><a v-if="device.documentationUrl" :href="device.documentationUrl"
+                        >{{ t('overview.page.openSigningGuide') }}</a
                       ><command-block v-if="device.compatible" :value="deviceConfig(device)"></command-block>
                     </article>
                   </div>
@@ -202,14 +209,14 @@
             <div class="guided-actions__content">
               <div class="guided-actions__heading">
                 <div>
-                  <h3>Environment setup</h3>
+                  <h3>{{ t('overview.page.environmentSetup') }}</h3>
                   <p id="setup-summary">{{ setupSummary }}</p>
                 </div>
               </div>
               <div class="setup-action-list" id="setup-action-list">
                 <div class="setup-action" v-for="action in workbench.actions" :key="action.id ?? action.label">
                   <div class="setup-action__copy">
-                    <strong>{{ action.label }}</strong><small>{{ actionDetail(action) }}</small>
+                    <strong>{{ localized(action, 'label') }}</strong><small>{{ actionDetail(action) }}</small>
                   </div>
                   <button
                     v-if="isInstallable(action)"
@@ -224,7 +231,7 @@
                       :class="['fa-solid', setupBusy(action) ? 'fa-spinner fa-spin' : 'fa-download']"
                       aria-hidden="true"
                     ></i>
-                    {{ setupBusy(action) ? 'Installing …' : 'Install' }}</button
+                    {{ setupBusy(action) ? t('overview.page.installing') : t('overview.page.install') }}</button
                   ><span v-else class="setup-action__status" :class="`is-${action.status}`"
                     ><i :class="['fa-solid', actionStatusIcon(action.status)]" aria-hidden="true"></i> {{
                     actionStatus(action.status) }}</span
@@ -238,8 +245,8 @@
             <div class="integration-card__content">
               <div class="integration-card__heading">
                 <div>
-                  <h3>Connect an AI assistant through MCP</h3>
-                  <p>Browser Testbench uses the open MCP standard and is not tied to a provider.</p>
+                  <h3>{{ t('overview.page.mcpTitle') }}</h3>
+                  <p>{{ t('overview.page.mcpIntro') }}</p>
                 </div>
                 <button
                   class="button button--secondary"
@@ -254,15 +261,19 @@
                     :class="['fa-solid', actionBusy === 'mcp' ? 'fa-spinner fa-spin' : 'fa-link']"
                     aria-hidden="true"
                   ></i>
-                  {{ actionBusy === 'mcp' ? 'Connecting …' : 'Set up automatically' }}
+                  {{ actionBusy === 'mcp' ? t('overview.page.connecting') : t('overview.page.automaticSetup') }}
                 </button>
               </div>
               <label class="integration-client"
-                ><span>AI assistant</span
+                ><span>{{ t('overview.page.assistant') }}</span
                 ><span class="select-control"
-                  ><select id="mcp-client" v-model="selectedMcpClientId" aria-label="Select AI assistant">
+                  ><select
+                    id="mcp-client"
+                    v-model="selectedMcpClientId"
+                    :aria-label="t('overview.page.selectAssistant')"
+                  >
                     <option v-for="client in workbench.mcpClients" :key="client.id" :value="client.id">
-                      {{ client.label }}
+                      {{ mcpLabel(client) }}
                     </option></select
                   ><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span
               ></label>
@@ -270,9 +281,9 @@
                 id="mcp-status"
                 :class="['integration-status', selectedMcpClient.current ? 'is-ready' : selectedMcpClient.installed ? 'is-action' : 'is-blocked']"
               >
-                {{ selectedMcpClient.detail }}
+                {{ mcpDetail(selectedMcpClient) }}
               </p>
-              <p id="mcp-instruction">{{ selectedMcpClient.instruction }}</p>
+              <p id="mcp-instruction">{{ mcpInstruction(selectedMcpClient) }}</p>
               <div id="mcp-command">
                 <command-block
                   :value="selectedMcpClient.command"
