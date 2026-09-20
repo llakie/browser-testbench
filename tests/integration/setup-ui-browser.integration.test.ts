@@ -34,6 +34,14 @@ const chrome = (locale: "en-US" | "de-DE") => ({
   },
 });
 
+async function waitForText(browser: BrowserSession, text: string, timeout = 15_000): Promise<void> {
+  try {
+    await browser.active.waitForText(text, timeout);
+  } catch (error) {
+    throw new Error(`Timed out waiting for UI text: ${text}`, { cause: error });
+  }
+}
+
 describe("workbench UI browser flow", () => {
   browserTest(
     "navigates the responsive app shell and operates the workbench pages",
@@ -220,7 +228,7 @@ describe("workbench UI browser flow", () => {
         await browser.start(chrome("en-US"));
         await browser.active.setWindowRect(500, 812);
         await browser.navigate(`${baseUrl}/setup`);
-        await browser.active.waitForText("Google Chrome", 15_000);
+        await waitForText(browser, "Google Chrome");
         expect(await browser.active.execute("return document.querySelector('#app').dataset.liveReload")).toBe("true");
 
         expect(await browser.active.$("#host-badge").getText()).toContain(platformLabel);
@@ -269,7 +277,7 @@ describe("workbench UI browser flow", () => {
           };
           window.dispatchEvent(new Event("browser-testbench:authorization-changed"));
         `);
-        await browser.active.waitForText("Windows Testbench", 15_000);
+        await waitForText(browser, "Windows Testbench");
         const bannerStatus = await browser.active.execute<{
           authorization: string;
           retryVisible: boolean;
@@ -345,7 +353,7 @@ describe("workbench UI browser flow", () => {
         );
         androidName = "Pixel 8 Pro";
         events.publish({ type: "environment.changed", source: "android", occurredAt: new Date().toISOString() });
-        await browser.active.waitForText("Pixel 8 Pro", 15_000);
+        await waitForText(browser, "Pixel 8 Pro");
         await browser.active.waitForScript(
           "return window.__previousDeviceDetails.isConnected && document.querySelector('[data-check-id=\"chrome-android\"] .device-options').open",
           [],
@@ -354,7 +362,7 @@ describe("workbench UI browser flow", () => {
         await browser.active.execute("window.__pageSurvivedEnvironmentUpdate = true");
         androidConnected = false;
         events.publish({ type: "environment.changed", source: "android", occurredAt: new Date().toISOString() });
-        await browser.active.waitForText("No Android device or compatible emulator was found.", 15_000);
+        await waitForText(browser, "No Android device or compatible emulator was found.");
         expect(await browser.active.execute("return window.__pageSurvivedEnvironmentUpdate")).toBe(true);
         expect(await browser.active.$("#checks").getText()).not.toContain("Pixel 8");
         expect(await browser.active.$(".guided-actions__heading").getText()).toContain("Environment setup");
@@ -381,7 +389,7 @@ describe("workbench UI browser flow", () => {
           await browser.active.execute("return document.querySelector('#register-mcp').getAttribute('aria-busy')"),
         ).toBe("true");
         await browser.active.execute("window.__completeMcpRegistration()");
-        await browser.active.waitForText("codex is connected to Browser Testbench.");
+        await waitForText(browser, "codex is connected to Browser Testbench.");
         await browser.active.execute(`
           const client = document.querySelector("#mcp-client");
           client.value = "claude-code";
@@ -433,7 +441,7 @@ describe("workbench UI browser flow", () => {
           };
         `);
         await browser.active.$(".test-target__actions > .button").click();
-        await browser.active.waitForText("Busy", 15_000);
+        await waitForText(browser, "Busy");
         expect(
           await browser.active.execute(
             `return [...document.querySelectorAll(".test-target")].find(target => target.querySelector(".test-target__status")?.textContent.includes("Busy"))?.querySelector(".test-target__actions > .button")?.disabled`,
@@ -493,7 +501,7 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.$("#test-target-list .test-target__actions .button").getText()).toBe(
           "Test running …",
         );
-        await browser.active.waitForText("was tested successfully", 15_000);
+        await waitForText(browser, "was tested successfully");
         await browser.active.$("#verify-all-targets").waitForClickable({ timeout: 15_000 });
 
         await browser.active.execute(`
@@ -519,7 +527,7 @@ describe("workbench UI browser flow", () => {
           "return document.querySelectorAll('#test-target-list .test-target__actions .button').length",
         );
         await browser.active.$("#verify-all-targets").click();
-        await browser.active.waitForText("completed successfully", 15_000);
+        await waitForText(browser, "completed successfully");
         expect(await browser.active.execute<number>("return window.__verifiedTargets.length")).toBe(readyTargetCount);
         expect(await browser.active.execute<number>("return window.__maxActiveVerifications")).toBe(1);
         expect(await browser.active.$("#test-target-list").getText()).not.toContain("Shutdown");
@@ -528,8 +536,8 @@ describe("workbench UI browser flow", () => {
         const inspectionCountBeforeDocumentation = inspectEnvironment.mock.calls.length;
         await browser.navigate(`${baseUrl}/docs`);
         expect(await browser.active.$(".docs-content").getText()).toContain("Automated tests");
-        await browser.active.waitForText("Set up your iPhone or iPad", 15_000);
-        await browser.active.waitForText("Set up your Android device", 15_000);
+        await waitForText(browser, "Set up your iPhone or iPad");
+        await waitForText(browser, "Set up your Android device");
         expect(inspectEnvironment).toHaveBeenCalledTimes(inspectionCountBeforeDocumentation);
         expect(
           await browser.active.execute("return document.querySelector('#ios-mac-setup > summary').textContent.trim()"),
@@ -550,7 +558,7 @@ describe("workbench UI browser flow", () => {
           await browser.active.execute("return document.querySelectorAll('#ios-setup-checklist select option').length"),
         ).toBe(2);
         await browser.active.$("#ios-setup-checklist select").select(["IOS-DEVICE-2"], "value");
-        await browser.active.waitForText("Connect the second iPhone by USB.", 15_000);
+        await waitForText(browser, "Connect the second iPhone by USB.");
         await browser.active.$("#ios-setup-checklist select").select(["IOS-DEVICE"], "value");
         expect(
           await browser.active.execute(
@@ -644,7 +652,7 @@ describe("workbench UI browser flow", () => {
           ),
         ).toBe(true);
         await browser.navigate(`${baseUrl}/docs`);
-        await browser.active.waitForText("Set up your iPhone or iPad", 15_000);
+        await waitForText(browser, "Set up your iPhone or iPad");
         await browser.active.$("#ios-setup-checklist").scrollIntoView();
         await browser.active.$("#ios-setup-checklist .setup-checklist__heading button").click();
         await browser.active.waitForCount("#ios-setup-checklist [data-step-id=access]", 1, 15_000);
@@ -700,7 +708,7 @@ describe("workbench UI browser flow", () => {
 
         await browser.active.setWindowRect(1000, 812);
         await browser.navigate(`${baseUrl}/setup`);
-        await browser.active.waitForText("Google Chrome", 15_000);
+        await waitForText(browser, "Google Chrome");
         expect(await browser.active.execute("return document.querySelector('#run-setup')")).toBeNull();
         expect(
           await browser.active.execute(
@@ -725,7 +733,7 @@ describe("workbench UI browser flow", () => {
         await browser.active.$(".setup-action__status.is-planned").click();
         expect(await browser.active.$(".setup-action__status.is-planned").getText()).toBe("Installing \u2026");
         await browser.active.execute("window.__completeEnvironmentSetup()");
-        await browser.active.waitForText("Setup completed.");
+        await waitForText(browser, "Setup completed.");
         expect(await browser.active.execute("return window.__setupTargets")).toEqual(["chrome-android"]);
         expect(
           await browser.active.execute(
