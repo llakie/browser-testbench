@@ -46,7 +46,7 @@ export interface TargetDeviceOption {
 }
 
 export interface DeviceSetupCheck {
-  id: string;
+  id: "usb" | "trust" | "developer-mode" | "signing";
   label: string;
   ready: boolean;
   detail: string;
@@ -69,6 +69,7 @@ export interface TestTarget {
   ready: boolean;
   serial: boolean;
   deviceKind?: MobileDeviceKind;
+  deviceId?: string;
   detail: string;
   verifiedAt?: string;
   config: TargetConfig;

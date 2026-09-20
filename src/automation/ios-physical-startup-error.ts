@@ -55,17 +55,20 @@ export class IosPhysicalStartupError {
     }
 
     if (/logic testing unavailable/iu.test(diagnostic)) {
+      const compatibilityAction = target.platformVersion?.startsWith("16.")
+        ? "For an iOS 16 device, select Xcode 26.2 and run the test again."
+        : "Select an Xcode version that supports the connected iOS version and run the test again.";
       return new Error(
         `Xcode cannot start WebDriverAgent on ${target.deviceName ?? "the iOS device"}. ` +
           `WebDriverAgent was built and signed, but this Xcode version cannot run its XCTest runner on this iOS version ` +
           `(Logic Testing Unavailable). This is an Xcode compatibility problem, not a signing failure. ` +
-          `For an iOS 16 device, select Xcode 26.2 and run the test again. Original error: ${error.message}`,
+          `${compatibilityAction} Original error: ${error.message}`,
         { cause: error },
       );
     }
 
     if (
-      !/(no provisioning profile|requires? a development team|code sign(?:ing)?|codesign|signing certificate|no apple development|provisioning profile[^\n]*(?:not found|missing)|development team[^\n]*(?:required|missing))/iu.test(
+      !/(no profiles? for|no provisioning profile|requires? a development team|code signing is required|command codesign failed|signing certificate[^\n]*(?:not found|missing)|no apple development|provisioning profile[^\n]*(?:not found|missing)|development team[^\n]*(?:required|missing))/iu.test(
         diagnostic,
       )
     )

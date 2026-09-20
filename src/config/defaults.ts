@@ -37,6 +37,7 @@ export class TestbenchDefaults {
   static readonly IOS_NATIVE_NAVIGATION_TIMEOUT_MS = 15_000;
   static readonly IOS_SESSION_START_ATTEMPTS = 2;
   static readonly IOS_STARTUP_DIAGNOSTIC_TIMEOUT_MS = 10_000;
+  static readonly IOS_DEVICE_POLL_INTERVAL_MS = 5_000;
   static readonly SCREENSHOT_SCROLL_SETTLE_MS = 250;
   static readonly GESTURE_MAX_PERCENT = 0.99;
   static readonly SWIPE_PERCENT = 0.75;

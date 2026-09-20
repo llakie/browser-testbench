@@ -3,24 +3,9 @@ import type { DoctorCheck, TargetDeviceOption } from "../../../config/types.js";
 import type { WorkbenchState } from "../../../setup/workbench-types.js";
 import { DocumentationDisclosure } from "../core/documentation-disclosure.js";
 import { workbenchStore } from "../stores/workbench-store.js";
+import { DeviceSetupSteps, type ChecklistStep } from "./device-setup-steps.js";
 
 const IOS_SAFARI_CONFIRMATION_KEY = "browser-testbench-ios-safari-settings";
-
-interface ChecklistStep {
-  id: string;
-  label: string;
-  detail: string;
-  href: string;
-  ready: boolean;
-  manual?: boolean;
-  troubleshooting?: ChecklistHint[];
-}
-
-interface ChecklistHint {
-  text: string;
-  href?: string;
-  linkLabel?: string;
-}
 
 type ChecklistPlatform = "ios" | "android";
 type ChecklistStatus = "complete" | "attention" | "pending" | "manual";
@@ -33,6 +18,8 @@ export const DeviceSetupChecklist = defineComponent({
   data: () => ({
     store: workbenchStore,
     iosSafariSettingsConfirmed: false,
+    selectedDeviceId: "",
+    visibilityObserver: undefined as IntersectionObserver | undefined,
   }),
   computed: {
     workbench(): WorkbenchState | null {
@@ -60,13 +47,22 @@ export const DeviceSetupChecklist = defineComponent({
       return this.workbench?.checks.find((check) => check.id === id);
     },
     device(): TargetDeviceOption | undefined {
-      return this.check?.devices?.find((device) => device.deviceKind === "physical");
+      return this.physicalDevices.find((device) => device.id === this.selectedDeviceId) ?? this.physicalDevices[0];
+    },
+    physicalDevices(): TargetDeviceOption[] {
+      return this.check?.devices?.filter((device) => device.deviceKind === "physical") ?? [];
+    },
+    physicalDeviceIds(): string {
+      return this.physicalDevices.map((device) => device.id).join("\n");
     },
     deviceId(): string {
       return this.device?.id ?? "unconnected";
     },
     steps(): ChecklistStep[] {
-      return this.isIos ? this.iosSteps() : this.androidSteps();
+      if (!this.workbench) return [];
+      return this.isIos
+        ? DeviceSetupSteps.ios(this.workbench, this.check, this.device, this.iosSafariSettingsConfirmed)
+        : DeviceSetupSteps.android(this.workbench, this.check, this.device);
     },
     completedSteps(): ChecklistStep[] {
       return this.steps.filter((step) => step.ready);
@@ -80,6 +76,14 @@ export const DeviceSetupChecklist = defineComponent({
     },
   },
   watch: {
+    physicalDeviceIds: {
+      immediate: true,
+      handler(): void {
+        if (!this.physicalDevices.some((device) => device.id === this.selectedDeviceId)) {
+          this.selectedDeviceId = this.physicalDevices[0]?.id ?? "";
+        }
+      },
+    },
     deviceId: {
       immediate: true,
       handler(deviceId: string): void {
@@ -88,175 +92,23 @@ export const DeviceSetupChecklist = defineComponent({
       },
     },
   },
+  mounted(): void {
+    if (!("IntersectionObserver" in window)) {
+      void this.store.enableWorkbench();
+      return;
+    }
+    this.visibilityObserver = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      this.visibilityObserver?.disconnect();
+      this.visibilityObserver = undefined;
+      void this.store.enableWorkbench();
+    });
+    this.visibilityObserver.observe(this.$el as Element);
+  },
+  beforeUnmount(): void {
+    this.visibilityObserver?.disconnect();
+  },
   methods: {
-    iosSteps(): ChecklistStep[] {
-      const setupCheck = (id: string): { ready: boolean; detail: string } | undefined =>
-        this.device?.setupChecks?.find((check) => check.id === id);
-      const xcodeReady = Boolean(
-        this.workbench?.platform === "darwin" &&
-        this.check &&
-        this.check.status !== "skip" &&
-        !this.check.detail.includes("Xcode is not available"),
-      );
-      const driver = this.workbench?.actions.find((action) => action.label === "Appium XCUITest");
-      const toolsReady = xcodeReady && driver?.status === "completed";
-      const connectionChecks = [setupCheck("usb"), setupCheck("trust"), setupCheck("developer-mode")];
-      const connectionReady = connectionChecks.every((check) => check?.ready === true);
-      const nextConnectionCheck = connectionChecks.find((check) => check?.ready !== true);
-      const signingReady = setupCheck("signing")?.ready === true;
-      const accessReady = signingReady && this.iosSafariSettingsConfirmed;
-      const verified = this.workbench?.testTargets.some(
-        (target) => target.browser === "safari-ios" && target.deviceKind === "physical" && target.verifiedAt,
-      );
-
-      return [
-        {
-          id: "tools",
-          label: "Install Xcode and the iOS test tools",
-          detail: !xcodeReady
-            ? "Install Xcode and open it once."
-            : driver?.status !== "completed"
-              ? "Install Appium XCUITest under Environment setup."
-              : "Xcode and Appium XCUITest are ready.",
-          href: xcodeReady ? "/setup#environment-setup" : "#ios-mac-setup",
-          ready: toolsReady,
-          troubleshooting: [
-            { text: "Open Xcode once and accept its license or component installation prompts." },
-            { text: "No separate iPhone driver is required; install Appium XCUITest from Environment setup." },
-          ],
-        },
-        {
-          id: "device",
-          label: "Connect and trust the device",
-          detail: connectionReady
-            ? "The device is connected, trusted, and in Developer Mode."
-            : (nextConnectionCheck?.detail ?? "Connect and unlock the device by USB."),
-          href: "#ios-device-connection",
-          ready: connectionReady,
-          troubleshooting: [
-            { text: "Use a data-capable USB cable and keep the device unlocked." },
-            { text: "In Xcode, open Window → Devices and Simulators and wait until the warning disappears." },
-            { text: "Developer Mode requires a restart and a second confirmation after the restart." },
-          ],
-        },
-        {
-          id: "access",
-          label: "Allow browser automation",
-          detail: !signingReady
-            ? (setupCheck("signing")?.detail ?? "Create an Apple Development signing identity in Xcode.")
-            : this.iosSafariSettingsConfirmed
-              ? "Signing and the Safari automation settings are ready."
-              : "Enable UI Automation, Web Inspector, and Remote Automation, then confirm below.",
-          href: signingReady ? "#ios-safari-settings" : "#ios-signing",
-          ready: accessReady,
-          manual: signingReady && !this.iosSafariSettingsConfirmed,
-          troubleshooting: signingReady
-            ? [
-                {
-                  text: "On iOS 16, Safari is directly under Settings; newer versions place it under Settings → Apps.",
-                },
-                { text: "UI Automation appears under Settings → Developer after Developer Mode is enabled." },
-              ]
-            : [
-                {
-                  text: "In Keychain Access select login → My Certificates and expand Apple Development. A private key must appear below it.",
-                },
-                {
-                  text: "If the identity remains invalid, install Apple's WWDR G3 intermediate certificate.",
-                  href: "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer",
-                  linkLabel: "Download WWDR G3",
-                },
-              ],
-        },
-        {
-          id: "test",
-          label: "Run the first Safari test",
-          detail: verified
-            ? "Browser Testbench has successfully controlled Safari on this device."
-            : "Run the physical Safari target once to finish setup.",
-          href: verified ? "/targets" : "#ios-signing",
-          ready: Boolean(verified),
-          troubleshooting: [
-            { text: "Keep the iPhone unlocked while WebDriverAgent starts for the first time." },
-            {
-              text: "If iOS blocks WebDriverAgent, trust the Apple Account under Settings → General → VPN & Device Management.",
-            },
-            { text: "A free Personal Team profile expires after seven days and must then be signed again." },
-          ],
-        },
-      ];
-    },
-    androidSteps(): ChecklistStep[] {
-      const driver = this.workbench?.actions.find((action) => action.label === "Appium UiAutomator2");
-      const sdkReady = Boolean(this.check && !this.check.detail.includes("Android SDK not found"));
-      const toolsReady = sdkReady && driver?.status === "completed";
-      const connected = Boolean(this.device);
-      const authorized = this.device?.state === "Connected";
-      const chromeReady = this.device?.compatible === true;
-      const verified = this.workbench?.testTargets.some(
-        (target) => target.browser === "chrome-android" && target.deviceKind === "physical" && target.verifiedAt,
-      );
-
-      return [
-        {
-          id: "tools",
-          label: "Install Android Platform Tools and Appium",
-          detail: !sdkReady
-            ? "Install Android Studio or the Android SDK Platform Tools."
-            : driver?.status !== "completed"
-              ? "Install Appium UiAutomator2 under Environment setup."
-              : "Android Platform Tools and Appium UiAutomator2 are ready.",
-          href: sdkReady ? "/setup#environment-setup" : "#android-tools",
-          ready: toolsReady,
-          troubleshooting: [
-            { text: "Android Studio includes the required Platform Tools." },
-            { text: "Install Appium UiAutomator2 from Environment setup." },
-          ],
-        },
-        {
-          id: "device",
-          label: "Connect the device",
-          detail: connected
-            ? `${this.device!.name} was detected over USB.`
-            : "Enable USB debugging, then connect and unlock the device.",
-          href: "#android-device-connection",
-          ready: connected,
-          troubleshooting: [
-            { text: "Enable Developer options by tapping the Android build number seven times." },
-            { text: "Use a data-capable USB cable and keep the device unlocked." },
-          ],
-        },
-        {
-          id: "access",
-          label: "Allow debugging and Chrome",
-          detail: !authorized
-            ? (this.check?.action ?? "Accept the USB debugging prompt on the device.")
-            : chromeReady
-              ? "USB debugging is authorized and Chrome is available."
-              : (this.device?.detail ?? "Install or enable Google Chrome on the device."),
-          href: "#android-debugging",
-          ready: authorized && chromeReady,
-          troubleshooting: [
-            { text: "Reconnect the unlocked device if the USB debugging prompt does not appear." },
-            { text: "If authorization is stuck, revoke USB debugging authorizations and connect again." },
-            { text: "Install or enable Google Chrome before running the first test." },
-          ],
-        },
-        {
-          id: "test",
-          label: "Run the first Chrome test",
-          detail: verified
-            ? "Browser Testbench has successfully controlled Chrome on this device."
-            : "Run the physical Android target once to finish setup.",
-          href: "/targets",
-          ready: Boolean(verified),
-          troubleshooting: [
-            { text: "Keep the device unlocked during the first Appium session." },
-            { text: "Accept any additional debugging prompt shown by Android." },
-          ],
-        },
-      ];
-    },
     status(step: ChecklistStep): ChecklistStatus {
       if (step.ready) return "complete";
       if (step.id !== this.currentStep?.id) return "pending";
@@ -287,7 +139,7 @@ export const DeviceSetupChecklist = defineComponent({
       localStorage.setItem(`${IOS_SAFARI_CONFIRMATION_KEY}:${this.deviceId}`, String(confirmed));
     },
     refresh(): void {
-      void this.store.refresh({ analyze: true });
+      void this.store.enableWorkbench({ analyze: true, refresh: true });
     },
     openInstructions(href: string): void {
       DocumentationDisclosure.openTarget(href);

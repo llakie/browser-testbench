@@ -47,7 +47,6 @@ export class UiRenderer {
         activePage: "docs",
         badgeIcon: "fa-book-open",
         badgeLabel: "Local documentation",
-        refreshEnvironment: true,
         subnavigation: documentationNavigation,
         localNetworkAddress: remoteExecution ? undefined : RemoteUrlGuard.lanAddress(),
         remoteExecution,

@@ -146,6 +146,14 @@ describe("SetupService Appium status", () => {
             compatible: false,
             detail: "No Apple Development signing identity is available.",
             documentationUrl: "/docs#ios-signing",
+            setupChecks: [
+              {
+                id: "signing" as const,
+                label: "Apple Development signing",
+                ready: false,
+                detail: "No Apple Development signing identity is available.",
+              },
+            ],
             config: { name: "safari-ios" as const, deviceKind: "physical" as const },
           },
         ],

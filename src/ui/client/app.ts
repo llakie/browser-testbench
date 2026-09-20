@@ -21,7 +21,7 @@ if (activePage === "dashboard") {
 }
 
 const attachTemplate = (component: Component, selector: string): void => {
-  const template = document.querySelector<HTMLTemplateElement>(selector);
+  const template = document.querySelector<HTMLElement>(selector);
   (component as Component & { template: string }).template = template?.innerHTML ?? "";
 };
 
@@ -72,7 +72,7 @@ const RootApp = defineComponent({
       if (event.target instanceof Element && event.target.closest("a")) this.closeMobileMenu();
     });
     this.$nextTick(this.revealDocumentationTarget);
-    void this.store.initialize(true);
+    void this.store.initialize(this.page !== "docs");
   },
   beforeUnmount(): void {
     document.removeEventListener("keydown", this.onKeydown);

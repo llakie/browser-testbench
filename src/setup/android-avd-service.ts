@@ -43,6 +43,7 @@ export class AndroidAvdService {
     const environment = await this.environment();
     if (!environment) {
       return {
+        id: "android-sdk",
         label: TargetRegistry.definitions["chrome-android"].label,
         automatic: false,
         status: "manual",
@@ -51,6 +52,7 @@ export class AndroidAvdService {
     }
     if (environment.compatibleNames.length > 0) {
       return {
+        id: "android-avd",
         label: "Android Virtual Device",
         automatic: true,
         status: "completed",
@@ -74,6 +76,7 @@ export class AndroidAvdService {
       },
     );
     return {
+      id: "android-avd",
       label: `Android AVD ${name}`,
       automatic: true,
       status: created.code === 0 ? "completed" : "failed",
@@ -143,6 +146,7 @@ export class AndroidAvdService {
     if (!environment.avdManager) {
       return {
         action: {
+          id: "android-command-line-tools",
           label: "Android Virtual Device",
           automatic: false,
           status: "manual",
@@ -155,6 +159,7 @@ export class AndroidAvdService {
       const architecture = this.hostArchitecture();
       return {
         action: {
+          id: "android-system-image",
           label: "Google Play system image",
           automatic: false,
           status: "manual",
@@ -170,6 +175,7 @@ export class AndroidAvdService {
     if (!profile) {
       return {
         action: {
+          id: "android-hardware-profile",
           label: "Pixel hardware profile",
           automatic: false,
           status: "manual",
@@ -181,6 +187,7 @@ export class AndroidAvdService {
     const name = this.avdName(profile, image.apiLevel);
     return {
       action: {
+        id: "android-avd",
         label: `Android AVD ${name}`,
         automatic: true,
         status: "planned",

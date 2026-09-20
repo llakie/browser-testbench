@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DoctorService } from "../../src/setup/doctor-service.js";
-import { IosDeviceService } from "../../src/setup/ios-device-service.js";
+import { IosDeviceDiscovery } from "../../src/setup/ios-device-discovery.js";
 
 describe("DoctorService device discovery", () => {
   it.each([
@@ -13,7 +13,7 @@ describe("DoctorService device discovery", () => {
   });
 
   it("preserves every available iOS simulator as a selectable project target", () => {
-    const devices = IosDeviceService.simulatorDeviceOptions(
+    const devices = IosDeviceDiscovery.simulatorDeviceOptions(
       [{ identifier: "runtime-26-5", name: "iOS 26.5", version: "26.5" }],
       {
         "runtime-26-5": [

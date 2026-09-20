@@ -6,6 +6,7 @@ const target: TargetConfig = {
   name: "safari-ios",
   deviceKind: "physical",
   deviceName: "iPhone X",
+  platformVersion: "16.7.11",
   wdaBundleId: "com.browser-testbench.WebDriverAgentRunner.team",
 };
 
@@ -91,5 +92,22 @@ describe("IosPhysicalStartupError", () => {
     const original = new Error("Safari did not open 'collectile.com'.");
 
     expect(IosPhysicalStartupError.from(original, target, "WebDriverAgent started successfully")).toBe(original);
+  });
+
+  it("does not infer a signing failure from a successful codesign command in the Appium log", () => {
+    const original = new Error("Safari navigation failed");
+
+    expect(IosPhysicalStartupError.from(original, target, "/usr/bin/codesign WebDriverAgentRunner")).toBe(original);
+  });
+
+  it("keeps version-specific Xcode guidance limited to iOS 16", () => {
+    const result = IosPhysicalStartupError.from(
+      new Error("Unable to start WebDriverAgent"),
+      { ...target, platformVersion: "26.5" },
+      "Logic Testing Unavailable",
+    );
+
+    expect((result as Error).message).toContain("supports the connected iOS version");
+    expect((result as Error).message).not.toContain("Xcode 26.2");
   });
 });

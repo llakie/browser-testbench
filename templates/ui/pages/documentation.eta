@@ -91,7 +91,7 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
     <details class="docs-disclosure" id="android-detailed-setup">
       <summary>Show full Android setup guide</summary>
       <div class="docs-disclosure__content">
-        <details class="docs-accordion" id="android-tools" name="android-setup" data-accordion="android-setup">
+        <details class="docs-accordion" id="android-tools" name="android-setup">
           <summary>
             Install Android Platform Tools and Appium
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -103,12 +103,7 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
             </ol>
           </div>
         </details>
-        <details
-          class="docs-accordion"
-          id="android-device-connection"
-          name="android-setup"
-          data-accordion="android-setup"
-        >
+        <details class="docs-accordion" id="android-device-connection" name="android-setup">
           <summary>
             Prepare and connect the device
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -121,7 +116,7 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
             </ol>
           </div>
         </details>
-        <details class="docs-accordion" id="android-debugging" name="android-setup" data-accordion="android-setup">
+        <details class="docs-accordion" id="android-debugging" name="android-setup">
           <summary>
             Allow debugging and check Chrome
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -137,7 +132,7 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
             </ol>
           </div>
         </details>
-        <details class="docs-accordion" id="android-first-test" name="android-setup" data-accordion="android-setup">
+        <details class="docs-accordion" id="android-first-test" name="android-setup">
           <summary>
             Run the first test
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -162,7 +157,7 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
     <details class="docs-disclosure" id="ios-detailed-setup">
       <summary>Show full iPhone and iPad setup guide</summary>
       <div class="docs-disclosure__content">
-        <details class="docs-accordion" id="ios-mac-setup" name="ios-setup" data-accordion="ios-setup">
+        <details class="docs-accordion" id="ios-mac-setup" name="ios-setup">
           <summary>
             Install Xcode and the iOS test tools
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -181,7 +176,7 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
             </ol>
           </div>
         </details>
-        <details class="docs-accordion" id="ios-device-connection" name="ios-setup" data-accordion="ios-setup">
+        <details class="docs-accordion" id="ios-device-connection" name="ios-setup">
           <summary>
             Connect and trust the device
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -200,7 +195,7 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
             </ol>
           </div>
         </details>
-        <details class="docs-accordion" id="ios-safari-settings" name="ios-setup" data-accordion="ios-setup">
+        <details class="docs-accordion" id="ios-safari-settings" name="ios-setup">
           <summary>
             Enable Safari automation
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -215,7 +210,7 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
             </ol>
           </div>
         </details>
-        <details class="docs-accordion" id="ios-signing" name="ios-setup" data-accordion="ios-setup">
+        <details class="docs-accordion" id="ios-signing" name="ios-setup">
           <summary>
             Sign and run WebDriverAgent
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -280,7 +275,7 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
             </p>
           </div>
         </details>
-        <details class="docs-accordion" id="ios-xcode-compatibility" name="ios-setup" data-accordion="ios-setup">
+        <details class="docs-accordion" id="ios-xcode-compatibility" name="ios-setup">
           <summary>
             Fix “Logic Testing Unavailable” on iOS 16
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -306,7 +301,7 @@ xcodebuild -version</code></pre>
             </ol>
           </div>
         </details>
-        <details class="docs-accordion" id="ios-network-access" name="ios-setup" data-accordion="ios-setup">
+        <details class="docs-accordion" id="ios-network-access" name="ios-setup">
           <summary>
             Use the correct application address
             <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
@@ -344,7 +339,7 @@ await browser.pinch({ direction: PinchDirection.Out });</code></pre>
   </section>
 </article>
 
-<template id="device-setup-checklist-template">
+<script type="text/x-template" id="device-setup-checklist-template">
   <div class="setup-checklist" :id="elementId" aria-live="polite">
     <div class="setup-checklist__heading">
       <div>
@@ -357,6 +352,14 @@ await browser.pinch({ direction: PinchDirection.Out });</code></pre>
         {{ store.loading ? 'Checking …' : 'Check again' }}
       </button>
     </div>
+    <label class="setup-checklist__device-picker" v-if="physicalDevices.length > 1">
+      <span>Device</span>
+      <select v-model="selectedDeviceId">
+        <option v-for="deviceOption in physicalDevices" :key="deviceOption.id" :value="deviceOption.id">
+          {{ deviceOption.name }}{{ deviceOption.platformVersion ? ` · ${deviceOption.platformVersion}` : '' }}
+        </option>
+      </select>
+    </label>
     <div class="setup-checklist__steps" v-if="workbench">
       <details class="setup-checklist__group is-complete" v-if="completedSteps.length">
         <summary>
@@ -425,4 +428,4 @@ await browser.pinch({ direction: PinchDirection.Out });</code></pre>
       </details>
     </div>
   </div>
-</template>
+</script>
