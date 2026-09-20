@@ -92,4 +92,72 @@ describe("SetupService Appium status", () => {
     ]);
     expect(avdPlan).not.toHaveBeenCalled();
   });
+
+  it("surfaces physical iOS prerequisites through the existing setup actions", async () => {
+    vi.spyOn(DoctorService, "isNodeSupported").mockReturnValue(true);
+    vi.spyOn(SetupService, "appiumDriverStatus").mockResolvedValue([
+      { name: "xcuitest", installed: true, version: "12.12.4" },
+    ]);
+    const checks = [
+      {
+        id: "safari-ios",
+        label: "Safari on iOS",
+        status: "ready" as const,
+        detail: "1 simulator ready for Safari testing.",
+        devices: [
+          {
+            id: "00008140-DEVICE",
+            name: "iPhone 17 Pro",
+            deviceKind: "physical" as const,
+            compatible: false,
+            detail: "Enable Developer Mode on the connected device.",
+            config: { name: "safari-ios" as const, deviceKind: "physical" as const },
+          },
+        ],
+      },
+    ];
+
+    await expect(SetupService.plan(["safari-ios"], checks)).resolves.toEqual([
+      expect.objectContaining({ label: "Appium XCUITest", status: "completed" }),
+      expect.objectContaining({
+        label: "Safari on iPhone 17 Pro",
+        status: "manual",
+        detail: expect.stringContaining("Developer Mode"),
+      }),
+    ]);
+  });
+
+  it("opens WebDriverAgent for a physical iOS signing action", async () => {
+    vi.spyOn(DoctorService, "isNodeSupported").mockReturnValue(true);
+    vi.spyOn(SetupService, "appiumDriverStatus").mockResolvedValue([
+      { name: "xcuitest", installed: true, version: "12.12.4" },
+    ]);
+    const checks = [
+      {
+        id: "safari-ios",
+        label: "Safari on iOS",
+        status: "ready" as const,
+        detail: "1 simulator ready for Safari testing. 1 physical device needs attention.",
+        devices: [
+          {
+            id: "00008140-DEVICE",
+            name: "iPhone",
+            deviceKind: "physical" as const,
+            compatible: false,
+            detail: "No Apple Development signing identity is available.",
+            documentationUrl: "/docs#ios-signing",
+            config: { name: "safari-ios" as const, deviceKind: "physical" as const },
+          },
+        ],
+      },
+    ];
+
+    await expect(SetupService.plan(["safari-ios"], checks)).resolves.toEqual([
+      expect.objectContaining({ label: "Appium XCUITest", status: "completed" }),
+      expect.objectContaining({
+        label: "Safari on iPhone",
+        command: expect.stringContaining("open-wda"),
+      }),
+    ]);
+  });
 });

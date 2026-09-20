@@ -4,6 +4,8 @@ import type { VerificationResult } from "../config/types.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { FixtureServer } from "../support/fixture-server.js";
 import { VerificationStore } from "./verification-store.js";
+import { TargetCatalogService } from "./target-catalog-service.js";
+import { IosPhysicalUrlGuard } from "../automation/ios-physical-url-guard.js";
 
 export class TargetVerificationService {
   static async run(
@@ -12,10 +14,14 @@ export class TargetVerificationService {
     ownerId = "local",
   ): Promise<VerificationResult> {
     const fixture = new FixtureServer();
-    const url = await fixture.start();
     const startedAt = Date.now();
     let sessionId: string | undefined;
     try {
+      let url = await fixture.start();
+      const target = await TargetCatalogService.resolve(input.target);
+      if (target.config.name === "safari-ios" && target.config.deviceKind === "physical") {
+        url = IosPhysicalUrlGuard.fixtureUrl(url);
+      }
       const session = await sessions.start(
         { ...input, url, lockTimeoutMs: TestbenchDefaults.TARGET_LOCK_TIMEOUT_MS },
         ownerId,

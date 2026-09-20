@@ -18,6 +18,7 @@ import { UiLiveReload } from "../ui/ui-live-reload.js";
 import { TargetCatalogService, UnknownTargetError } from "../setup/target-catalog-service.js";
 import { TargetVerificationService } from "../setup/target-verification-service.js";
 import { AndroidDeviceMonitor } from "../setup/android-device-monitor.js";
+import { IosDeviceMonitor } from "../setup/ios-device-monitor.js";
 import { WorkbenchEvents } from "../setup/workbench-events.js";
 import { WorkbenchEventStream } from "./workbench-event-stream.js";
 import { RemoteHostIdentityStore, AuthorizedRemoteClientStore } from "../remote/remote-client-store.js";
@@ -36,6 +37,7 @@ import { RemoteApiError } from "../remote/remote-api-client.js";
 import { RemoteArtifactHost } from "../remote/remote-artifact-transfer.js";
 import { RemoteApiController } from "../remote/remote-api-controller.js";
 import { RemoteSessionPolicy, RemoteSessionPolicyError } from "../remote/remote-session-policy.js";
+import { IosPhysicalLoopbackUrlError } from "../automation/ios-physical-url-guard.js";
 
 export interface ApiServerOptions {
   host: string;
@@ -49,6 +51,7 @@ export interface ApiServerDependencies {
   sessions?: SessionManager;
   events?: WorkbenchEvents;
   androidMonitor?: AndroidDeviceMonitor;
+  iosMonitor?: IosDeviceMonitor;
   identity?: RemoteHostIdentityStore;
   clients?: AuthorizedRemoteClientStore;
   pairing?: RemotePairingService;
@@ -68,6 +71,7 @@ export class ApiServer {
   private readonly events: WorkbenchEvents;
   private readonly eventStream: WorkbenchEventStream;
   private readonly androidMonitor: AndroidDeviceMonitor;
+  private readonly iosMonitor: IosDeviceMonitor;
   private readonly identity: RemoteHostIdentityStore;
   private readonly clients: AuthorizedRemoteClientStore;
   private readonly pairing: RemotePairingService;
@@ -107,6 +111,7 @@ export class ApiServer {
     this.eventStream = new WorkbenchEventStream(this.events);
     this.androidMonitor =
       dependencies.androidMonitor ?? new AndroidDeviceMonitor(() => this.notifyEnvironmentChanged("android"));
+    this.iosMonitor = dependencies.iosMonitor ?? new IosDeviceMonitor(() => this.notifyEnvironmentChanged("ios"));
     this.remoteAuthentication.onActivity((clientId) => this.refreshClientLease(clientId));
     this.connections.onEvent((type) =>
       this.events.publish({ type, source: "remote", occurredAt: new Date().toISOString() }),
@@ -155,6 +160,10 @@ export class ApiServer {
         response.status(400).json({ error: error.message });
         return;
       }
+      if (error instanceof IosPhysicalLoopbackUrlError) {
+        response.status(400).json({ error: error.message });
+        return;
+      }
       if (error instanceof RemoteApiError) {
         response.status(error.status).json({ error: error.message });
         return;
@@ -179,7 +188,13 @@ export class ApiServer {
       this.sendUi(response, UiRenderer.targets(this.options.liveReload)),
     );
     this.app.get("/docs", (_request, response) =>
-      this.sendUi(response, UiRenderer.documentation(this.options.liveReload)),
+      this.sendUi(
+        response,
+        UiRenderer.documentation(
+          this.options.liveReload,
+          Boolean(this.options.remote) || this.connections.status().mode === "remote",
+        ),
+      ),
     );
     this.app.get("/LICENSE.txt", (_request, response) =>
       response.sendFile(join(TestbenchPaths.projectRoot, "LICENSE.txt")),
@@ -209,6 +224,7 @@ export class ApiServer {
     });
     this.liveReload?.start();
     this.androidMonitor.start();
+    this.iosMonitor.start();
     const address = this.server.address() as AddressInfo;
     try {
       if (this.options.remote) await this.publisher.start(address.port);
@@ -222,6 +238,7 @@ export class ApiServer {
   async stop(): Promise<void> {
     this.liveReload?.stop();
     this.androidMonitor.stop();
+    this.iosMonitor.stop();
     for (const response of this.liveReloadResponses) response.end();
     this.liveReloadResponses.clear();
     this.eventStream.close();
@@ -475,7 +492,7 @@ export class ApiServer {
     this.app.use((_request, response) => response.status(404).json({ error: "Not found" }));
   }
 
-  private notifyEnvironmentChanged(source: "android"): void {
+  private notifyEnvironmentChanged(source: "android" | "ios"): void {
     TargetCatalogService.invalidate();
     this.events.publish({ type: "environment.changed", source, occurredAt: new Date().toISOString() });
   }

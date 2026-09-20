@@ -31,6 +31,12 @@ export class TestbenchDefaults {
   static readonly ANDROID_ADB_COMMAND_TIMEOUT_MS = 120_000;
   static readonly ANDROID_EMULATOR_PHASE_TIMEOUT_MS = 3 * 60_000;
   static readonly ANDROID_UIAUTOMATOR_INSTALL_TIMEOUT_MS = 120_000;
+  static readonly IOS_WDA_LAUNCH_TIMEOUT_MS = 120_000;
+  static readonly IOS_SAFARI_BOOTSTRAP_URL = "http://127.0.0.1:8100/health";
+  static readonly IOS_WEBVIEW_ATOM_TIMEOUT_MS = 30_000;
+  static readonly IOS_NATIVE_NAVIGATION_TIMEOUT_MS = 15_000;
+  static readonly IOS_SESSION_START_ATTEMPTS = 2;
+  static readonly IOS_STARTUP_DIAGNOSTIC_TIMEOUT_MS = 10_000;
   static readonly SCREENSHOT_SCROLL_SETTLE_MS = 250;
   static readonly GESTURE_MAX_PERCENT = 0.99;
   static readonly SWIPE_PERCENT = 0.75;

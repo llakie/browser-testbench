@@ -96,6 +96,27 @@ emulator-5554 device product:sdk_gphone64_x86_64
     });
   });
 
+  it("includes a detected physical device that needs attention in the ready summary", () => {
+    expect(
+      AndroidDeviceService.readyDetail([
+        {
+          id: "emulator-1",
+          name: "Pixel Emulator",
+          deviceKind: "emulator",
+          compatible: true,
+          config: { name: "chrome-android", deviceKind: "emulator", avd: "Pixel_Emulator" },
+        },
+        {
+          id: "physical-1",
+          name: "Pixel 8",
+          deviceKind: "physical",
+          compatible: false,
+          config: { name: "chrome-android", deviceKind: "physical", udid: "physical-1" },
+        },
+      ]),
+    ).toBe("1 emulator ready for Chrome testing. 1 physical device needs attention.");
+  });
+
   it("reads an AVD version from Windows-style SDK paths", async () => {
     const avdHome = await mkdtemp(join(tmpdir(), "browser-testbench-avd-home-"));
     temporaryDirectories.push(avdHome);

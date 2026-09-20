@@ -6,6 +6,7 @@ import { TestbenchPaths } from "../infrastructure/paths.js";
 import { AndroidAvdService } from "./android-avd-service.js";
 import { DoctorService } from "./doctor-service.js";
 import type { SetupAction } from "./setup-types.js";
+import { IosSigningService } from "./ios-signing-service.js";
 
 const DRIVER_INSTALL_TIMEOUT_MS = 10 * 60_000;
 const DRIVER_STATUS_TIMEOUT_MS = 20_000;
@@ -46,7 +47,20 @@ export class SetupService {
         ? await AndroidAvdService.plan()
         : undefined;
     if (androidAction) actions.push({ ...androidAction, targets: ["chrome-android"] });
+    const physicalIosActions = checks
+      .find((check) => check.id === "safari-ios")
+      ?.devices?.filter((device) => device.deviceKind === "physical" && !device.compatible && device.detail)
+      .map((device): SetupAction => ({
+        label: `Safari on ${device.name}`,
+        automatic: false,
+        status: "manual",
+        detail: device.detail,
+        ...(device.documentationUrl === "/docs#ios-signing" ? { command: IosSigningService.openWdaCommand() } : {}),
+        targets: ["safari-ios"],
+      }));
+    actions.push(...(physicalIosActions ?? []));
     for (const check of checks.filter((entry) => entry.status === "blocked" || entry.status === "action")) {
+      if (check.id === "safari-ios" && physicalIosActions?.length) continue;
       if (check.action && !actions.some((action) => action.label === check.label)) {
         actions.push({
           label: check.label,

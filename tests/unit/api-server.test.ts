@@ -107,6 +107,24 @@ describe("ApiServer", () => {
     expect(await fetch(`${baseUrl}/targets`).then((response) => response.text())).toContain("Run all tests");
     const documentation = await fetch(`${baseUrl}/docs`).then((response) => response.text());
     expect(documentation).toContain("Documentation");
+    expect(documentation).toContain('id="physical-ios"');
+    expect(documentation).toContain('id="ios-signing"');
+    expect(documentation).toContain('id="device-setup-checklist-template"');
+    expect(documentation).toContain('id="physical-android"');
+    expect(documentation).toContain("Window → Devices and Simulators");
+    expect(documentation).toContain("Manage Certificates");
+    expect(documentation).toContain("Product → Test");
+    expect(documentation).toContain("AppleWWDRCAG3.cer");
+    expect(documentation).toContain('href="/setup#environment-setup"');
+    const localNetworkAddress = RemoteUrlGuard.lanAddress();
+    if (localNetworkAddress) {
+      expect(documentation).toContain(`http://${localNetworkAddress}:3000`);
+      expect(documentation.replace(/\s+/g, " ")).toContain(
+        `you must use <strong><code>http://${localNetworkAddress}:3000</code></strong> instead of <code>http://localhost:3000</code>`,
+      );
+    } else expect(documentation).toContain("could not detect a LAN address");
+    expect(documentation).not.toContain("YOUR-LAN-IP");
+    expect(documentation).not.toContain("IP address of the Testbench that runs the tests");
     expect(documentation).toContain("browser-testbench start");
     expect(documentation).toContain("npm install --save-dev browser-testbench");
     expect(documentation).not.toContain("browser-testbench serve");
@@ -157,6 +175,25 @@ describe("ApiServer", () => {
     expect(capabilities.platform).toBe(process.platform);
     expect(capabilities.targets.map((target) => target.name)).toContain("chrome");
     expect((await fetch(`${baseUrl}/v1/workbench/config`, { method: "PUT" })).status).toBe(404);
+  });
+
+  it("explains the executing Testbench address in remote mode", async () => {
+    const publisher = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    server = new ApiServer({ host: "127.0.0.1", port: 0, remote: true }, { publisher });
+    const address = await server.start();
+
+    const documentation = await fetch(`http://${address.host}:${address.port}/docs`).then((response) =>
+      response.text(),
+    );
+    const normalizedDocumentation = documentation.replace(/\s+/g, " ");
+
+    expect(normalizedDocumentation).toContain("IP address of the Testbench that runs the tests");
+    expect(normalizedDocumentation).toContain("Do not use the IP address of the local gateway");
+    expect(documentation).not.toContain("YOUR-LAN-IP");
+    expect(documentation).not.toContain(`http://${RemoteUrlGuard.lanAddress()}:3000`);
   });
 
   it("serves uncached UI pages with the reload client in development mode", async () => {

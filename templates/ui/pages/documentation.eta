@@ -79,11 +79,263 @@ await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async b
     <p class="eyebrow">Physical and virtual devices</p>
     <h2>Mobile devices</h2>
     <p>
-      Android devices connected by USB appear automatically after USB debugging is enabled and authorized. Chrome must
-      be installed on the device. Connecting or disconnecting a device updates the interface automatically, and
-      localhost URLs are forwarded over USB for the session. Tap, swipe, pinch, portrait, and landscape are available
-      through the Node client and MCP.
+      Browser Testbench detects connected devices and shows their concrete target IDs on the Test targets page. Use the
+      matching setup below before running the first verification.
     </p>
+  </section>
+
+  <section id="physical-android">
+    <p class="eyebrow">USB setup</p>
+    <h2>Connect a physical Android device</h2>
+    <device-setup-checklist platform="android"></device-setup-checklist>
+    <details class="docs-disclosure" id="android-detailed-setup">
+      <summary>Show full Android setup guide</summary>
+      <div class="docs-disclosure__content">
+        <details class="docs-accordion" id="android-tools" name="android-setup" data-accordion="android-setup">
+          <summary>
+            Install Android Platform Tools and Appium
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <ol>
+              <li>Install Android Studio or the Android SDK Platform Tools on the Testbench computer.</li>
+              <li>Install Appium UiAutomator2 under <a href="/setup#environment-setup">Environment setup</a>.</li>
+            </ol>
+          </div>
+        </details>
+        <details
+          class="docs-accordion"
+          id="android-device-connection"
+          name="android-setup"
+          data-accordion="android-setup"
+        >
+          <summary>
+            Prepare and connect the device
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <ol>
+              <li>On the device, enable Developer options by tapping the build number seven times.</li>
+              <li>Open Developer options and enable USB debugging.</li>
+              <li>Connect and unlock the device with a data-capable USB cable.</li>
+            </ol>
+          </div>
+        </details>
+        <details class="docs-accordion" id="android-debugging" name="android-setup" data-accordion="android-setup">
+          <summary>
+            Allow debugging and check Chrome
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <ol>
+              <li>Accept the USB debugging authorization prompt on the unlocked device.</li>
+              <li>Install or enable Google Chrome on the device.</li>
+              <li>
+                Open the <a href="/setup">Overview</a> page and confirm that the device is listed as ready under Chrome
+                on Android.
+              </li>
+            </ol>
+          </div>
+        </details>
+        <details class="docs-accordion" id="android-first-test" name="android-setup" data-accordion="android-setup">
+          <summary>
+            Run the first test
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <p>Open <a href="/targets">Test targets</a> and run the generated physical-device target once.</p>
+            <p>
+              Connecting, disconnecting, or changing USB authorization updates the interface automatically. Localhost
+              URLs are forwarded over USB for the session, so the Android device does not need access to the development
+              computer's LAN address.
+            </p>
+          </div>
+        </details>
+      </div>
+    </details>
+  </section>
+
+  <section id="physical-ios">
+    <p class="eyebrow">USB and Xcode setup</p>
+    <h2>Connect a physical iPhone or iPad</h2>
+    <device-setup-checklist platform="ios"></device-setup-checklist>
+    <details class="docs-disclosure" id="ios-detailed-setup">
+      <summary>Show full iPhone and iPad setup guide</summary>
+      <div class="docs-disclosure__content">
+        <details class="docs-accordion" id="ios-mac-setup" name="ios-setup" data-accordion="ios-setup">
+          <summary>
+            Install Xcode and the iOS test tools
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <ol>
+              <li>Install and open Xcode on the Mac that runs Browser Testbench.</li>
+              <li>
+                Under Xcode Settings → Accounts, add a free Apple Account or an account belonging to a paid Apple
+                Developer team. Browser Testbench never asks for or stores the account credentials.
+              </li>
+              <li>
+                Install Appium XCUITest under <a href="/setup#environment-setup">Environment setup</a> if Browser
+                Testbench offers that action.
+              </li>
+            </ol>
+          </div>
+        </details>
+        <details class="docs-accordion" id="ios-device-connection" name="ios-setup" data-accordion="ios-setup">
+          <summary>
+            Connect and trust the device
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <ol>
+              <li>Connect the unlocked iPhone or iPad by USB and accept <strong>Trust This Computer</strong>.</li>
+              <li>
+                Under Settings → Privacy &amp; Security, enable Developer Mode, restart the device, and confirm it after
+                the restart.
+              </li>
+              <li>
+                In Xcode, open <strong>Window → Devices and Simulators</strong>, select the device, and wait until it
+                appears without a warning or a <strong>Preparing</strong> status.
+              </li>
+            </ol>
+          </div>
+        </details>
+        <details class="docs-accordion" id="ios-safari-settings" name="ios-setup" data-accordion="ios-setup">
+          <summary>
+            Enable Safari automation
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <ol>
+              <li>Under Settings → Developer, enable <strong>UI Automation</strong>.</li>
+              <li>
+                Under Settings → Safari → Advanced on iOS 16, or Settings → Apps → Safari → Advanced on newer iOS
+                versions, enable <strong>Web Inspector</strong> and <strong>Remote Automation</strong>.
+              </li>
+            </ol>
+          </div>
+        </details>
+        <details class="docs-accordion" id="ios-signing" name="ios-setup" data-accordion="ios-setup">
+          <summary>
+            Sign and run WebDriverAgent
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <p>
+              Appium controls a real iPhone through WebDriverAgent. Apple requires this helper app to have an Apple
+              Development certificate and a provisioning profile. A free Apple Account is sufficient.
+            </p>
+            <h4>Create the signing identity</h4>
+            <ol>
+              <li>
+                Under <a href="/setup#environment-setup">Environment setup</a>, run the WebDriverAgent command shown for
+                the iPhone. Keep the opened <code>WebDriverAgent.xcodeproj</code> project open.
+              </li>
+              <li>
+                In Xcode Settings → Accounts, select the team, open <strong>Manage Certificates</strong>, and create an
+                <strong>Apple Development</strong> certificate if none exists.
+              </li>
+              <li>
+                Return to the Overview page, select <strong>Check again</strong>, and copy the exact WebDriverAgent
+                bundle ID shown for the device.
+              </li>
+            </ol>
+            <p>
+              If more than one team is installed, set <code>BROWSER_TESTBENCH_IOS_TEAM_ID</code> to the intended
+              ten-character team ID and restart Browser Testbench.
+            </p>
+            <h4>If the certificate is not detected</h4>
+            <ol>
+              <li>
+                In Keychain Access, select <strong>login → My Certificates</strong> and expand Apple Development. A
+                private key must appear below it.
+              </li>
+              <li>
+                If the identity remains invalid, install Apple's
+                <a href="https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer">WWDR G3 intermediate</a> in the
+                login keychain and keep <strong>Use System Defaults</strong>.
+              </li>
+            </ol>
+            <h4>Run WebDriverAgent</h4>
+            <ol>
+              <li>A paid Developer team can first run the physical target and let Xcode provision automatically.</li>
+              <li>
+                For a Personal Team or failed automatic provisioning, select
+                <strong>WebDriverAgentRunner → Signing &amp; Capabilities</strong>, enable automatic signing, select the
+                team, and enter the bundle ID shown by Browser Testbench.
+              </li>
+              <li>
+                Select <strong>Product → Scheme → WebDriverAgentRunner</strong>, select the iPhone under Product →
+                Destination, and choose <strong>Product → Test</strong>.
+              </li>
+              <li>
+                If iOS blocks the app, open <strong>Settings → General → VPN &amp; Device Management</strong>, select
+                the developer entry, and trust it. The device needs internet access for this confirmation.
+              </li>
+              <li>Return to <a href="/targets">Test targets</a> and run the physical iPhone target again.</li>
+            </ol>
+            <p>
+              A free Personal Team profile expires after seven days. Repeat Product → Test after expiry or when an
+              XCUITest update replaces WebDriverAgent.
+            </p>
+          </div>
+        </details>
+        <details class="docs-accordion" id="ios-xcode-compatibility" name="ios-setup" data-accordion="ios-setup">
+          <summary>
+            Fix “Logic Testing Unavailable” on iOS 16
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <p>
+              If the build succeeds but Xcode cannot start WebDriverAgentRunner, signing is already complete. Xcode 26.4
+              and 26.6 are known to report this error for physical iOS 16 devices.
+            </p>
+            <ol>
+              <li>
+                Download Xcode 26.2 from Apple's
+                <a href="https://developer.apple.com/download/all/?q=Xcode%2026.2">More Downloads</a> page.
+              </li>
+              <li>Extract it, rename it to <code>Xcode-26.2.app</code>, and move it to Applications.</li>
+              <li>
+                Select it and verify the version:
+                <pre><code>sudo xcode-select --switch /Applications/Xcode-26.2.app/Contents/Developer
+xcodebuild -version</code></pre>
+              </li>
+              <li>Under Xcode Settings → Components, install the iOS 26.2 platform component if Xcode offers it.</li>
+              <li>Return to Test targets and run the physical iPhone target again.</li>
+            </ol>
+          </div>
+        </details>
+        <details class="docs-accordion" id="ios-network-access" name="ios-setup" data-accordion="ios-setup">
+          <summary>
+            Use the correct application address
+            <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="docs-accordion__content">
+            <p>
+              The device needs network access to the <strong>tested application</strong>, not to the Testbench UI. USB
+              is used separately for device discovery and automation. On the device, <code>localhost</code> refers to
+              the device itself.
+            </p>
+            <p>
+              <% if (it.remoteExecution) { %>You must use the IP address of the Testbench that runs the tests. Do not use the IP
+              address of the local gateway.<% } else if (it.localNetworkAddress) { %>The current Testbench's detected LAN address is
+              <strong><code><%= it.localNetworkAddress %></code></strong
+              >. For an application on port 3000, you must use
+              <strong><code>http://<%= it.localNetworkAddress %>:3000</code></strong> instead of
+              <code>http://localhost:3000</code>.<% } else { %>Browser Testbench could not detect a LAN address
+              for this computer. Check its network settings before connecting the device.<% } %>
+            </p>
+          </div>
+        </details>
+      </div>
+    </details>
+  </section>
+
+  <section id="mobile-controls">
+    <p class="eyebrow">Interaction</p>
+    <h2>Mobile controls</h2>
+    <p>Tap, swipe, pinch, portrait, and landscape are available through the Node client and MCP.</p>
     <pre><code>import { BrowserOrientation, PinchDirection, SwipeDirection } from "browser-testbench/client";
 
 await browser.setOrientation(BrowserOrientation.Landscape);
@@ -91,3 +343,86 @@ await browser.swipe({ direction: SwipeDirection.Up });
 await browser.pinch({ direction: PinchDirection.Out });</code></pre>
   </section>
 </article>
+
+<template id="device-setup-checklist-template">
+  <div class="setup-checklist" :id="elementId" aria-live="polite">
+    <div class="setup-checklist__heading">
+      <div>
+        <p class="eyebrow">Guided setup</p>
+        <h3>{{ heading }}</h3>
+        <p>{{ intro }}</p>
+      </div>
+      <button class="button button--secondary" type="button" :disabled="store.loading" @click="refresh">
+        <i :class="['fa-solid', store.loading ? 'fa-spinner fa-spin' : 'fa-rotate']" aria-hidden="true"></i>
+        {{ store.loading ? 'Checking …' : 'Check again' }}
+      </button>
+    </div>
+    <div class="setup-checklist__steps" v-if="workbench">
+      <details class="setup-checklist__group is-complete" v-if="completedSteps.length">
+        <summary>
+          <span class="setup-checklist__icon"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
+          <strong>{{ completedSteps.length }} {{ completedSteps.length === 1 ? 'step' : 'steps' }} completed</strong>
+          <i class="fa-solid fa-chevron-down setup-checklist__chevron" aria-hidden="true"></i>
+        </summary>
+        <div class="setup-checklist__compact-list">
+          <div
+            class="setup-checklist__compact-step is-complete"
+            v-for="step in completedSteps"
+            :key="step.id"
+            :data-step-id="step.id"
+          >
+            <i class="fa-solid fa-check" aria-hidden="true"></i>
+            <span>{{ stepNumber(step) }}. {{ step.label }}</span>
+          </div>
+        </div>
+      </details>
+      <article
+        class="setup-checklist__step setup-checklist__current"
+        v-if="currentStep"
+        :data-step-id="currentStep.id"
+        :class="`is-${status(currentStep)}`"
+      >
+        <span class="setup-checklist__icon">
+          <i :class="['fa-solid', statusIcon(status(currentStep))]" aria-hidden="true"></i>
+        </span>
+        <div class="setup-checklist__copy">
+          <div class="setup-checklist__title">
+            <strong>{{ stepNumber(currentStep) }}. {{ currentStep.label }}</strong>
+            <span>{{ statusLabel(status(currentStep)) }}</span>
+          </div>
+          <p>{{ currentStep.detail }}</p>
+          <label class="setup-checklist__confirmation" v-if="currentStep.manual">
+            <input type="checkbox" @change="confirmManualStep($event.target.checked)" />
+            <span>I enabled these settings</span>
+          </label>
+          <details class="setup-checklist__troubleshooting" v-if="currentStep.troubleshooting?.length">
+            <summary>If this does not work</summary>
+            <ul>
+              <li v-for="hint in currentStep.troubleshooting" :key="hint.text">
+                {{ hint.text }}
+                <a v-if="hint.href" :href="hint.href">{{ hint.linkLabel ?? 'Open help' }}</a>
+              </li>
+            </ul>
+          </details>
+          <a :href="currentStep.href" @click="openInstructions(currentStep.href)">Open instructions</a>
+        </div>
+      </article>
+      <p class="setup-checklist__complete" v-else>
+        <i class="fa-solid fa-circle-check" aria-hidden="true"></i> {{ completionText }}
+      </p>
+      <details class="setup-checklist__group" v-if="laterSteps.length">
+        <summary>
+          <span class="setup-checklist__icon"><i class="fa-solid fa-clock" aria-hidden="true"></i></span>
+          <strong>{{ laterSteps.length }} later {{ laterSteps.length === 1 ? 'step' : 'steps' }}</strong>
+          <i class="fa-solid fa-chevron-down setup-checklist__chevron" aria-hidden="true"></i>
+        </summary>
+        <div class="setup-checklist__compact-list">
+          <div class="setup-checklist__compact-step" v-for="step in laterSteps" :key="step.id" :data-step-id="step.id">
+            <i class="fa-solid fa-clock" aria-hidden="true"></i>
+            <span>{{ stepNumber(step) }}. {{ step.label }}</span>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+</template>

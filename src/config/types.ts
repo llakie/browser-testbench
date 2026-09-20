@@ -14,6 +14,10 @@ export interface TargetConfig {
   avd?: string;
   udid?: string;
   deviceKind?: MobileDeviceKind;
+  iosTeamId?: string;
+  iosSigningId?: string;
+  wdaBundleId?: string;
+  initialUrl?: string;
   downloadDir?: string;
   capabilities?: Record<string, unknown>;
 }
@@ -35,8 +39,17 @@ export interface TargetDeviceOption {
   state?: string;
   deviceKind?: MobileDeviceKind;
   detail?: string;
+  documentationUrl?: string;
+  setupChecks?: DeviceSetupCheck[];
   compatible: boolean;
   config: TargetConfig;
+}
+
+export interface DeviceSetupCheck {
+  id: string;
+  label: string;
+  ready: boolean;
+  detail: string;
 }
 
 export interface TargetDefinition {

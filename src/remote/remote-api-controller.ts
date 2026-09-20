@@ -286,7 +286,9 @@ export class RemoteApiController {
     if (Array.isArray(value)) return value.map((item) => this.redactInstallationPaths(item));
     if (!value || typeof value !== "object") return value;
     const result = Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, this.redactInstallationPaths(item)]),
+      Object.entries(value)
+        .filter(([key]) => !["iosTeamId", "iosSigningId", "wdaBundleId"].includes(key))
+        .map(([key, item]) => [key, this.redactInstallationPaths(item)]),
     );
     if (
       typeof result.id === "string" &&

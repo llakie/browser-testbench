@@ -168,6 +168,10 @@
                 </div>
                 <p class="check-card__detail" :title="check.detail">{{ check.detail }}</p>
                 <p class="check-card__action" v-if="check.action">{{ check.action }}</p>
+                <p class="check-card__action" v-if="physicalDeviceDocumentation(check.id)">
+                  For connecting real devices, see
+                  <a :href="physicalDeviceDocumentation(check.id)">documentation</a>.
+                </p>
                 <command-block v-for="command in check.commands ?? []" :key="command" :value="command"></command-block>
                 <details class="device-options" v-if="check.devices?.length">
                   <summary>
@@ -186,14 +190,15 @@
                       </div>
                       <small>{{ deviceMeta(device) }}</small
                       ><small class="device-option__detail" v-if="device.detail">{{ device.detail }}</small
-                      ><command-block v-if="device.compatible" :value="JSON.stringify(device.config)"></command-block>
+                      ><a v-if="device.documentationUrl" :href="device.documentationUrl">Open signing guide</a
+                      ><command-block v-if="device.compatible" :value="deviceConfig(device)"></command-block>
                     </article>
                   </div>
                 </details>
               </article>
             </div>
           </div>
-          <div class="guided-actions" id="guided-actions" v-if="workbench.actions?.length">
+          <div class="guided-actions" id="environment-setup" v-if="workbench.actions?.length">
             <div class="guided-actions__content">
               <div class="guided-actions__heading">
                 <div>
