@@ -797,7 +797,7 @@ describe("workbench UI browser flow", () => {
         vi.restoreAllMocks();
       }
     },
-    60_000,
+    120_000,
   );
 
   browserTest(

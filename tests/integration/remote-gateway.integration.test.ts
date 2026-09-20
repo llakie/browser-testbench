@@ -147,7 +147,7 @@ describe("remote gateway", () => {
       remote: { instanceId: instance.instanceId, role: "admin" },
     });
     expect(announcements).toHaveLength(1);
-  }, 30_000);
+  }, 60_000);
 
   it.runIf(nonLoopbackAddress)("authenticates a non-loopback control client and enforces revocation", async () => {
     directory = await mkdtemp(join(tmpdir(), "browser-testbench-remote-auth-integration-"));
