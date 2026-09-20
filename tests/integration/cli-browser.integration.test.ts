@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { ApiServer } from "../../src/transports/api-server.js";
+import { ClientVersion } from "../../src/config/client-version.js";
 
 const browserTest = process.env.BTB_BROWSER_TESTS === "1" ? it : it.skip;
 const execFileAsync = promisify(execFile);
@@ -21,7 +22,11 @@ describe("CLI browser control", () => {
           { cwd: process.cwd(), timeout: 30_000 },
         );
         expect(JSON.parse(stdout)).toMatchObject({ target: "chrome", status: "passed" });
-        expect(await fetch(`${server}/v1/sessions`).then((response) => response.json())).toEqual([]);
+        expect(
+          await fetch(`${server}/v1/sessions`, { headers: ClientVersion.headers() }).then((response) =>
+            response.json(),
+          ),
+        ).toEqual([]);
       } finally {
         await api.stop();
       }

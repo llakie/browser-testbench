@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TARGET_NAMES, type DoctorCheck } from "../../src/config/types.js";
+import { ClientVersion } from "../../src/config/client-version.js";
 import { BrowserSession } from "../../src/automation/browser-session.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
@@ -929,9 +930,9 @@ describe("workbench UI browser flow", () => {
 
         await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/targets`);
         await browser.active.$("#debug-url").waitForDisplayed({ timeout: 15_000 });
-        const gatewayWorkbench = (await fetch(`http://${gatewayAddress.host}:${gatewayAddress.port}/v1/workbench`).then(
-          (response) => response.json(),
-        )) as { localNetworkAddress?: string };
+        const gatewayWorkbench = (await fetch(`http://${gatewayAddress.host}:${gatewayAddress.port}/v1/workbench`, {
+          headers: ClientVersion.headers(),
+        }).then((response) => response.json())) as { localNetworkAddress?: string };
         const expectedApplicationUrl = gatewayWorkbench.localNetworkAddress
           ? `http://${gatewayWorkbench.localNetworkAddress}:3000`
           : "http://YOUR-LAN-IP:3000";
@@ -959,6 +960,7 @@ describe("workbench UI browser flow", () => {
         `);
         await fetch(`http://127.0.0.1:${remoteAddress.port}/v1/remote/clients/${connected.remote!.clientId}`, {
           method: "DELETE",
+          headers: ClientVersion.headers(),
         });
         await browser.active.waitForText("Connect to a central Testbench", 15_000);
         expect(

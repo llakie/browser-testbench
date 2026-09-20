@@ -101,6 +101,6 @@ function instance(instanceId: string, name: string): RemoteInstance {
 }
 
 function incompatibleProductVersion(): string {
-  const [major = 0, minor = 0] = PackageMetadata.VERSION.split(".").map(Number);
-  return major === 0 ? `0.${minor + 1}.0` : `${major + 1}.0.0`;
+  const [major = 0, minor = 0, patch = 0] = PackageMetadata.VERSION.split(".").map(Number);
+  return `${major}.${minor}.${patch + 1}`;
 }

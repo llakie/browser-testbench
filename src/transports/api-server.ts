@@ -38,6 +38,7 @@ import { RemoteArtifactHost } from "../remote/remote-artifact-transfer.js";
 import { RemoteApiController } from "../remote/remote-api-controller.js";
 import { RemoteSessionPolicy, RemoteSessionPolicyError } from "../remote/remote-session-policy.js";
 import { IosPhysicalLoopbackUrlError } from "../automation/ios-physical-url-guard.js";
+import { ClientVersion } from "../config/client-version.js";
 
 export interface ApiServerOptions {
   host: string;
@@ -126,6 +127,7 @@ export class ApiServer {
     this.app.disable("x-powered-by");
     this.registerPublicRoutes();
     this.app.use(express.json({ limit: "1mb" }));
+    this.app.use((request, response, next) => this.requireCompatibleClient(request, response, next));
     this.remoteApi.registerPairingRoutes(this.app);
     this.app.use((request, response, next) =>
       options.remote
@@ -215,6 +217,27 @@ export class ApiServer {
       }),
     );
     this.app.use("/fontawesome", express.static(TestbenchPaths.packageDirectory("@fortawesome/fontawesome-free")));
+  }
+
+  private requireCompatibleClient(request: Request, response: Response, next: NextFunction): void {
+    if (!request.path.startsWith("/v1/") || request.path === "/v1/remote/identity") {
+      next();
+      return;
+    }
+    const actualVersion = request.header(ClientVersion.HEADER);
+    if (actualVersion === ClientVersion.CURRENT) {
+      next();
+      return;
+    }
+    const missing = !actualVersion;
+    response.status(409).json({
+      error: missing
+        ? `Client version is missing. Install Browser Testbench ${ClientVersion.CURRENT}.`
+        : `Client version ${actualVersion} is incompatible with Browser Testbench ${ClientVersion.CURRENT}. Install the same version on every client and Testbench.`,
+      code: missing ? "client_version_missing" : "client_version_mismatch",
+      expectedVersion: ClientVersion.CURRENT,
+      ...(actualVersion ? { actualVersion } : {}),
+    });
   }
 
   async start(): Promise<{ host: string; port: number }> {

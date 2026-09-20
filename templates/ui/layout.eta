@@ -13,7 +13,14 @@
     <% } %>
   </head>
   <body>
-    <div id="app" class="app-layout" data-page="<%= it.activePage %>" data-live-reload="<%= it.liveReload %>" v-cloak>
+    <div
+      id="app"
+      class="app-layout"
+      data-page="<%= it.activePage %>"
+      data-live-reload="<%= it.liveReload %>"
+      data-version="<%= it.version %>"
+      v-cloak
+    >
       <aside class="sidebar" id="sidebar" aria-label="Main navigation">
         <a class="sidebar__brand" href="/setup" aria-label="Browser Testbench home">
           <span class="brand__mark"><i class="fa-solid fa-flask-vial" aria-hidden="true"></i></span>

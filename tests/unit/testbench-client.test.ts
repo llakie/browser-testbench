@@ -6,6 +6,7 @@ import {
   RemoteTestbench,
   SwipeDirection,
 } from "../../src/transports/testbench-client.js";
+import { ClientVersion } from "../../src/config/client-version.js";
 
 describe("RemoteTestbench.availableTargets", () => {
   afterEach(() => {
@@ -72,6 +73,18 @@ describe("RemoteTestbench.availableTargets", () => {
     const testbench = new RemoteTestbench({ requestTimeoutMs: 20 });
 
     await expect(testbench.targets()).rejects.toThrow("timed out after 20 ms");
+  });
+
+  it("identifies every request with the exact package version", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+      Promise.resolve(new Response("[]", { headers: { "content-type": "application/json" } })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new RemoteTestbench().targets();
+
+    const init = fetchMock.mock.calls[0]![1]!;
+    expect(new Headers(init.headers).get(ClientVersion.HEADER)).toBe(ClientVersion.CURRENT);
   });
 });
 

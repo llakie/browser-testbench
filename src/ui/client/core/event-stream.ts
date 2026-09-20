@@ -21,9 +21,7 @@ export class EventStream {
     while (!this.controller.signal.aborted) {
       document.documentElement.dataset.environmentStream = "connecting";
       try {
-        const authorization = ApiClient.authorization();
-        const headers = new Headers();
-        if (authorization) headers.set("authorization", `Bearer ${authorization}`);
+        const headers = ApiClient.headers();
         const response = await fetch("/v1/events", { headers, signal: this.controller.signal });
         if (!response.ok || !response.body) throw new Error(`Event stream returned HTTP ${response.status}.`);
         await this.consume(response.body);
