@@ -35,6 +35,15 @@
   --space-4: 1.5rem;
   --space-5: 2rem;
   --space-6: 3rem;
+  --font-size-caption: 0.72rem;
+  --font-size-small: 0.75rem;
+  --font-size-detail: 0.8rem;
+  --font-size-secondary: 0.82rem;
+  --font-size-summary: 0.85rem;
+  --icon-size-compact: 1.6rem;
+  --icon-size-step: 2rem;
+  --checkbox-size: 1rem;
+  --docs-scroll-offset: 6rem;
   --content-flow-space: var(--space-3);
   --control-size: 2.75rem;
   --sidebar-width: 17rem;
@@ -621,7 +630,7 @@ h3 {
 }
 
 .docs-content section {
-  scroll-margin-top: 6rem;
+  scroll-margin-top: var(--docs-scroll-offset);
 }
 
 .docs-content section + section {
@@ -658,6 +667,12 @@ h3 {
   margin-top: var(--space-3);
 }
 
+.setup-checklist__device-picker {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
 .setup-checklist__group {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-small);
@@ -678,10 +693,10 @@ h3 {
 }
 
 .setup-checklist__group > summary .setup-checklist__icon {
-  width: 1.6rem;
-  height: 1.6rem;
-  flex-basis: 1.6rem;
-  font-size: 0.75rem;
+  width: var(--icon-size-compact);
+  height: var(--icon-size-compact);
+  flex-basis: var(--icon-size-compact);
+  font-size: var(--font-size-small);
 }
 
 .setup-checklist__group.is-complete > summary .setup-checklist__icon {
@@ -692,7 +707,7 @@ h3 {
 .setup-checklist__chevron {
   margin-left: auto;
   color: var(--color-ink-muted);
-  font-size: 0.75rem;
+  font-size: var(--font-size-small);
   transition: transform var(--transition);
 }
 
@@ -711,7 +726,7 @@ h3 {
   gap: var(--space-2);
   padding-top: var(--space-2);
   color: var(--color-ink-muted);
-  font-size: 0.82rem;
+  font-size: var(--font-size-secondary);
 }
 
 .setup-checklist__compact-step.is-complete i {
@@ -733,9 +748,9 @@ h3 {
 
 .setup-checklist__icon {
   display: grid;
-  width: 2rem;
-  height: 2rem;
-  flex: 0 0 2rem;
+  width: var(--icon-size-step);
+  height: var(--icon-size-step);
+  flex: 0 0 var(--icon-size-step);
   place-items: center;
   border-radius: 50%;
   color: var(--color-ink-muted);
@@ -765,7 +780,7 @@ h3 {
 .setup-checklist__title span {
   flex: 0 0 auto;
   color: var(--color-ink-muted);
-  font-size: 0.72rem;
+  font-size: var(--font-size-caption);
   font-weight: 750;
 }
 
@@ -784,14 +799,14 @@ h3 {
 .setup-checklist__copy > a {
   display: inline-block;
   margin-top: var(--space-2);
-  font-size: 0.8rem;
+  font-size: var(--font-size-detail);
   font-weight: 750;
 }
 
 .setup-checklist__troubleshooting {
   margin-top: var(--space-2);
   color: var(--color-ink-muted);
-  font-size: 0.8rem;
+  font-size: var(--font-size-detail);
 }
 
 .setup-checklist__troubleshooting summary {
@@ -825,14 +840,14 @@ h3 {
   border: 0;
   color: var(--color-ink);
   background: transparent;
-  font-size: 0.8rem;
+  font-size: var(--font-size-detail);
   font-weight: 700;
   cursor: pointer;
 }
 
 .setup-checklist__confirmation input {
-  width: 1rem;
-  height: 1rem;
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
   margin: 0;
   accent-color: var(--color-primary);
 }
@@ -866,7 +881,7 @@ h3 {
 .docs-disclosure > summary {
   padding: var(--space-2) var(--space-3);
   color: var(--color-ink-muted);
-  font-size: 0.85rem;
+  font-size: var(--font-size-summary);
   font-weight: 750;
   cursor: pointer;
 }
@@ -885,7 +900,7 @@ h3 {
 }
 
 .docs-accordion {
-  scroll-margin-top: 6rem;
+  scroll-margin-top: var(--docs-scroll-offset);
   border-bottom: 1px solid var(--color-line);
 }
 
@@ -913,7 +928,7 @@ h3 {
 .docs-accordion__chevron {
   flex: 0 0 auto;
   color: var(--color-ink-muted);
-  font-size: 0.75rem;
+  font-size: var(--font-size-small);
   transition: transform var(--transition);
 }
 

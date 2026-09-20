@@ -31,6 +31,7 @@ describe("TargetCatalogService", () => {
       "chrome-android-browser-testbench-api-36",
     ]);
     expect(targets.find((target) => target.browser === "safari-ios")?.detail).toBe("safari-ios detail");
+    expect(targets.find((target) => target.browser === "safari-ios")?.deviceId).toBe("simulator-one");
     expect(targets.find((target) => target.browser === "safari-ios")?.detail).not.toContain("Shutdown");
   });
 

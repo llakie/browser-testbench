@@ -30,7 +30,7 @@ describe("workbench UI browser flow", () => {
       let androidConnected = true;
       let androidName = "Pixel 8";
       let iosSigningReady = false;
-      vi.spyOn(DoctorService, "inspect").mockImplementation(async () =>
+      const inspectEnvironment = vi.spyOn(DoctorService, "inspect").mockImplementation(async () =>
         TARGET_NAMES.map((id) => {
           const android = id === "chrome-android";
           const ios = id === "safari-ios";
@@ -116,6 +116,41 @@ describe("workbench UI browser flow", () => {
                           udid: "IOS-DEVICE",
                         },
                       },
+                      {
+                        id: "IOS-DEVICE-2",
+                        name: "Second iPhone",
+                        platformVersion: "17.0",
+                        state: "Connected",
+                        deviceKind: "physical" as const,
+                        compatible: false,
+                        detail: "Connect the second iPhone by USB.",
+                        setupChecks: [
+                          {
+                            id: "usb",
+                            label: "USB connection",
+                            ready: false,
+                            detail: "Connect the second iPhone by USB.",
+                          },
+                          { id: "trust", label: "Xcode device readiness", ready: false, detail: "Trust the device." },
+                          {
+                            id: "developer-mode",
+                            label: "Developer Mode",
+                            ready: false,
+                            detail: "Enable Developer Mode.",
+                          },
+                          {
+                            id: "signing",
+                            label: "Apple Development signing",
+                            ready: false,
+                            detail: "Create a signing identity.",
+                          },
+                        ],
+                        config: {
+                          name: "safari-ios" as const,
+                          deviceKind: "physical" as const,
+                          udid: "IOS-DEVICE-2",
+                        },
+                      },
                     ],
                   }
                 : {}),
@@ -124,6 +159,7 @@ describe("workbench UI browser flow", () => {
       );
       vi.spyOn(SetupService, "plan").mockResolvedValue([
         {
+          id: "appium-uiautomator2",
           label: "Appium UiAutomator2",
           command: "browser-testbench setup --yes --targets chrome-android",
           automatic: true,
@@ -132,6 +168,7 @@ describe("workbench UI browser flow", () => {
           targets: ["chrome-android"],
         },
         {
+          id: "appium-xcuitest",
           label: "Appium XCUITest",
           automatic: true,
           status: "completed",
@@ -139,6 +176,7 @@ describe("workbench UI browser flow", () => {
           targets: ["safari-ios"],
         },
         {
+          id: "android-sdk",
           label: "Android SDK",
           automatic: false,
           status: "manual",
@@ -476,10 +514,12 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.$("#test-target-list").getText()).not.toContain("Shutdown");
         await browser.active.saveScreenshot(screenshotPath);
 
+        const inspectionCountBeforeDocumentation = inspectEnvironment.mock.calls.length;
         await browser.navigate(`${baseUrl}/docs`);
         expect(await browser.active.$(".docs-content").getText()).toContain("Automated tests");
         await browser.active.waitForText("Set up your iPhone or iPad", 15_000);
         await browser.active.waitForText("Set up your Android device", 15_000);
+        expect(inspectEnvironment).toHaveBeenCalledTimes(inspectionCountBeforeDocumentation);
         expect(
           await browser.active.execute("return document.querySelector('#ios-mac-setup > summary').textContent.trim()"),
         ).toContain("Install Xcode and the iOS test tools");
@@ -491,16 +531,16 @@ describe("workbench UI browser flow", () => {
             "const mobile = document.querySelector('#mobile'); const nextSection = document.querySelector('#physical-android'); return { aboveDivider: getComputedStyle(nextSection).marginTop, belowDivider: getComputedStyle(mobile).paddingTop }",
           ),
         ).toEqual({ aboveDivider: "32px", belowDivider: "32px" });
+        await browser.active.$("#ios-setup-checklist").scrollIntoView();
+        await browser.active.$("#ios-setup-checklist .setup-checklist__heading button").click();
+        await browser.active.waitForElement("#ios-setup-checklist .setup-checklist__step[data-step-id]", 15_000);
+        expect(await browser.active.execute("return document.querySelectorAll('[data-step-id]').length")).toBe(8);
         expect(
-          await browser.active.execute(
-            "return document.querySelectorAll('#ios-setup-checklist [data-step-id]').length",
-          ),
-        ).toBe(4);
-        expect(
-          await browser.active.execute(
-            "return document.querySelectorAll('#android-setup-checklist [data-step-id]').length",
-          ),
-        ).toBe(4);
+          await browser.active.execute("return document.querySelectorAll('#ios-setup-checklist select option').length"),
+        ).toBe(2);
+        await browser.active.$("#ios-setup-checklist select").select(["IOS-DEVICE-2"], "value");
+        await browser.active.waitForText("Connect the second iPhone by USB.", 15_000);
+        await browser.active.$("#ios-setup-checklist select").select(["IOS-DEVICE"], "value");
         expect(
           await browser.active.execute(
             "return { current: document.querySelectorAll('#ios-setup-checklist .setup-checklist__step').length, groups: [...document.querySelectorAll('#ios-setup-checklist .setup-checklist__group')].map(group => group.open) }",
@@ -511,9 +551,7 @@ describe("workbench UI browser flow", () => {
             "return document.querySelector('#ios-setup-checklist [data-step-id=access]').textContent",
           ),
         ).toContain("No Apple Development signing identity is available");
-        expect(await browser.active.execute("return document.querySelector('#refresh-environment') !== null")).toBe(
-          true,
-        );
+        expect(await browser.active.execute("return document.querySelector('#refresh-environment')")).toBeNull();
         expect(
           await browser.active.execute(
             "return document.querySelector('#ios-setup-checklist [data-step-id=device]').classList.contains('is-complete')",
@@ -596,6 +634,9 @@ describe("workbench UI browser flow", () => {
         ).toBe(true);
         await browser.navigate(`${baseUrl}/docs`);
         await browser.active.waitForText("Set up your iPhone or iPad", 15_000);
+        await browser.active.$("#ios-setup-checklist").scrollIntoView();
+        await browser.active.$("#ios-setup-checklist .setup-checklist__heading button").click();
+        await browser.active.waitForCount("#ios-setup-checklist [data-step-id=access]", 1, 15_000);
         expect(
           await browser.active.execute(
             "return document.querySelector('#ios-setup-checklist [data-step-id=access]').classList.contains('is-complete')",

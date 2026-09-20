@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { IosDeviceService } from "../../src/setup/ios-device-service.js";
+import { IosDeviceDiscovery } from "../../src/setup/ios-device-discovery.js";
 
 describe("IosDeviceService", () => {
   const device = {
@@ -90,7 +91,7 @@ describe("IosDeviceService", () => {
   });
 
   it("includes a detected physical device that needs attention in the ready summary", () => {
-    const simulators = IosDeviceService.simulatorDeviceOptions(
+    const simulators = IosDeviceDiscovery.simulatorDeviceOptions(
       [{ identifier: "runtime", version: "26.5", isAvailable: true, name: "iOS 26.5" }],
       {
         runtime: [
@@ -118,7 +119,7 @@ describe("IosDeviceService", () => {
   });
 
   it("maps an available legacy Xcode device to a wired physical iPhone", () => {
-    const legacy = IosDeviceService.legacyDeviceData(
+    const legacy = IosDeviceDiscovery.legacyDeviceData(
       [
         {
           identifier: "legacy-device-id",
@@ -152,7 +153,7 @@ describe("IosDeviceService", () => {
 
   it("ignores unavailable and simulated Xcode devices in the legacy fallback", () => {
     expect(
-      IosDeviceService.legacyDeviceData([
+      IosDeviceDiscovery.legacyDeviceData([
         {
           identifier: "offline-device",
           available: false,

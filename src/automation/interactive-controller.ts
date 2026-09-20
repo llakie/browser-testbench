@@ -14,6 +14,7 @@ import { TargetRegistry } from "../config/target-registry.js";
 import type { TargetConfig, TargetName } from "../config/types.js";
 import { ServiceManager, type ManagedProcess } from "../infrastructure/process-manager.js";
 import { BrowserSession } from "./browser-session.js";
+import { AppiumSessionClient } from "./appium-session-client.js";
 import { IosPhysicalStartupError } from "./ios-physical-startup-error.js";
 import { IosPhysicalSafariNavigator } from "./ios-physical-safari-navigator.js";
 import { IosSessionCleanup } from "./ios-session-cleanup.js";
@@ -70,6 +71,8 @@ export type ResolvedStartSessionInput = Omit<StartSessionInput, "target"> & {
   wdaBundleId?: string;
 };
 
+class CleanupTimeoutError extends Error {}
+
 export class InteractiveController {
   private readonly session = new BrowserSession();
   private appium?: { process: ManagedProcess; port: number };
@@ -106,10 +109,12 @@ export class InteractiveController {
         : 1;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       this.target = target;
+      let browserStarted = false;
       try {
         if (TargetRegistry.definitions[options.target].kind === "mobile")
           this.appium = await ServiceManager.startAppium();
         const browser = await this.session.start(target, { appiumPort: this.appium?.port });
+        browserStarted = true;
         if (options.videoPath) {
           const recorder = await VideoRecorder.start(target, dirname(options.videoPath), browser.capabilities);
           this.video = { recorder, path: options.videoPath };
@@ -130,10 +135,15 @@ export class InteractiveController {
           url: options.url,
         };
       } catch (error) {
-        const appiumOutput = await this.iosStartupDiagnostic(target, error);
-        await this.close();
+        const appiumOutput = browserStarted ? "" : await this.iosStartupDiagnostic(target, error);
+        const reportedError = IosPhysicalStartupError.from(error, target, appiumOutput);
+        try {
+          await this.close();
+        } catch (cleanupError) {
+          throw new AggregateError([reportedError, cleanupError], "Browser session startup and cleanup failed.");
+        }
         if (attempt < attempts && IosPhysicalStartupError.isSafariDebuggerTimeout(error)) continue;
-        throw IosPhysicalStartupError.from(error, target, appiumOutput);
+        throw reportedError;
       }
     }
     throw new Error("Browser session startup failed.");
@@ -594,26 +604,18 @@ export class InteractiveController {
 
   private async appiumCommand(path: string, body: Record<string, unknown>): Promise<void> {
     if (!this.appium) throw new Error("This command requires an active mobile session.");
-    let response: Response;
     try {
-      response = await fetch(
-        `http://${TestbenchDefaults.LOOPBACK_HOST}:${this.appium.port}/session/${this.session.active.sessionId}/${path}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS),
-        },
+      await new AppiumSessionClient(this.appium.port, this.session.active.sessionId).request(
+        path,
+        "POST",
+        body,
+        TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS,
       );
     } catch (error) {
       if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
         throw new Error(`Appium command timed out after ${TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS} ms.`);
       }
       throw error;
-    }
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { value?: { message?: string } };
-      throw new Error(payload.value?.message ?? `Appium command failed with HTTP ${response.status}.`);
     }
   }
 
@@ -627,7 +629,12 @@ export class InteractiveController {
   async close(): Promise<{ videoPath?: string }> {
     const target = this.target;
     const failures: unknown[] = [];
-    await this.withCleanupTimeout("browser session", this.session.close()).catch((error) => failures.push(error));
+    const browserClose = this.session.close();
+    let browserCloseTimedOut = false;
+    await this.withCleanupTimeout("browser session", browserClose).catch((error) => {
+      if (error instanceof CleanupTimeoutError) browserCloseTimedOut = true;
+      else failures.push(error);
+    });
     let videoPath: string | undefined;
     if (this.video) {
       try {
@@ -639,6 +646,11 @@ export class InteractiveController {
       }
     }
     await this.appium?.process.stop().catch((error) => failures.push(error));
+    if (browserCloseTimedOut) {
+      await this.withCleanupTimeout("browser session after stopping Appium", browserClose).catch((error) =>
+        failures.push(error),
+      );
+    }
     await IosSessionCleanup.run(target).catch((error) => failures.push(error));
     this.clearState();
     if (failures.length > 0) throw new AggregateError(failures, "Session cleanup failed.");
@@ -675,7 +687,7 @@ export class InteractiveController {
         operation,
         new Promise<never>((_resolve, reject) => {
           timer = setTimeout(
-            () => reject(new Error(`Timed out while closing the ${label}.`)),
+            () => reject(new CleanupTimeoutError(`Timed out while closing the ${label}.`)),
             TestbenchDefaults.REMOTE_CLEANUP_TIMEOUT_MS,
           );
         }),

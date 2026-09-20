@@ -124,6 +124,7 @@ export class TargetCatalogService {
         ready: check.status === "ready",
         serial: true,
         deviceKind: device.deviceKind,
+        deviceId: device.id,
         detail: check.detail,
         config: { ...device.config },
       };

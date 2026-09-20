@@ -1,4 +1,5 @@
 import { networkInterfaces } from "node:os";
+import { NetworkUrl } from "../infrastructure/network-url.js";
 
 export class RemoteLoopbackUrlError extends Error {}
 
@@ -11,24 +12,11 @@ export class RemoteUrlGuard {
     } catch {
       return;
     }
-    if (!this.isLoopback(url.hostname)) return;
+    if (!NetworkUrl.isLoopbackHostname(url.hostname)) return;
     const address = this.lanAddress();
-    const suggestion = address
-      ? `${url.protocol}//${address}${url.port ? `:${url.port}` : ""}${url.pathname}`
-      : "a LAN address";
+    const suggestion = address ? NetworkUrl.withHostname(value, address) : "a LAN address";
     throw new RemoteLoopbackUrlError(
       `The remote browser cannot reach '${value}' because loopback points to the remote computer. Bind your application to a LAN interface and use an explicit address such as '${suggestion}'.`,
-    );
-  }
-
-  private static isLoopback(hostname: string): boolean {
-    const normalized = hostname.toLowerCase().replace(/\.$/, "");
-    return (
-      normalized === "localhost" ||
-      normalized === "::1" ||
-      normalized === "[::1]" ||
-      normalized === "0.0.0.0" ||
-      normalized.startsWith("127.")
     );
   }
 

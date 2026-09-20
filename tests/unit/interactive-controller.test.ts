@@ -5,7 +5,10 @@ import { IosPhysicalSafariNavigator } from "../../src/automation/ios-physical-sa
 import { ServiceManager } from "../../src/infrastructure/process-manager.js";
 
 describe("InteractiveController", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("retries a blocked physical Safari debugger with an initial deeplink", async () => {
     const controller = new InteractiveController();
@@ -162,6 +165,28 @@ describe("InteractiveController", () => {
 
     expect(stopAppium).toHaveBeenCalledOnce();
     expect(controller).toMatchObject({ video: undefined, appium: undefined, target: undefined });
+  });
+
+  it("waits for a stalled browser close to settle after stopping Appium", async () => {
+    vi.useFakeTimers();
+    const controller = new InteractiveController();
+    let finishBrowserClose: (() => void) | undefined;
+    const browserClose = new Promise<void>((resolve) => {
+      finishBrowserClose = resolve;
+    });
+    const stopAppium = vi.fn(async () => finishBrowserClose?.());
+    vi.spyOn(IosSessionCleanup, "run").mockResolvedValue(undefined);
+    Object.assign(controller, {
+      session: { close: vi.fn(() => browserClose) },
+      appium: { process: { stop: stopAppium }, port: 1234 },
+      target: { name: "safari-ios", deviceKind: "physical", udid: "DEVICE-ID" },
+    });
+
+    const closing = controller.close();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await expect(closing).resolves.toEqual({ videoPath: undefined });
+    expect(stopAppium).toHaveBeenCalledOnce();
   });
 });
 

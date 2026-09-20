@@ -39,6 +39,7 @@ export class WorkbenchStore {
 
   private refreshTimer?: ReturnType<typeof setTimeout>;
   private loadWorkbench = false;
+  private workbenchRequest?: Promise<void>;
   private readonly events = new EventStream(() => this.scheduleRefresh());
 
   get workbench(): WorkbenchState | null {
@@ -66,6 +67,16 @@ export class WorkbenchStore {
     this.events.start();
     if (loadWorkbench) await this.refresh({ analyze: true });
     else await this.refreshConnection();
+  }
+
+  async enableWorkbench({ analyze = false, refresh = false } = {}): Promise<void> {
+    this.loadWorkbench = true;
+    if (!refresh && this.state.workbench) return;
+    if (this.workbenchRequest) return this.workbenchRequest;
+    this.workbenchRequest = this.refresh({ analyze }).finally(() => {
+      this.workbenchRequest = undefined;
+    });
+    return this.workbenchRequest;
   }
 
   async refresh({ analyze = false, background = false } = {}): Promise<void> {

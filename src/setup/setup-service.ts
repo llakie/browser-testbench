@@ -28,6 +28,7 @@ export class SetupService {
       for (const driver of statuses) {
         const target = driver.name === "xcuitest" ? "safari-ios" : "chrome-android";
         actions.push({
+          id: `appium-${driver.name}`,
           label: `Appium ${this.driverLabel(driver.name)}`,
           command: driver.installed
             ? undefined
@@ -51,18 +52,23 @@ export class SetupService {
       .find((check) => check.id === "safari-ios")
       ?.devices?.filter((device) => device.deviceKind === "physical" && !device.compatible && device.detail)
       .map((device): SetupAction => ({
+        id: `ios-device-${device.id}`,
         label: `Safari on ${device.name}`,
         automatic: false,
         status: "manual",
         detail: device.detail,
-        ...(device.documentationUrl === "/docs#ios-signing" ? { command: IosSigningService.openWdaCommand() } : {}),
+        ...(device.setupChecks?.some((check) => check.id === "signing" && !check.ready)
+          ? { command: IosSigningService.openWdaCommand() }
+          : {}),
         targets: ["safari-ios"],
       }));
     actions.push(...(physicalIosActions ?? []));
     for (const check of checks.filter((entry) => entry.status === "blocked" || entry.status === "action")) {
       if (check.id === "safari-ios" && physicalIosActions?.length) continue;
-      if (check.action && !actions.some((action) => action.label === check.label)) {
+      const actionId = `check-${check.id}`;
+      if (check.action && !actions.some((action) => action.id === actionId)) {
         actions.push({
+          id: actionId,
           label: check.label,
           automatic: false,
           status: "manual",
@@ -84,6 +90,7 @@ export class SetupService {
     if (mobileTargets.length > 0 && !DoctorService.isNodeSupported()) {
       return [
         {
+          id: "node-runtime",
           label: "Node.js",
           automatic: false,
           status: "failed",
@@ -102,6 +109,7 @@ export class SetupService {
         const existing = existingDrivers.get(driver);
         if (existing?.installed) {
           results.push({
+            id: `appium-${driver}`,
             label: `Appium ${this.driverLabel(driver)}`,
             automatic: true,
             status: "completed",
@@ -119,6 +127,7 @@ export class SetupService {
           },
         );
         results.push({
+          id: `appium-${driver}`,
           label: `Appium ${this.driverLabel(driver)}`,
           automatic: true,
           status: installation.code === 0 ? "completed" : "failed",
@@ -137,7 +146,7 @@ export class SetupService {
     results.push(
       ...(await this.plan(targets)).filter((action) => {
         if (action.status !== "manual") return false;
-        return !(androidAvdAction && action.label === TargetRegistry.definitions["chrome-android"].label);
+        return !(androidAvdAction && action.id === "check-chrome-android");
       }),
     );
     return results;

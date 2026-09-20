@@ -1,6 +1,7 @@
 import type { TargetName } from "../config/types.js";
 
 export interface SetupAction {
+  id: string;
   label: string;
   command?: string;
   automatic: boolean;

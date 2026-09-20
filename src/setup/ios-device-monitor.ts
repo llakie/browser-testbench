@@ -1,5 +1,5 @@
 import { TestbenchDefaults } from "../config/defaults.js";
-import { IosDeviceService } from "./ios-device-service.js";
+import { IosDeviceDiscovery } from "./ios-device-discovery.js";
 
 export class IosDeviceMonitor {
   private timer?: NodeJS.Timeout;
@@ -9,7 +9,7 @@ export class IosDeviceMonitor {
 
   constructor(
     private readonly onChange: () => void,
-    private readonly intervalMs = TestbenchDefaults.ENVIRONMENT_POLL_INTERVAL_MS,
+    private readonly intervalMs = TestbenchDefaults.IOS_DEVICE_POLL_INTERVAL_MS,
   ) {}
 
   start(): void {
@@ -28,7 +28,7 @@ export class IosDeviceMonitor {
     if (this.checking) return;
     this.checking = true;
     try {
-      const current = await IosDeviceService.deviceFingerprint();
+      const current = await IosDeviceDiscovery.fingerprint();
       if (this.fingerprint !== undefined && current !== this.fingerprint) this.onChange();
       this.fingerprint = current;
     } finally {

@@ -18,14 +18,6 @@ export class DocumentationDisclosure {
       const content = disclosure.querySelector<HTMLElement>(":scope > .docs-disclosure__content");
       const openItem = content?.querySelector<HTMLDetailsElement>(":scope > .docs-accordion[open]");
       if (!openItem) content?.querySelector<HTMLDetailsElement>(":scope > .docs-accordion")?.setAttribute("open", "");
-      return;
     }
-
-    const accordion = disclosure.dataset.accordion;
-    if (!accordion) return;
-
-    document.querySelectorAll<HTMLDetailsElement>("details[data-accordion]").forEach((candidate) => {
-      if (candidate !== disclosure && candidate.dataset.accordion === accordion) candidate.open = false;
-    });
   }
 }
