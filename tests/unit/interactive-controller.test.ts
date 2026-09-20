@@ -1,8 +1,94 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { InteractiveController } from "../../src/automation/interactive-controller.js";
-import { IosSimulatorCleanup } from "../../src/automation/ios-simulator-cleanup.js";
+import { IosSessionCleanup } from "../../src/automation/ios-session-cleanup.js";
+import { IosPhysicalSafariNavigator } from "../../src/automation/ios-physical-safari-navigator.js";
+import { ServiceManager } from "../../src/infrastructure/process-manager.js";
 
 describe("InteractiveController", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("retries a blocked physical Safari debugger with an initial deeplink", async () => {
+    const controller = new InteractiveController();
+    const browser = { sessionId: "session-id", capabilities: { platformName: "iOS" } };
+    const start = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("The remote Safari debugger did not respond to the requested command"))
+      .mockResolvedValueOnce(browser);
+    const close = vi.fn().mockResolvedValue(undefined);
+    const stop = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(ServiceManager, "startAppium").mockResolvedValue({
+      process: { stop, recentOutput: "" } as never,
+      port: 1,
+    });
+    vi.spyOn(IosSessionCleanup, "run").mockResolvedValue(undefined);
+    const navigate = vi.spyOn(IosPhysicalSafariNavigator, "navigate").mockResolvedValue(undefined);
+    Object.assign(controller, { session: { start, close } });
+
+    await expect(
+      controller.start({
+        target: "safari-ios",
+        targetId: "physical-ios",
+        deviceKind: "physical",
+        platformVersion: "16.7.11",
+        udid: "DEVICE-ID",
+        url: "https://example.com",
+      }),
+    ).resolves.toMatchObject({ sessionId: "session-id", url: "https://example.com" });
+
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(start.mock.calls[0]?.[0]).toMatchObject({ initialUrl: "http://127.0.0.1:8100/health" });
+    expect(navigate).toHaveBeenCalledWith(1, "session-id", "https://example.com", expect.any(Object));
+    expect(close).toHaveBeenCalledTimes(2);
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
+  it("uses native Safari navigation for physical iOS sessions", async () => {
+    const controller = new InteractiveController();
+    const execute = vi.fn().mockResolvedValue([]);
+    const navigate = vi.spyOn(IosPhysicalSafariNavigator, "navigate").mockResolvedValue(undefined);
+    Object.assign(controller, {
+      target: { name: "safari-ios", deviceKind: "physical" },
+      appium: { port: 4723 },
+      session: {
+        active: {
+          sessionId: "session-id",
+          execute,
+          getUrl: vi.fn().mockResolvedValue("https://example.com"),
+          getTitle: vi.fn().mockResolvedValue("Example"),
+        },
+      },
+    });
+
+    await controller.navigate("https://example.com");
+
+    expect(navigate).toHaveBeenCalledWith(4723, "session-id", "https://example.com", {
+      name: "safari-ios",
+      deviceKind: "physical",
+    });
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it("reports successful physical navigation when only page inspection is blocked", async () => {
+    const controller = new InteractiveController();
+    vi.spyOn(IosPhysicalSafariNavigator, "navigate").mockResolvedValue(undefined);
+    Object.assign(controller, {
+      target: { name: "safari-ios", deviceKind: "physical" },
+      appium: { port: 4723 },
+      session: {
+        active: {
+          sessionId: "session-id",
+          execute: vi.fn().mockRejectedValue(new Error("The remote Safari debugger did not respond")),
+        },
+      },
+    });
+
+    await expect(controller.navigate("https://blocking.example")).resolves.toEqual({
+      url: "https://blocking.example",
+      title: "",
+      elements: [],
+    });
+  });
+
   it("rejects unsupported Android full-page screenshots explicitly", async () => {
     const controller = new InteractiveController();
     Object.assign(controller, { target: { name: "chrome-android" } });
@@ -64,7 +150,7 @@ describe("InteractiveController", () => {
   it("reports cleanup failures after clearing every managed resource", async () => {
     const controller = new InteractiveController();
     const stopAppium = vi.fn().mockResolvedValue(undefined);
-    vi.spyOn(IosSimulatorCleanup, "run").mockResolvedValue(undefined);
+    vi.spyOn(IosSessionCleanup, "run").mockResolvedValue(undefined);
     Object.assign(controller, {
       session: { close: vi.fn().mockRejectedValue(new Error("browser close failed")) },
       video: { recorder: { stop: vi.fn().mockRejectedValue(new Error("video close failed")) }, path: "video.mp4" },

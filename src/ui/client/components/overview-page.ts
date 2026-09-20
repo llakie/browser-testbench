@@ -120,6 +120,8 @@ export const OverviewPage = defineComponent({
             Shutdown: "Shut down",
             Creating: "Creating",
             Connected: "Connected via USB",
+            Wireless: "Connected wirelessly",
+            Unavailable: "Reconnect and unlock the device",
             unauthorized: "USB debugging authorization required",
             offline: "Device offline",
             "no permissions": "USB permission required",
@@ -135,6 +137,16 @@ export const OverviewPage = defineComponent({
       ]
         .filter(Boolean)
         .join(" · ");
+    },
+    deviceConfig(device: TargetDeviceOption): string {
+      const { iosTeamId: _team, iosSigningId: _signing, wdaBundleId: _bundle, ...config } = device.config;
+      return JSON.stringify(config);
+    },
+    physicalDeviceDocumentation(checkId: string): string | undefined {
+      return {
+        "safari-ios": "/docs#physical-ios",
+        "chrome-android": "/docs#physical-android",
+      }[checkId];
     },
     isInstallable(action: SetupAction): boolean {
       return Boolean(

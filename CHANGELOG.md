@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Physical iPhones and iPads connected by USB are detected and exposed as Safari targets alongside iOS Simulators.
+- Older physical iPhones that Xcode exposes through `xcdevice` but not CoreDevice are detected through a bounded
+  compatibility fallback.
+- Guided physical-iOS setup covers device trust, Developer Mode, Safari automation settings, WebDriverAgent signing,
+  free Personal Teams, paid Developer teams, multi-team selection, and seven-day free-profile renewal failures.
+- Physical iOS connection changes now update open web interfaces automatically.
+
+### Changed
+
+- Physical iOS sessions receive deterministic signing capabilities and reject unreachable loopback application URLs
+  before starting, while internal verification uses the host's LAN address.
+- Simulator-only cleanup is no longer applied to physical Apple devices.
+
 ## [0.2.0] - 2026-09-19
 
 ### Added

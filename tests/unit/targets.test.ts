@@ -52,6 +52,32 @@ describe("TargetRegistry", () => {
       "appium:platformVersion": "16",
       "appium:udid": "R5CT1234",
     });
+
+    expect(
+      TargetRegistry.capabilities({
+        name: "safari-ios",
+        deviceKind: "physical",
+        deviceName: "iPhone 17 Pro",
+        platformVersion: "26.0",
+        udid: "00008140-DEVICE",
+        iosTeamId: "A1B2C3D4E5",
+        iosSigningId: "Apple Development",
+        wdaBundleId: "com.browser-testbench.WebDriverAgentRunner.a1b2c3d4e5",
+        initialUrl: "https://example.com",
+      }),
+    ).toMatchObject({
+      platformName: "iOS",
+      browserName: "Safari",
+      "appium:udid": "00008140-DEVICE",
+      "appium:xcodeOrgId": "A1B2C3D4E5",
+      "appium:xcodeSigningId": "Apple Development",
+      "appium:updatedWDABundleId": "com.browser-testbench.WebDriverAgentRunner.a1b2c3d4e5",
+      "appium:allowProvisioningDeviceRegistration": true,
+      "appium:showXcodeLog": true,
+      "appium:wdaLaunchTimeout": 120_000,
+      "appium:webviewAtomWaitTimeout": 30_000,
+      "appium:initialDeeplinkUrl": "https://example.com",
+    });
   });
 
   it("maps host-local URLs for Android Emulator networking", () => {

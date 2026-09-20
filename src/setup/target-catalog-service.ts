@@ -10,6 +10,7 @@ import {
 import { DoctorService } from "./doctor-service.js";
 import { VerificationStore } from "./verification-store.js";
 import type { StartSessionInput } from "../config/input-schemas.js";
+import { IosPhysicalUrlGuard } from "../automation/ios-physical-url-guard.js";
 
 export class UnknownTargetError extends Error {}
 
@@ -55,6 +56,7 @@ export class TargetCatalogService {
 
   static async sessionOptions(input: StartSessionInput) {
     const target = await this.resolve(input.target);
+    IosPhysicalUrlGuard.assertReachable(input.url, target.config);
     return {
       target,
       options: {

@@ -1,6 +1,7 @@
 # Browser Testbench
 
-A local, project-independent remote control for real desktop browsers, iOS simulators, Android emulators, and physical Android devices.
+A local, project-independent remote control for real desktop browsers, iOS simulators, physical iPhones and iPads,
+Android emulators, and physical Android devices.
 
 The responsibilities are deliberately clear:
 
@@ -12,20 +13,92 @@ Browser Testbench does not import test files from a project or run third-party t
 
 ## Supported targets
 
-| Target                              | macOS | Windows | Linux |
-| ----------------------------------- | ----- | ------- | ----- |
-| Chrome                              | yes   | yes     | yes   |
-| Firefox                             | yes   | yes     | yes   |
-| Safari                              | yes   | –       | –     |
-| Edge                                | yes   | yes     | yes   |
-| Safari in the iOS Simulator         | yes   | –       | –     |
-| Chrome on Android (USB or emulator) | yes   | yes     | yes   |
+| Target                                | macOS | Windows | Linux |
+| ------------------------------------- | ----- | ------- | ----- |
+| Chrome                                | yes   | yes     | yes   |
+| Firefox                               | yes   | yes     | yes   |
+| Safari                                | yes   | –       | –     |
+| Edge                                  | yes   | yes     | yes   |
+| Safari on iOS Simulator or USB device | yes   | –       | –     |
+| Chrome on Android (USB or emulator)   | yes   | yes     | yes   |
 
 Mobile sessions are controlled through Appium with XCUITest or UiAutomator2. The web interface detects installed browsers, physical devices, simulators, emulators, and required setup steps.
 
-For a physical Android device, install the Android SDK Platform Tools, enable Developer options and USB debugging, connect the device by USB, unlock it, and accept the debugging authorization prompt. Chrome must be installed on the device. Browser Testbench detects every authorized device through ADB and creates a separate, stable test target for it. Connecting, disconnecting, or changing the authorization state updates the open web interface automatically. Local URLs such as `http://127.0.0.1:3000` are forwarded over USB for the duration of the session and require no Wi-Fi configuration.
+### Physical Android devices
+
+1. Install Android Studio or the Android SDK Platform Tools on the Testbench computer.
+2. Enable Developer options on the device by tapping its build number seven times.
+3. Enable USB debugging under Developer options.
+4. Connect and unlock the device, then accept the USB debugging authorization prompt.
+5. Install or enable Google Chrome on the device.
+6. Confirm that the device is ready on the Browser Testbench Overview page.
+7. Run its generated target once from the Test targets page.
+
+Browser Testbench detects every authorized device through ADB and creates a separate, stable test target for it.
+Connecting, disconnecting, or changing the authorization state updates the open web interface automatically. Local URLs
+such as `http://127.0.0.1:3000` are forwarded over USB for the duration of the session and require no Wi-Fi configuration.
 
 For Android emulator testing, setup reuses an existing compatible Google Play AVD. If none exists and no physical device is connected, it selects the newest matching Google Play system image already installed for the host architecture and the newest available generic Pixel hardware profile. The generated AVD name contains both values, for example `browser-testbench-pixel-10-api-37-1`. Only when no suitable image is installed does the setup ask you to install the latest one through Android Studio's SDK Manager; no API level or Pixel model is hard-coded.
+
+### Physical iPhones and iPads
+
+Safari on a physical iPhone or iPad requires a macOS host with Xcode, a USB connection, and an Apple Account signed
+in to Xcode. Both a free Personal Team and a paid Apple Developer team are supported. Paid teams can use automatic
+WebDriverAgent provisioning. A free Personal Team requires the guided WebDriverAgent signing step in Xcode, and its
+provisioning profile expires after seven days; Browser Testbench reports signing failures with the exact recovery
+steps, but Apple requires the profile to be rebuilt periodically.
+
+The Overview page detects recently connected devices and guides the required steps without asking Browser Testbench
+for Apple credentials:
+
+1. Connect and unlock the device, then accept **Trust This Computer**.
+2. Add the free or paid Apple Account under Xcode's Accounts settings.
+3. Enable **Developer Mode** under **Settings → Privacy & Security**, restart, and confirm it after restart.
+4. Open **Window → Devices and Simulators** in Xcode, select the device, and wait until Xcode shows it as available
+   without a warning or a **Preparing** status.
+5. Enable **UI Automation** under **Settings → Developer**.
+6. Enable **Web Inspector** and **Remote Automation** under **Settings → Apps → Safari → Advanced**.
+7. Install the Appium XCUITest driver from the Overview page and run the generated physical-device target once.
+
+To prepare WebDriverAgent signing:
+
+1. Run the WebDriverAgent command shown for the iPhone on the Overview page; it opens `WebDriverAgent.xcodeproj`.
+2. In **Xcode → Settings → Accounts**, add the Apple Account, select its team, open **Manage Certificates**, and create
+   an **Apple Development** certificate if none exists.
+3. On the Overview page, select **Check again**, expand Safari on iOS, and copy the exact WebDriverAgent bundle ID now
+   shown for the device.
+4. A paid Developer team can first run the physical target and let Xcode provision it automatically.
+5. For a free Personal Team or failed automatic provisioning, select **WebDriverAgentRunner → Signing & Capabilities**
+   in Xcode, enable automatic signing, select the team, and enter the bundle ID shown by Browser Testbench.
+6. Select **Product → Scheme → WebDriverAgentRunner**, select the iPhone under **Product → Destination**, and run
+   **Product → Test**. If iOS reports an untrusted developer, trust the account under
+   **Settings → General → VPN & Device Management**.
+7. Run the physical target again. Free profiles expire after seven days; repeat the Xcode **Product → Test** step after
+   expiry or when an XCUITest update replaces WebDriverAgent.
+
+If Xcode reports **Logic Testing Unavailable** after a successful WebDriverAgent build on a physical iOS 16 device,
+the signing setup is complete but the selected Xcode version is incompatible. Xcode 26.4 and 26.6 are known to exhibit
+this regression with iOS 16. Download Xcode 26.2 from Apple's
+[More Downloads](https://developer.apple.com/download/all/?q=Xcode%2026.2) page, install it as
+`/Applications/Xcode-26.2.app`, select it with
+`sudo xcode-select --switch /Applications/Xcode-26.2.app/Contents/Developer`, verify `xcodebuild -version`, and install
+the iOS 26.2 platform component under **Xcode → Settings → Components** if Xcode offers it. Wait for the installation to
+finish, then run the physical target again. Recreating the certificate or provisioning profile does not resolve this
+failure.
+
+If the certificate is listed but is not detected, open **Keychain Access → login → My Certificates** and expand it. A
+private key must appear below the certificate. If it does and the identity is still rejected, install Apple's official
+[Worldwide Developer Relations G3 intermediate certificate](https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer)
+in the login keychain and keep its trust setting at **Use System Defaults**.
+
+When more than one signing team is installed, start Browser Testbench with `BROWSER_TESTBENCH_IOS_TEAM_ID` set to the
+intended ten-character team ID.
+
+USB carries device control, but iOS does not provide Browser Testbench with Android-style reverse port forwarding.
+The iPhone or iPad must be able to reach the computer that actually runs the tested application. Bind that application
+to a LAN interface and use its host's explicit LAN address or hostname rather than `localhost`. This may be the local
+development computer, the Testbench host, or another machine. Browser Testbench rejects unreachable loopback URLs before
+starting the device session.
 
 ## Installation and startup
 
@@ -72,7 +145,8 @@ browser-testbench start --host 0.0.0.0 --token "$BROWSER_TESTBENCH_TOKEN"
 ![Local setup: application, Testbench, browsers, and devices on one computer](docs/assets/local-setup.svg)
 
 The application, Browser Testbench, and all test targets run on the same computer. Loopback URLs such as
-`http://127.0.0.1:5173` work because the browser and application share the same network context.
+`http://127.0.0.1:5173` work because the browser and application share the same network context. A physical iPhone or
+iPad is the exception and requires a reachable LAN address of the computer running the application, as described above.
 
 ### Remote setup
 

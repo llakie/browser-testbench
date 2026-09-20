@@ -11,7 +11,7 @@ const PROCESS_STOP_TIMEOUT_MS = 5_000;
 const APPIUM_START_TIMEOUT_MS = 30_000;
 const HEALTH_REQUEST_TIMEOUT_MS = 2_000;
 const HEALTH_POLL_INTERVAL_MS = 250;
-const RECENT_OUTPUT_MAX_LENGTH = 8_000;
+const RECENT_OUTPUT_MAX_LENGTH = 64_000;
 
 export class ManagedProcess {
   readonly child: ChildProcess;
@@ -53,7 +53,7 @@ export class ServiceManager {
         "--port",
         String(port),
         "--log-level",
-        "warn",
+        "info",
         "--allow-insecure",
         "uiautomator2:chromedriver_autodownload",
       ]),

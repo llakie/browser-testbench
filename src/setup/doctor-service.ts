@@ -1,14 +1,11 @@
 import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { TargetRegistry } from "../config/target-registry.js";
-import type { DoctorCheck, TargetDeviceOption, TargetName } from "../config/types.js";
-import { CommandRunner } from "../infrastructure/command-runner.js";
+import type { DoctorCheck, TargetName } from "../config/types.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { AndroidDeviceService } from "./android-device-service.js";
+import { IosDeviceService } from "./ios-device-service.js";
 import { VerificationStore } from "./verification-store.js";
-
-const APPLICATION_CHECK_TIMEOUT_MS = 5_000;
-const DEVICE_LIST_TIMEOUT_MS = 8_000;
 
 export class DoctorService {
   static async inspect(requestedTargets?: TargetName[]): Promise<DoctorCheck[]> {
@@ -60,7 +57,7 @@ export class DoctorService {
       case "safari":
         return this.safariCheck();
       case "safari-ios":
-        return this.iosCheck();
+        return IosDeviceService.inspect();
       case "chrome-android":
         return AndroidDeviceService.inspect();
     }
@@ -101,102 +98,6 @@ export class DoctorService {
       action: "Enable Safari WebDriver once, then verify it for Browser Testbench.",
       commands: ["sudo safaridriver --enable", TestbenchPaths.cliCommand("verify", "safari")],
     };
-  }
-
-  private static async iosCheck(): Promise<DoctorCheck> {
-    const xcode = await CommandRunner.run("xcodebuild", ["-version"], {
-      timeoutMs: APPLICATION_CHECK_TIMEOUT_MS,
-    });
-    if (xcode.code !== 0) {
-      return {
-        id: "safari-ios",
-        label: TargetRegistry.definitions["safari-ios"].label,
-        status: "blocked",
-        detail: "Xcode is not available.",
-        action: "Install Xcode and select the installation with xcode-select.",
-      };
-    }
-    const runtimes = await CommandRunner.run("xcrun", ["simctl", "list", "runtimes", "--json"], {
-      timeoutMs: DEVICE_LIST_TIMEOUT_MS,
-    });
-    if (runtimes.code !== 0) {
-      return {
-        id: "safari-ios",
-        label: TargetRegistry.definitions["safari-ios"].label,
-        status: "blocked",
-        detail: "The installed iOS runtimes could not be detected.",
-        action: "Open Xcode and install an iOS runtime for the Simulator.",
-      };
-    }
-    const parsed = JSON.parse(runtimes.stdout) as {
-      runtimes?: Array<{ isAvailable?: boolean; name?: string; version?: string; identifier?: string }>;
-    };
-    const available = parsed.runtimes?.filter((runtime) => runtime.isAvailable && runtime.name?.includes("iOS")) ?? [];
-    if (available.length === 0) {
-      return {
-        id: "safari-ios",
-        label: TargetRegistry.definitions["safari-ios"].label,
-        status: "blocked",
-        detail: "No iOS runtime is available.",
-        action: "Install an iOS runtime under Xcode > Settings > Components.",
-      };
-    }
-    const devices = await CommandRunner.run("xcrun", ["simctl", "list", "devices", "available", "--json"], {
-      timeoutMs: DEVICE_LIST_TIMEOUT_MS,
-    });
-    const deviceData =
-      devices.code === 0
-        ? (JSON.parse(devices.stdout) as {
-            devices?: Record<string, Array<{ name?: string; udid?: string; isAvailable?: boolean; state?: string }>>;
-          })
-        : undefined;
-    const options = this.iosDeviceOptions(available, deviceData?.devices ?? {});
-    if (options.length === 0) {
-      return {
-        id: "safari-ios",
-        label: TargetRegistry.definitions["safari-ios"].label,
-        status: "blocked",
-        detail: `${available.map((runtime) => runtime.name).join(", ")} installed, but no available simulator was found.`,
-        action: "Create an iOS Simulator under Xcode > Window > Devices and Simulators.",
-      };
-    }
-    return {
-      id: "safari-ios",
-      label: TargetRegistry.definitions["safari-ios"].label,
-      status: "ready",
-      detail: `${options.length} iOS ${options.length === 1 ? "Simulator is" : "Simulators are"} available.`,
-      devices: options,
-    };
-  }
-
-  static iosDeviceOptions(
-    runtimes: Array<{ name?: string; version?: string; identifier?: string }>,
-    devices: Record<string, Array<{ name?: string; udid?: string; isAvailable?: boolean; state?: string }>>,
-  ): TargetDeviceOption[] {
-    const versions = new Map(
-      runtimes.filter((runtime) => runtime.identifier).map((runtime) => [runtime.identifier!, runtime.version]),
-    );
-    return Object.entries(devices).flatMap(([runtimeId, entries]) => {
-      const platformVersion = versions.get(runtimeId);
-      if (!versions.has(runtimeId)) return [];
-      return entries
-        .filter((device) => device.isAvailable !== false && device.name && device.udid)
-        .map((device) => ({
-          id: device.udid!,
-          name: device.name!,
-          platformVersion,
-          state: device.state,
-          deviceKind: "simulator" as const,
-          compatible: true,
-          config: {
-            name: "safari-ios" as const,
-            deviceKind: "simulator" as const,
-            deviceName: device.name!,
-            ...(platformVersion ? { platformVersion } : {}),
-            udid: device.udid!,
-          },
-        }));
-    });
   }
 
   private static chromePaths(): string[] {

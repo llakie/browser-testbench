@@ -1,8 +1,10 @@
 import { createApp, defineComponent, type Component } from "vue";
 import type { ConnectionStatus } from "../../remote/remote-types.js";
 import { ApiClient } from "./core/api-client.js";
+import { DocumentationDisclosure } from "./core/documentation-disclosure.js";
 import { LiveReloadClient } from "./core/live-reload.js";
 import { CommandBlock } from "./components/command-block.js";
+import { DeviceSetupChecklist } from "./components/device-setup-checklist.js";
 import { OverviewPage } from "./components/overview-page.js";
 import { TargetsPage } from "./components/targets-page.js";
 import { workbenchStore } from "./stores/workbench-store.js";
@@ -25,6 +27,7 @@ const attachTemplate = (component: Component, selector: string): void => {
 
 attachTemplate(OverviewPage, "#overview-page-template");
 attachTemplate(TargetsPage, "#targets-page-template");
+attachTemplate(DeviceSetupChecklist, "#device-setup-checklist-template");
 
 const RootApp = defineComponent({
   data: () => ({
@@ -61,15 +64,20 @@ const RootApp = defineComponent({
   mounted(): void {
     this.applySidebar();
     document.addEventListener("keydown", this.onKeydown);
+    document.addEventListener("toggle", DocumentationDisclosure.handleToggle, true);
+    window.addEventListener("hashchange", this.revealDocumentationTarget);
     window.addEventListener("browser-testbench:connection-changed", this.refreshConnection);
     window.addEventListener("browser-testbench:authorization-changed", this.refreshConnection);
     document.querySelector("#sidebar")?.addEventListener("click", (event) => {
       if (event.target instanceof Element && event.target.closest("a")) this.closeMobileMenu();
     });
-    void this.store.initialize(this.page !== "docs");
+    this.$nextTick(this.revealDocumentationTarget);
+    void this.store.initialize(true);
   },
   beforeUnmount(): void {
     document.removeEventListener("keydown", this.onKeydown);
+    document.removeEventListener("toggle", DocumentationDisclosure.handleToggle, true);
+    window.removeEventListener("hashchange", this.revealDocumentationTarget);
     window.removeEventListener("browser-testbench:connection-changed", this.refreshConnection);
     window.removeEventListener("browser-testbench:authorization-changed", this.refreshConnection);
   },
@@ -104,6 +112,9 @@ const RootApp = defineComponent({
     refreshConnection(): void {
       void this.store.refreshConnection();
     },
+    revealDocumentationTarget(): void {
+      DocumentationDisclosure.openTarget(window.location.hash);
+    },
     async retryRemote(): Promise<void> {
       this.shellBusy = true;
       try {
@@ -130,6 +141,7 @@ const RootApp = defineComponent({
 
 const app = createApp(RootApp);
 app.component("command-block", CommandBlock);
+app.component("device-setup-checklist", DeviceSetupChecklist);
 app.component("overview-page", OverviewPage);
 app.component("targets-page", TargetsPage);
 app.mount(appElement);

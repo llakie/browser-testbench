@@ -29,13 +29,20 @@ describe("workbench UI browser flow", () => {
     async () => {
       let androidConnected = true;
       let androidName = "Pixel 8";
+      let iosSigningReady = false;
       vi.spyOn(DoctorService, "inspect").mockImplementation(async () =>
         TARGET_NAMES.map((id) => {
           const android = id === "chrome-android";
+          const ios = id === "safari-ios";
           return {
             id,
             label: TargetRegistry.definitions[id].label,
-            status: id === "chrome" || (android && androidConnected) ? ("ready" as const) : android ? "action" : "skip",
+            status:
+              id === "chrome" || ios || (android && androidConnected)
+                ? ("ready" as const)
+                : android
+                  ? "action"
+                  : "skip",
             detail:
               id === "chrome"
                 ? "C:\\Program Files\\Google\\Chrome\\Application\\a-very-long-directory-name\\chrome.exe"
@@ -43,7 +50,9 @@ describe("workbench UI browser flow", () => {
                   ? androidConnected
                     ? "1 connected device ready for Chrome testing."
                     : "No Android device or compatible emulator was found."
-                  : "Browser integration fixture",
+                  : ios
+                    ? "1 simulator ready for Safari testing. 1 physical device needs attention."
+                    : "Browser integration fixture",
             ...(android && androidConnected
               ? {
                   devices: [
@@ -64,7 +73,52 @@ describe("workbench UI browser flow", () => {
                     },
                   ],
                 }
-              : {}),
+              : ios
+                ? {
+                    devices: [
+                      {
+                        id: "IOS-DEVICE",
+                        name: "iPhone",
+                        platformVersion: "16.7.11",
+                        state: "Connected",
+                        deviceKind: "physical" as const,
+                        compatible: iosSigningReady,
+                        detail: iosSigningReady
+                          ? "Connected via USB with signing available."
+                          : "No Apple Development signing identity is available.",
+                        ...(iosSigningReady ? {} : { documentationUrl: "/docs#ios-signing" }),
+                        setupChecks: [
+                          { id: "usb", label: "USB connection", ready: true, detail: "Connected directly by USB." },
+                          {
+                            id: "trust",
+                            label: "Xcode device readiness",
+                            ready: true,
+                            detail: "The device is paired and available to Xcode.",
+                          },
+                          {
+                            id: "developer-mode",
+                            label: "Developer Mode",
+                            ready: true,
+                            detail: "Developer Mode is enabled.",
+                          },
+                          {
+                            id: "signing",
+                            label: "Apple Development signing",
+                            ready: iosSigningReady,
+                            detail: iosSigningReady
+                              ? "The signing identity is valid."
+                              : "No Apple Development signing identity is available.",
+                          },
+                        ],
+                        config: {
+                          name: "safari-ios" as const,
+                          deviceKind: "physical" as const,
+                          udid: "IOS-DEVICE",
+                        },
+                      },
+                    ],
+                  }
+                : {}),
           };
         }),
       );
@@ -76,6 +130,13 @@ describe("workbench UI browser flow", () => {
           status: "planned",
           detail: "Browser integration fixture",
           targets: ["chrome-android"],
+        },
+        {
+          label: "Appium XCUITest",
+          automatic: true,
+          status: "completed",
+          detail: "Version 12.12.4 is installed locally.",
+          targets: ["safari-ios"],
         },
         {
           label: "Android SDK",
@@ -208,8 +269,21 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.$(".environment-group--capabilities .subsection-heading").getText()).toContain(
           "Availability on this machine",
         );
-        await browser.active.$(".check-card--device .device-options summary").click();
-        expect(await browser.active.$(".check-card--device .device-option").getText()).toContain(
+        expect(
+          await browser.active.execute(
+            "return ['safari-ios', 'chrome-android'].map(id => { const link = document.querySelector(`[data-check-id=\"${id}\"] a[href^=\"/docs#physical-\"]`); return { id, href: link?.getAttribute('href'), text: link?.textContent.trim() }; })",
+          ),
+        ).toEqual([
+          { id: "safari-ios", href: "/docs#physical-ios", text: "documentation" },
+          { id: "chrome-android", href: "/docs#physical-android", text: "documentation" },
+        ]);
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('[data-check-id=\"safari-ios\"] .device-option a')?.getAttribute('href')",
+          ),
+        ).toBe("/docs#ios-signing");
+        await browser.active.$('[data-check-id="chrome-android"] .device-options summary').click();
+        expect(await browser.active.$('[data-check-id="chrome-android"] .device-option').getText()).toContain(
           "Physical device · Version 16 · Connected via USB",
         );
         await browser.active.waitForScript(
@@ -218,13 +292,13 @@ describe("workbench UI browser flow", () => {
           15_000,
         );
         await browser.active.execute(
-          "window.__previousDeviceDetails = document.querySelector('.check-card--device .device-options')",
+          "window.__previousDeviceDetails = document.querySelector('[data-check-id=\"chrome-android\"] .device-options')",
         );
         androidName = "Pixel 8 Pro";
         events.publish({ type: "environment.changed", source: "android", occurredAt: new Date().toISOString() });
         await browser.active.waitForText("Pixel 8 Pro", 15_000);
         await browser.active.waitForScript(
-          "return window.__previousDeviceDetails.isConnected && document.querySelector('.check-card--device .device-options').open",
+          "return window.__previousDeviceDetails.isConnected && document.querySelector('[data-check-id=\"chrome-android\"] .device-options').open",
           [],
           15_000,
         );
@@ -235,6 +309,7 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.execute("return window.__pageSurvivedEnvironmentUpdate")).toBe(true);
         expect(await browser.active.$("#checks").getText()).not.toContain("Pixel 8");
         expect(await browser.active.$(".guided-actions__heading").getText()).toContain("Environment setup");
+        expect(await browser.active.execute("return document.querySelector('#environment-setup') !== null")).toBe(true);
         expect(await browser.active.$(".integration-card").getText()).toContain("Connect an AI assistant through MCP");
         expect(
           await browser.active.execute(
@@ -403,10 +478,139 @@ describe("workbench UI browser flow", () => {
 
         await browser.navigate(`${baseUrl}/docs`);
         expect(await browser.active.$(".docs-content").getText()).toContain("Automated tests");
+        await browser.active.waitForText("Set up your iPhone or iPad", 15_000);
+        await browser.active.waitForText("Set up your Android device", 15_000);
+        expect(
+          await browser.active.execute("return document.querySelector('#ios-mac-setup > summary').textContent.trim()"),
+        ).toContain("Install Xcode and the iOS test tools");
+        expect(
+          await browser.active.execute("return document.querySelector('#android-tools > summary').textContent.trim()"),
+        ).toContain("Install Android Platform Tools and Appium");
+        expect(
+          await browser.active.execute(
+            "const mobile = document.querySelector('#mobile'); const nextSection = document.querySelector('#physical-android'); return { aboveDivider: getComputedStyle(nextSection).marginTop, belowDivider: getComputedStyle(mobile).paddingTop }",
+          ),
+        ).toEqual({ aboveDivider: "32px", belowDivider: "32px" });
+        expect(
+          await browser.active.execute(
+            "return document.querySelectorAll('#ios-setup-checklist [data-step-id]').length",
+          ),
+        ).toBe(4);
+        expect(
+          await browser.active.execute(
+            "return document.querySelectorAll('#android-setup-checklist [data-step-id]').length",
+          ),
+        ).toBe(4);
+        expect(
+          await browser.active.execute(
+            "return { current: document.querySelectorAll('#ios-setup-checklist .setup-checklist__step').length, groups: [...document.querySelectorAll('#ios-setup-checklist .setup-checklist__group')].map(group => group.open) }",
+          ),
+        ).toEqual({ current: 1, groups: [false, false] });
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('#ios-setup-checklist [data-step-id=access]').textContent",
+          ),
+        ).toContain("No Apple Development signing identity is available");
+        expect(await browser.active.execute("return document.querySelector('#refresh-environment') !== null")).toBe(
+          true,
+        );
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('#ios-setup-checklist [data-step-id=device]').classList.contains('is-complete')",
+          ),
+        ).toBe(true);
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('#ios-setup-checklist [data-step-id=device] details') === null",
+          ),
+        ).toBe(true);
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('#ios-setup-checklist [data-step-id=access] details').open",
+          ),
+        ).toBe(false);
+        await browser.active.execute("document.querySelector('#android-detailed-setup > summary').click()");
+        await browser.active.waitForScript("return document.querySelector('#android-tools').open", [], 15_000);
+        expect(
+          await browser.active.execute(
+            "return [...document.querySelectorAll('#android-detailed-setup .docs-accordion')].filter(item => item.open).map(item => item.id)",
+          ),
+        ).toEqual(["android-tools"]);
+        expect(
+          await browser.active.execute(
+            "const outerContent = document.querySelector('#android-detailed-setup > .docs-disclosure__content'); const firstItem = document.querySelector('#android-tools'); const innerContent = firstItem.querySelector('.docs-accordion__content'); return { marginTop: getComputedStyle(firstItem).marginTop, outerPaddingBottom: getComputedStyle(outerContent).paddingBottom, innerHasBottomPadding: parseFloat(getComputedStyle(innerContent).paddingBottom) > 0 }",
+          ),
+        ).toEqual({ marginTop: "0px", outerPaddingBottom: "0px", innerHasBottomPadding: true });
+        await browser.active.execute("document.querySelector('#android-debugging > summary').click()");
+        expect(
+          await browser.active.execute(
+            "return [...document.querySelectorAll('#android-detailed-setup .docs-accordion')].filter(item => item.open).map(item => item.id)",
+          ),
+        ).toEqual(["android-debugging"]);
+        await browser.active.execute("document.querySelector('#android-detailed-setup > summary').click()");
+        await browser.active.execute("document.querySelector('#android-detailed-setup > summary').click()");
+        expect(
+          await browser.active.execute(
+            "return [...document.querySelectorAll('#android-detailed-setup .docs-accordion')].filter(item => item.open).map(item => item.id)",
+          ),
+        ).toEqual(["android-debugging"]);
+        await browser.active.$("#ios-setup-checklist [data-step-id=access] summary").click();
+        expect(await browser.active.$("#ios-setup-checklist [data-step-id=access] details").getText()).toContain(
+          "WWDR G3",
+        );
+        expect(await browser.active.execute("return document.querySelector('#ios-detailed-setup').open")).toBe(false);
+        await browser.active.$("#ios-setup-checklist [data-step-id=access] a[href='#ios-signing']").click();
+        expect(await browser.active.execute("return document.querySelector('#ios-detailed-setup').open")).toBe(true);
+        expect(await browser.active.execute("return document.querySelector('#ios-signing').open")).toBe(true);
+        expect(
+          await browser.active.execute(
+            "return { ios: document.querySelectorAll('#ios-detailed-setup .docs-accordion').length, android: document.querySelectorAll('#android-detailed-setup .docs-accordion').length }",
+          ),
+        ).toEqual({ ios: 6, android: 4 });
+        const iosDeviceGuide = browser.active.$("#ios-device-connection > summary");
+        await iosDeviceGuide.scrollIntoView();
+        await iosDeviceGuide.click();
+        const iosSafariGuide = browser.active.$("#ios-safari-settings > summary");
+        await iosSafariGuide.scrollIntoView();
+        await iosSafariGuide.click();
+        expect(
+          await browser.active.execute(
+            "return { device: document.querySelector('#ios-device-connection').open, safari: document.querySelector('#ios-safari-settings').open, signing: document.querySelector('#ios-signing').open }",
+          ),
+        ).toEqual({ device: false, safari: true, signing: false });
+        expect(
+          await browser.active.execute(
+            "const item = document.querySelector('#ios-safari-settings'); return Math.round(item.querySelector(':scope > summary').getBoundingClientRect().width) === Math.round(item.getBoundingClientRect().width)",
+          ),
+        ).toBe(true);
+        iosSigningReady = true;
+        const refreshIosChecklist = browser.active.$("#ios-setup-checklist .setup-checklist__heading button");
+        await refreshIosChecklist.scrollIntoView();
+        await refreshIosChecklist.click();
+        await browser.active.waitForElement("#ios-setup-checklist [data-step-id=access] input", 15_000);
+        await browser.active.$("#ios-setup-checklist [data-step-id=access] input").click();
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('#ios-setup-checklist [data-step-id=access]').classList.contains('is-complete')",
+          ),
+        ).toBe(true);
+        await browser.navigate(`${baseUrl}/docs`);
+        await browser.active.waitForText("Set up your iPhone or iPad", 15_000);
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('#ios-setup-checklist [data-step-id=access]').classList.contains('is-complete')",
+          ),
+        ).toBe(true);
+        await browser.navigate(`${baseUrl}/docs#android-debugging`);
+        expect(
+          await browser.active.execute(
+            "return { guide: document.querySelector('#android-detailed-setup').open, target: document.querySelector('#android-debugging').open, openItems: document.querySelectorAll('#android-detailed-setup .docs-accordion[open]').length }",
+          ),
+        ).toEqual({ guide: true, target: true, openItems: 1 });
         expect(await browser.active.execute("return document.querySelector('.docs-toc')")).toBeNull();
         expect(
           await browser.active.execute("return document.querySelectorAll('.sidebar__subnav .sidebar__sublink').length"),
-        ).toBe(6);
+        ).toBe(9);
         expect(
           await browser.active.execute(
             "return document.querySelector('.sidebar__subnav .sidebar__sublink').getAttribute('href')",
@@ -455,7 +659,7 @@ describe("workbench UI browser flow", () => {
           await browser.active.execute(
             "const statuses = [...document.querySelectorAll('.setup-action__status')]; return { labels: statuses.map(status => status.textContent.trim()), aligned: new Set(statuses.map(status => status.getBoundingClientRect().right)).size === 1, sameWidth: new Set(statuses.map(status => status.getBoundingClientRect().width)).size === 1 }",
           ),
-        ).toEqual({ labels: ["Install", "Action required"], aligned: true, sameWidth: true });
+        ).toEqual({ labels: ["Install", "Installed", "Action required"], aligned: true, sameWidth: true });
         await browser.active.execute(`
           const originalFetch = window.fetch.bind(window);
           window.fetch = (...argumentsList) => {
@@ -662,6 +866,25 @@ describe("workbench UI browser flow", () => {
           { timeout: 15_000 },
         );
         expect(await browser.active.execute("return document.querySelector('#remote-connection').hidden")).toBe(true);
+
+        await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/docs#physical-ios`);
+        await browser.active.execute("document.querySelector('#ios-detailed-setup').open = true");
+        await browser.active.execute("document.querySelector('#ios-network-access').open = true");
+        expect(await browser.active.$("#ios-network-access").getText()).toContain(
+          "IP address of the Testbench that runs the tests",
+        );
+        await browser.active.execute("document.querySelector('#ios-device-connection').open = true");
+        expect(await browser.active.$("#ios-device-connection").getText()).toContain("Window → Devices and Simulators");
+        await browser.active.execute("document.querySelector('#ios-signing').open = true");
+        expect(await browser.active.$("#ios-signing").getText()).toContain("Sign and run WebDriverAgent");
+        expect(await browser.active.$("#ios-signing").getText()).toContain("Manage Certificates");
+        expect(await browser.active.$("#ios-signing").getText()).toContain("Product → Test");
+        expect(
+          await browser.active.execute(
+            "return document.querySelector('#physical-ios a[href=\"/setup#environment-setup\"]')?.textContent.trim()",
+          ),
+        ).toBe("Environment setup");
+        expect(await browser.active.$("#physical-ios").getText()).not.toContain("YOUR-LAN-IP");
 
         await browser.navigate(`http://${gatewayAddress.host}:${gatewayAddress.port}/targets`);
         await browser.active.$("#debug-url").waitForDisplayed({ timeout: 15_000 });

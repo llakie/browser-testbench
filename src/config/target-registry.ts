@@ -34,7 +34,7 @@ export class TargetRegistry {
     },
     "safari-ios": {
       name: "safari-ios",
-      label: "Safari in the iOS Simulator",
+      label: "Safari on iOS",
       kind: "mobile",
       supportedPlatforms: ["darwin"],
       serial: true,
@@ -132,6 +132,19 @@ export class TargetRegistry {
           "appium:skipLogCapture": true,
           ...(target.platformVersion ? { "appium:platformVersion": target.platformVersion } : {}),
           ...(target.udid ? { "appium:udid": target.udid } : {}),
+          ...(target.deviceKind === "physical" && target.iosTeamId
+            ? {
+                "appium:xcodeOrgId": target.iosTeamId,
+                "appium:xcodeSigningId": target.iosSigningId ?? "Apple Development",
+                "appium:updatedWDABundleId": target.wdaBundleId,
+                "appium:allowProvisioningDeviceRegistration": true,
+                "appium:showXcodeLog": true,
+                "appium:wdaLaunchTimeout": TestbenchDefaults.IOS_WDA_LAUNCH_TIMEOUT_MS,
+                "appium:wdaStartupRetries": 2,
+                "appium:webviewAtomWaitTimeout": TestbenchDefaults.IOS_WEBVIEW_ATOM_TIMEOUT_MS,
+                ...(target.initialUrl ? { "appium:initialDeeplinkUrl": target.initialUrl } : {}),
+              }
+            : {}),
           ...common,
         };
       case "chrome-android":

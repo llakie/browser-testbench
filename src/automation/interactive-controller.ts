@@ -14,7 +14,9 @@ import { TargetRegistry } from "../config/target-registry.js";
 import type { TargetConfig, TargetName } from "../config/types.js";
 import { ServiceManager, type ManagedProcess } from "../infrastructure/process-manager.js";
 import { BrowserSession } from "./browser-session.js";
-import { IosSimulatorCleanup } from "./ios-simulator-cleanup.js";
+import { IosPhysicalStartupError } from "./ios-physical-startup-error.js";
+import { IosPhysicalSafariNavigator } from "./ios-physical-safari-navigator.js";
+import { IosSessionCleanup } from "./ios-session-cleanup.js";
 import { MobileGestures, type GestureExecution } from "./mobile-gestures.js";
 import { PageInspectionScript } from "./page-inspection-script.js";
 import { VideoRecorder } from "./video-recorder.js";
@@ -63,6 +65,9 @@ export type ResolvedStartSessionInput = Omit<StartSessionInput, "target"> & {
   avd?: string;
   udid?: string;
   deviceKind?: TargetConfig["deviceKind"];
+  iosTeamId?: string;
+  iosSigningId?: string;
+  wdaBundleId?: string;
 };
 
 export class InteractiveController {
@@ -86,35 +91,68 @@ export class InteractiveController {
       avd: options.avd,
       udid: options.udid,
       deviceKind: options.deviceKind,
+      iosTeamId: options.iosTeamId,
+      iosSigningId: options.iosSigningId,
+      wdaBundleId: options.wdaBundleId,
+      initialUrl: TestbenchDefaults.IOS_SAFARI_BOOTSTRAP_URL,
       downloadDir: options.downloadDir,
       capabilities: options.capabilities,
     };
-    this.target = target;
-    try {
-      if (TargetRegistry.definitions[options.target].kind === "mobile")
-        this.appium = await ServiceManager.startAppium();
-      const browser = await this.session.start(target, { appiumPort: this.appium?.port });
-      if (options.videoPath) {
-        const recorder = await VideoRecorder.start(target, dirname(options.videoPath), browser.capabilities);
-        this.video = { recorder, path: options.videoPath };
+    const initialDeeplink = Boolean(options.url && IosPhysicalSafariNavigator.supportsInitialDeeplink(target));
+    if (!initialDeeplink) target.initialUrl = undefined;
+    const attempts =
+      target.name === "safari-ios" && target.deviceKind === "physical"
+        ? TestbenchDefaults.IOS_SESSION_START_ATTEMPTS
+        : 1;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      this.target = target;
+      try {
+        if (TargetRegistry.definitions[options.target].kind === "mobile")
+          this.appium = await ServiceManager.startAppium();
+        const browser = await this.session.start(target, { appiumPort: this.appium?.port });
+        if (options.videoPath) {
+          const recorder = await VideoRecorder.start(target, dirname(options.videoPath), browser.capabilities);
+          this.video = { recorder, path: options.videoPath };
+        }
+        if (options.url) {
+          if (initialDeeplink) {
+            if (!this.appium) throw new Error("The Appium service for this iOS session is not available.");
+            await IosPhysicalSafariNavigator.navigate(this.appium.port, browser.sessionId, options.url, target);
+          } else {
+            await this.session.navigate(options.url);
+          }
+        }
+        return {
+          target: options.targetId,
+          browser: options.target,
+          sessionId: browser.sessionId,
+          capabilities: browser.capabilities,
+          url: options.url,
+        };
+      } catch (error) {
+        const appiumOutput = await this.iosStartupDiagnostic(target, error);
+        await this.close();
+        if (attempt < attempts && IosPhysicalStartupError.isSafariDebuggerTimeout(error)) continue;
+        throw IosPhysicalStartupError.from(error, target, appiumOutput);
       }
-      if (options.url) await this.session.navigate(options.url);
-      return {
-        target: options.targetId,
-        browser: options.target,
-        sessionId: browser.sessionId,
-        capabilities: browser.capabilities,
-        url: options.url ? await browser.getUrl() : undefined,
-      };
-    } catch (error) {
-      await this.close();
-      throw error;
     }
+    throw new Error("Browser session startup failed.");
   }
 
   async navigate(url: string): Promise<PageInspection> {
     if (!this.target) throw new Error("No interactive target is active.");
-    await this.session.navigate(url);
+    if (this.target.name === "safari-ios" && this.target.deviceKind === "physical") {
+      if (!this.appium) throw new Error("The Appium service for this iOS session is not available.");
+      await IosPhysicalSafariNavigator.navigate(this.appium.port, this.session.active.sessionId, url, this.target);
+      try {
+        return await this.inspect();
+      } catch (error) {
+        if (IosPhysicalStartupError.isSafariDebuggerTimeout(error)) return { url, title: "", elements: [] };
+        throw error;
+      }
+    } else {
+      await this.session.navigate(url);
+    }
     return this.inspect();
   }
 
@@ -375,8 +413,8 @@ export class InteractiveController {
         tool: "Safari Web Inspector",
         automatic: false,
         steps: [
-          "Open Safari on the Mac and enable Develop menu in Safari Settings > Advanced.",
-          "Open Develop and select the iOS Simulator and its current page.",
+          "Open Safari on the Mac and enable Develop menu in Safari Settings → Advanced.",
+          `Open Develop and select the ${this.target.deviceKind === "physical" ? "connected iPhone or iPad" : "iOS Simulator"} and its current page.`,
         ],
       };
     }
@@ -589,7 +627,7 @@ export class InteractiveController {
   async close(): Promise<{ videoPath?: string }> {
     const target = this.target;
     const failures: unknown[] = [];
-    await this.session.close().catch((error) => failures.push(error));
+    await this.withCleanupTimeout("browser session", this.session.close()).catch((error) => failures.push(error));
     let videoPath: string | undefined;
     if (this.video) {
       try {
@@ -601,7 +639,7 @@ export class InteractiveController {
       }
     }
     await this.appium?.process.stop().catch((error) => failures.push(error));
-    await IosSimulatorCleanup.run(target).catch((error) => failures.push(error));
+    await IosSessionCleanup.run(target).catch((error) => failures.push(error));
     this.clearState();
     if (failures.length > 0) throw new AggregateError(failures, "Session cleanup failed.");
     return { videoPath };
@@ -614,5 +652,36 @@ export class InteractiveController {
     this.diagnosticEvents.length = 0;
     this.requestTimestamps.clear();
     this.webSocketUrls.clear();
+  }
+
+  private async iosStartupDiagnostic(target: TargetConfig, error: unknown): Promise<string> {
+    const appium = this.appium?.process;
+    if (!appium || target.name !== "safari-ios" || target.deviceKind !== "physical") return appium?.recentOutput ?? "";
+    if (IosPhysicalStartupError.isSafariDebuggerTimeout(error)) return appium.recentOutput;
+
+    const deadline = Date.now() + TestbenchDefaults.IOS_STARTUP_DIAGNOSTIC_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const output = appium.recentOutput;
+      if (IosPhysicalStartupError.hasTerminalDiagnostic(output)) return output;
+      await new Promise((resolve) => setTimeout(resolve, TestbenchDefaults.DOWNLOAD_POLL_INTERVAL_MS));
+    }
+    return appium.recentOutput;
+  }
+
+  private async withCleanupTimeout<T>(label: string, operation: Promise<T>): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`Timed out while closing the ${label}.`)),
+            TestbenchDefaults.REMOTE_CLEANUP_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 }

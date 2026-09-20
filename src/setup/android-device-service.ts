@@ -32,17 +32,11 @@ export class AndroidDeviceService {
     const devices = [...physical, ...virtual];
     const compatible = devices.filter((device) => device.compatible);
     if (compatible.length > 0) {
-      const physicalCount = compatible.filter((device) => device.deviceKind === "physical").length;
-      const emulatorCount = compatible.length - physicalCount;
-      const parts = [
-        physicalCount ? `${physicalCount} connected ${physicalCount === 1 ? "device" : "devices"}` : "",
-        emulatorCount ? `${emulatorCount} ${emulatorCount === 1 ? "emulator" : "emulators"}` : "",
-      ].filter(Boolean);
       return {
         id: "chrome-android",
         label,
         status: "ready",
-        detail: `${parts.join(" and ")} ready for Chrome testing.`,
+        detail: this.readyDetail(devices),
         devices,
       };
     }
@@ -75,6 +69,21 @@ export class AndroidDeviceService {
       detail: "No Android device or compatible emulator was found.",
       action: "Connect a USB-debug-enabled Android device or create a Google Play AVD in Android Studio.",
     };
+  }
+
+  static readyDetail(devices: TargetDeviceOption[]): string {
+    const ready = devices.filter((device) => device.compatible);
+    const physicalReady = ready.filter((device) => device.deviceKind === "physical").length;
+    const emulatorReady = ready.length - physicalReady;
+    const physicalAttention = devices.filter((device) => device.deviceKind === "physical" && !device.compatible).length;
+    const parts = [
+      physicalReady ? `${physicalReady} connected ${physicalReady === 1 ? "device" : "devices"}` : "",
+      emulatorReady ? `${emulatorReady} ${emulatorReady === 1 ? "emulator" : "emulators"}` : "",
+    ].filter(Boolean);
+    const attention = physicalAttention
+      ? ` ${physicalAttention} physical ${physicalAttention === 1 ? "device needs" : "devices need"} attention.`
+      : "";
+    return `${parts.join(" and ")} ready for Chrome testing.${attention}`;
   }
 
   static parseAdbDevices(output: string): AdbDevice[] {

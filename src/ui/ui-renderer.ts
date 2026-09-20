@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { Eta } from "eta";
 import { TestbenchPaths } from "../infrastructure/paths.js";
+import { RemoteUrlGuard } from "../remote/remote-url-guard.js";
 
 const navigation = [
   { id: "dashboard", href: "/setup", label: "Overview", icon: "fa-gauge-high" },
@@ -15,6 +16,9 @@ const documentationNavigation = [
   { href: "#automation", label: "Automated tests" },
   { href: "#debugging", label: "Interactive debugging" },
   { href: "#mobile", label: "Mobile devices" },
+  { href: "#physical-android", label: "Android device setup" },
+  { href: "#physical-ios", label: "iOS device setup" },
+  { href: "#ios-signing", label: "iOS signing" },
 ];
 
 export class UiRenderer {
@@ -35,7 +39,7 @@ export class UiRenderer {
     return this.page("targets", "Test targets", {}, liveReload);
   }
 
-  static documentation(liveReload = false): string {
+  static documentation(liveReload = false, remoteExecution = false): string {
     return this.page(
       "documentation",
       "Documentation",
@@ -43,7 +47,10 @@ export class UiRenderer {
         activePage: "docs",
         badgeIcon: "fa-book-open",
         badgeLabel: "Local documentation",
+        refreshEnvironment: true,
         subnavigation: documentationNavigation,
+        localNetworkAddress: remoteExecution ? undefined : RemoteUrlGuard.lanAddress(),
+        remoteExecution,
       },
       liveReload,
     );
