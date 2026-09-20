@@ -3,6 +3,7 @@ import { InteractiveController } from "../../src/automation/interactive-controll
 import { IosSessionCleanup } from "../../src/automation/ios-session-cleanup.js";
 import { IosPhysicalSafariNavigator } from "../../src/automation/ios-physical-safari-navigator.js";
 import { ServiceManager } from "../../src/infrastructure/process-manager.js";
+import { TargetRegistry } from "../../src/config/target-registry.js";
 
 describe("InteractiveController", () => {
   afterEach(() => {
@@ -11,6 +12,7 @@ describe("InteractiveController", () => {
   });
 
   it("retries a blocked physical Safari debugger with an initial deeplink", async () => {
+    vi.spyOn(TargetRegistry, "isSupported").mockReturnValue(true);
     const controller = new InteractiveController();
     const browser = { sessionId: "session-id", capabilities: { platformName: "iOS" } };
     const start = vi

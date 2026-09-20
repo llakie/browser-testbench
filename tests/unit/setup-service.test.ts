@@ -3,6 +3,7 @@ import { CommandRunner } from "../../src/infrastructure/command-runner.js";
 import { AndroidAvdService } from "../../src/setup/android-avd-service.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 import { SetupService } from "../../src/setup/setup-service.js";
+import { TargetRegistry } from "../../src/config/target-registry.js";
 
 describe("SetupService Appium status", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -94,6 +95,7 @@ describe("SetupService Appium status", () => {
   });
 
   it("surfaces physical iOS prerequisites through the existing setup actions", async () => {
+    vi.spyOn(TargetRegistry, "isSupported").mockReturnValue(true);
     vi.spyOn(DoctorService, "isNodeSupported").mockReturnValue(true);
     vi.spyOn(SetupService, "appiumDriverStatus").mockResolvedValue([
       { name: "xcuitest", installed: true, version: "12.12.4" },
@@ -128,6 +130,7 @@ describe("SetupService Appium status", () => {
   });
 
   it("opens WebDriverAgent for a physical iOS signing action", async () => {
+    vi.spyOn(TargetRegistry, "isSupported").mockReturnValue(true);
     vi.spyOn(DoctorService, "isNodeSupported").mockReturnValue(true);
     vi.spyOn(SetupService, "appiumDriverStatus").mockResolvedValue([
       { name: "xcuitest", installed: true, version: "12.12.4" },
