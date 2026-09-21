@@ -130,6 +130,9 @@ The web interface has three sections:
 - `/targets`: verify test targets and generate project commands
 - `/docs`: local documentation and examples
 
+The interface and its embedded documentation use the browser language when English or German is requested. English is
+the default and fallback for every other language.
+
 The project license and third-party license notices are included as `LICENSE.txt` and `THIRD_PARTY_LICENSES.txt` and linked from the interface footer.
 
 A bearer token is required when binding a normal, non-discoverable server to an address other than loopback:
@@ -161,6 +164,9 @@ network.
 A local Testbench can use the browsers and physical devices of another computer while the UI, CLI, Node client,
 and MCP server stay on the development machine. The two computers may run macOS, Windows, or Linux. The local
 server always starts in local mode; a saved pairing is never activated automatically.
+
+Project clients, local gateways, and remote hosts must run the exact same Browser Testbench version. Incompatible
+versions are rejected with update guidance instead of attempting a potentially incompatible connection.
 
 ### Start the remote host
 

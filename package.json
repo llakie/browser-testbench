@@ -1,6 +1,6 @@
 {
   "name": "browser-testbench",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Cross-platform testbench for desktop browsers, iOS simulators and devices, and Android emulators and devices",
   "author": "Lars-Erich Kiefer",
   "license": "MIT",
@@ -21,6 +21,7 @@
     "appium",
     "selenium",
     "ios-simulator",
+    "ios-device",
     "android-emulator",
     "android-device",
     "mcp"
