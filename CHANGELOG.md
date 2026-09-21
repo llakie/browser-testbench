@@ -6,20 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-21
+
 ### Added
 
 - Physical iPhones and iPads connected by USB are detected and exposed as Safari targets alongside iOS Simulators.
 - Older physical iPhones that Xcode exposes through `xcdevice` but not CoreDevice are detected through a bounded
   compatibility fallback.
-- Guided physical-iOS setup covers device trust, Developer Mode, Safari automation settings, WebDriverAgent signing,
-  free Personal Teams, paid Developer teams, multi-team selection, and seven-day free-profile renewal failures.
+- Compact guided checklists cover physical iOS and Android setup while keeping detailed troubleshooting available in
+  focused accordion sections.
+- Physical-iOS guidance covers device trust, Developer Mode, Safari automation settings, WebDriverAgent signing, free
+  Personal Teams, paid Developer teams, multi-team selection, and seven-day free-profile renewal failures.
 - Physical iOS connection changes now update open web interfaces automatically.
+- The web interface and embedded documentation are available in English and German, selected from the browser language
+  with English as the default and fallback.
 
 ### Changed
 
 - Physical iOS sessions receive deterministic signing capabilities and reject unreachable loopback application URLs
   before starting, while internal verification uses the host's LAN address.
 - Simulator-only cleanup is no longer applied to physical Apple devices.
+- Project clients, local gateways, and remote Testbenches must use the exact same Browser Testbench version so protocol
+  incompatibilities fail early with actionable guidance.
+
+### Fixed
+
+- WebDriverAgent startup failures now distinguish signing, device trust, expired free profiles, proxy failures, and
+  Xcode/iOS runner incompatibilities and provide targeted recovery steps.
+- Failed or closed physical iOS sessions clean up their automation processes deterministically instead of leaving the
+  device in an active automation state.
 
 ## [0.2.0] - 2026-09-19
 
@@ -143,7 +158,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Dynamic Android AVD discovery and provisioning without fixed API levels or Pixel profiles.
 - Automated CI for macOS, Windows, and Linux and npm publishing through GitHub Actions.
 
-[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/llakie/browser-testbench/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/llakie/browser-testbench/compare/v0.1.8...v0.2.0
 [0.1.8]: https://github.com/llakie/browser-testbench/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/llakie/browser-testbench/compare/v0.1.6...v0.1.7
