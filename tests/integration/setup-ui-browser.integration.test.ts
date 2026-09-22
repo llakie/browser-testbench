@@ -742,7 +742,7 @@ describe("workbench UI browser flow", () => {
             if (String(argumentsList[0]) !== "/v1/workbench/setup") return originalFetch(...argumentsList);
             window.__setupTargets = JSON.parse(argumentsList[1].body).targets;
             return new Promise(resolve => {
-              window.__completeEnvironmentSetup = () => resolve(new Response("[]", { status: 200, headers: { "content-type": "application/json" } }));
+              window.__completeEnvironmentSetup = (response = new Response("[]", { status: 200, headers: { "content-type": "application/json" } })) => resolve(response);
             });
           };
         `);
@@ -751,6 +751,20 @@ describe("workbench UI browser flow", () => {
         await browser.active.execute("window.__completeEnvironmentSetup()");
         await waitForText(browser, "Setup completed.");
         expect(await browser.active.execute("return window.__setupTargets")).toEqual(["chrome-android"]);
+        await browser.active.$(".setup-action__status.is-planned").click();
+        await browser.active.execute(`
+          window.__completeEnvironmentSetup(new Response(JSON.stringify([{
+            id: "appium-uiautomator2",
+            label: "Appium UiAutomator2",
+            automatic: true,
+            status: "failed",
+            detail: "npm registry certificate validation failed"
+          }]), { status: 200, headers: { "content-type": "application/json" } }));
+        `);
+        await waitForText(
+          browser,
+          "1 setup step failed: Appium UiAutomator2: npm registry certificate validation failed",
+        );
         expect(
           await browser.active.execute(
             "const button = document.querySelector('#sidebar-collapse').getBoundingClientRect(); const icon = document.querySelector('#sidebar-collapse i').getBoundingClientRect(); return button.right - icon.right < icon.left - button.left",
