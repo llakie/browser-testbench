@@ -57,7 +57,10 @@ describe("SetupService Appium status", () => {
         label: "Appium UiAutomator2",
         automatic: false,
         status: "failed",
-        detail: "Could not inspect installed Appium drivers: permission denied",
+        detail: {
+          key: "environment.setupDriverStatusFailed",
+          parameters: { reason: "permission denied" },
+        },
       }),
     ]);
   });
@@ -175,7 +178,7 @@ describe("SetupService Appium status", () => {
     await expect(SetupService.plan(["safari-ios"], checks)).resolves.toEqual([
       expect.objectContaining({ label: "Appium XCUITest", status: "completed" }),
       expect.objectContaining({
-        label: "Safari on iPhone 17 Pro",
+        label: { key: "environment.setupSafariOn", parameters: { deviceName: "iPhone 17 Pro" } },
         status: "manual",
         detail: expect.stringContaining("Developer Mode"),
       }),
@@ -219,7 +222,7 @@ describe("SetupService Appium status", () => {
     await expect(SetupService.plan(["safari-ios"], checks)).resolves.toEqual([
       expect.objectContaining({ label: "Appium XCUITest", status: "completed" }),
       expect.objectContaining({
-        label: "Safari on iPhone",
+        label: { key: "environment.setupSafariOn", parameters: { deviceName: "iPhone" } },
         command: expect.stringContaining("open-wda"),
       }),
     ]);

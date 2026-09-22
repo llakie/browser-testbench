@@ -47,21 +47,16 @@ export class AndroidAvdService {
         label: TargetRegistry.definitions["chrome-android"].label,
         automatic: false,
         status: "manual",
-        detail: "Install the Android SDK and Android Emulator, then run setup again.",
-        messages: { detail: { key: "environment.avdInstallSdk" } },
+        detail: { key: "environment.avdInstallSdk" },
       };
     }
     if (environment.compatibleNames.length > 0) {
       return {
         id: "android-avd",
-        label: "Android Virtual Device",
+        label: { key: "environment.avdLabel" },
         automatic: true,
         status: "completed",
-        detail: `Using existing compatible AVD ${environment.compatibleNames[0]}.`,
-        messages: {
-          label: { key: "environment.avdLabel" },
-          detail: { key: "environment.avdExisting", parameters: { name: environment.compatibleNames[0]! } },
-        },
+        detail: { key: "environment.avdExisting", parameters: { name: environment.compatibleNames[0]! } },
       };
     }
 
@@ -80,25 +75,21 @@ export class AndroidAvdService {
         timeoutMs: AVD_CREATE_TIMEOUT_MS,
       },
     );
+    if (created.code !== 0) {
+      return {
+        id: "android-avd",
+        label: `Android AVD ${name}`,
+        automatic: true,
+        status: "failed",
+        detail: (created.stderr || created.stdout).trim(),
+      };
+    }
     return {
       id: "android-avd",
       label: `Android AVD ${name}`,
       automatic: true,
-      status: created.code === 0 ? "completed" : "failed",
-      detail:
-        created.code === 0
-          ? `Created from ${image.packageId} with hardware profile ${profile}.`
-          : (created.stderr || created.stdout).trim(),
-      ...(created.code === 0
-        ? {
-            messages: {
-              detail: {
-                key: "environment.avdCreated" as const,
-                parameters: { image: image.packageId, profile },
-              },
-            },
-          }
-        : {}),
+      status: "completed",
+      detail: { key: "environment.avdCreated", parameters: { image: image.packageId, profile } },
     };
   }
 
@@ -162,14 +153,10 @@ export class AndroidAvdService {
       return {
         action: {
           id: "android-command-line-tools",
-          label: "Android Virtual Device",
+          label: { key: "environment.avdLabel" },
           automatic: false,
           status: "manual",
-          detail: "Install the Android SDK Command-line Tools, then run setup again.",
-          messages: {
-            label: { key: "environment.avdLabel" },
-            detail: { key: "environment.avdCommandTools" },
-          },
+          detail: { key: "environment.avdCommandTools" },
         },
       };
     }
@@ -179,14 +166,10 @@ export class AndroidAvdService {
       return {
         action: {
           id: "android-system-image",
-          label: "Google Play system image",
+          label: { key: "environment.avdImageLabel" },
           automatic: false,
           status: "manual",
-          detail: `No compatible Google Play system image for ${architecture} is installed. Install the latest available image in Android Studio > SDK Manager, then run setup again.`,
-          messages: {
-            label: { key: "environment.avdImageLabel" },
-            detail: { key: "environment.avdImageMissing", parameters: { architecture } },
-          },
+          detail: { key: "environment.avdImageMissing", parameters: { architecture } },
         },
       };
     }
@@ -194,20 +177,16 @@ export class AndroidAvdService {
       env: { ...process.env, ...AndroidSdk.environment(environment.sdkRoot) },
       timeoutMs: SDK_COMMAND_TIMEOUT_MS,
     });
-    const profile = profiles.code === 0 ? this.selectPixelProfile(profiles.stdout) : undefined;
+    let profile: string | undefined;
+    if (profiles.code === 0) profile = this.selectPixelProfile(profiles.stdout);
     if (!profile) {
       return {
         action: {
           id: "android-hardware-profile",
-          label: "Pixel hardware profile",
+          label: { key: "environment.avdProfileLabel" },
           automatic: false,
           status: "manual",
-          detail:
-            "No Pixel hardware profile is available. Install or create one in Android Studio, then run setup again.",
-          messages: {
-            label: { key: "environment.avdProfileLabel" },
-            detail: { key: "environment.avdProfileMissing" },
-          },
+          detail: { key: "environment.avdProfileMissing" },
         },
       };
     }
@@ -219,12 +198,9 @@ export class AndroidAvdService {
         automatic: true,
         status: "planned",
         command: TestbenchPaths.cliCommand("setup", "--yes", "--targets", "chrome-android"),
-        detail: `Create ${name} from ${image.packageId} with hardware profile ${profile}.`,
-        messages: {
-          detail: {
-            key: "environment.avdCreate",
-            parameters: { name, image: image.packageId, profile },
-          },
+        detail: {
+          key: "environment.avdCreate",
+          parameters: { name, image: image.packageId, profile },
         },
       },
       image,

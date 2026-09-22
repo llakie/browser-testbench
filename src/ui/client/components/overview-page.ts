@@ -66,13 +66,12 @@ export const OverviewPage = defineComponent({
       const actions = this.workbench?.actions ?? [];
       const completed = actions.filter((action) => action.status === "completed").length;
       const pending = actions.length - completed;
-      return pending
-        ? translator.t("overview.setupSummary", {
-            completed,
-            pending,
-            pendingLabel: translator.t("overview.step", { count: pending }, pending),
-          })
-        : translator.t("overview.extensionsReady");
+      if (pending === 0) return translator.t("overview.extensionsReady");
+      return translator.t("overview.setupSummary", {
+        completed,
+        pending,
+        pendingLabel: translator.t("overview.step", { count: pending }, pending),
+      });
     },
   },
   watch: {
@@ -120,6 +119,9 @@ export const OverviewPage = defineComponent({
     },
     actionStatusIcon(status: SetupAction["status"]): string {
       return actionIcons[status];
+    },
+    actionLabel(action: SetupAction): string {
+      return translator.text(action.label);
     },
     deviceKind(kind?: MobileDeviceKind): string {
       return kind ? translator.t(`overview.deviceKind.${kind}`) : "";
@@ -173,7 +175,7 @@ export const OverviewPage = defineComponent({
     actionDetail(action: SetupAction): string {
       if (!this.workbench?.permissions.configure && action.status !== "completed")
         return translator.t("overview.adminRequired");
-      return localized(action, "detail") || translator.t("overview.manualStep");
+      return translator.text(action.detail) || translator.t("overview.manualStep");
     },
     async perform<T>(key: string, operation: () => Promise<T>): Promise<T | undefined> {
       this.actionBusy = key;
@@ -192,23 +194,42 @@ export const OverviewPage = defineComponent({
           method: "POST",
           body: JSON.stringify({ targets }),
         });
-        const failures = actions.filter((item) => item.status === "failed");
-        const remaining = actions.filter((item) => item.status !== "completed");
-        const details = (failures.length ? failures : remaining)
-          .map(
-            (item) =>
-              `${localized(item, "label")}: ${localized(item, "detail") || translator.t("overview.manualStep")}`,
-          )
-          .join("; ");
-        this.store.setNotice(
-          failures.length
-            ? translator.t("overview.setupFailed", { count: failures.length, details }, failures.length)
-            : remaining.length
-              ? translator.t("overview.setupIncomplete", { count: remaining.length, details }, remaining.length)
-              : translator.t("overview.setupCompleted"),
-          failures.length ? "error" : remaining.length ? "warning" : "success",
-        );
+        const notice = this.setupNotice(actions);
+        this.store.setNotice(notice.message, notice.kind);
       });
+    },
+    setupNotice(actions: SetupAction[]): { message: string; kind: string } {
+      const failures = actions.filter((item) => item.status === "failed");
+      if (failures.length > 0) {
+        return {
+          message: translator.t(
+            "overview.setupFailed",
+            { count: failures.length, details: this.setupDetails(failures) },
+            failures.length,
+          ),
+          kind: "error",
+        };
+      }
+      const remaining = actions.filter((item) => item.status !== "completed");
+      if (remaining.length > 0) {
+        return {
+          message: translator.t(
+            "overview.setupIncomplete",
+            { count: remaining.length, details: this.setupDetails(remaining) },
+            remaining.length,
+          ),
+          kind: "warning",
+        };
+      }
+      return { message: translator.t("overview.setupCompleted"), kind: "success" };
+    },
+    setupDetails(actions: SetupAction[]): string {
+      return actions
+        .map((action) => {
+          const detail = translator.text(action.detail) || translator.t("overview.manualStep");
+          return `${this.actionLabel(action)}: ${detail}`;
+        })
+        .join("; ");
     },
     async registerMcp(): Promise<void> {
       const client = this.selectedMcpClient;

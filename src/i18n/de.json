@@ -520,6 +520,7 @@
     "setupDriverMissing": "Der Treiber ist noch nicht installiert.",
     "setupDriverStatusFailed": "Die installierten Appium-Treiber konnten nicht geprüft werden: {reason}",
     "setupDriverAlreadyInstalled": "Version {version} ist bereits lokal installiert.",
+    "setupDriverInstallCompleted": "Der Appium-Treiber wurde erfolgreich installiert.",
     "setupNodeRequired": "Die Appium-Einrichtung erfordert Node.js 22.12 LTS oder Node.js 24 oder neuer.",
     "setupSafariOn": "Safari auf {deviceName}",
     "avdInstallSdk": "Installiere das Android SDK und den Android Emulator und führe die Einrichtung erneut aus.",
