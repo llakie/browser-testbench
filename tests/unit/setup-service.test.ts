@@ -76,6 +76,29 @@ describe("SetupService Appium status", () => {
     expect(actions.map((action) => action.targets)).toEqual([["safari-ios"], ["chrome-android"]]);
   });
 
+  it.each([
+    {
+      name: "stdout when stderr is empty",
+      result: { code: 1, stdout: "npm certificate validation failed", stderr: "" },
+      detail: "npm certificate validation failed",
+    },
+    {
+      name: "the exit code when the command has no output",
+      result: { code: 23, stdout: "", stderr: "" },
+      detail: "Appium driver installation exited with code 23 without diagnostic output.",
+    },
+  ])("reports $name for a failed Appium installation", async ({ result, detail }) => {
+    vi.spyOn(TargetRegistry, "isSupported").mockReturnValue(true);
+    vi.spyOn(DoctorService, "isNodeSupported").mockReturnValue(true);
+    vi.spyOn(SetupService, "appiumDriverStatus").mockResolvedValue([{ name: "xcuitest", installed: false }]);
+    vi.spyOn(CommandRunner, "run").mockResolvedValue(result);
+    vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
+
+    await expect(SetupService.install(["safari-ios"])).resolves.toEqual([
+      expect.objectContaining({ status: "failed", detail }),
+    ]);
+  });
+
   it("does not offer Appium installation on an unsupported Node.js runtime", async () => {
     vi.spyOn(DoctorService, "isNodeSupported").mockReturnValue(false);
     vi.spyOn(AndroidAvdService, "plan").mockResolvedValue(undefined);
