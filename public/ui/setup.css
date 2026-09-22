@@ -1545,6 +1545,12 @@ select:focus {
   background: var(--color-danger-soft);
 }
 
+.notice.is-warning {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
 .notice.is-success {
   border-color: var(--color-success-border);
   color: var(--color-success);

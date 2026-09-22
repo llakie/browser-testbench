@@ -449,6 +449,10 @@
       "one": "{count} setup step failed: {details}",
       "other": "{count} setup steps failed: {details}"
     },
+    "setupIncomplete": {
+      "one": "Automatic setup finished, but {count} step still requires attention: {details}",
+      "other": "Automatic setup finished, but {count} steps still require attention: {details}"
+    },
     "setupCompleted": "Setup completed."
   },
   "errors": {
