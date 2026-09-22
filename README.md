@@ -115,15 +115,6 @@ By default, the interface runs at `http://127.0.0.1:55808/setup` and opens on st
 browser-testbench start --port 7788 --no-open
 ```
 
-For development directly from the repository:
-
-```bash
-git clone https://github.com/llakie/browser-testbench.git
-cd browser-testbench
-npm ci
-npm run dev -- start
-```
-
 The web interface has three sections:
 
 - `/setup`: inspect and set up the environment
@@ -439,7 +430,24 @@ browser-testbench mcp
 browser-testbench mcp-config --client <client>
 ```
 
-## Development
+## Local development
+
+To run Browser Testbench directly from a repository checkout, install the dependencies and start the development
+server:
+
+```bash
+git clone https://github.com/llakie/browser-testbench.git
+cd browser-testbench
+npm ci
+npm run dev -- start
+```
+
+The setup interface opens at `http://127.0.0.1:55808/setup` by default. Changes below `templates/ui` and `public/ui`
+automatically reload the open browser page. Stop the development server with `Ctrl+C`.
+
+### Validate changes
+
+Run these checks before submitting a pull request:
 
 ```bash
 npm run format

@@ -4,6 +4,7 @@ import type { DoctorCheck, TargetDeviceOption } from "../config/types.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
+import { IniParser } from "../infrastructure/ini-parser.js";
 
 const DEVICE_LIST_TIMEOUT_MS = 8_000;
 const DEVICE_QUERY_TIMEOUT_MS = 5_000;
@@ -137,11 +138,11 @@ export class AndroidDeviceService {
     const options: TargetDeviceOption[] = [];
     for (const name of names) {
       try {
-        const pointerText = await readFile(join(avdHome, `${name}.ini`), "utf8");
-        const path = pointerText.match(/^path=(.+)$/m)?.[1];
+        const pointer = IniParser.parse(await readFile(join(avdHome, `${name}.ini`), "utf8"));
+        const path = pointer.get("path");
         if (!path) continue;
-        const config = await readFile(join(path, "config.ini"), "utf8");
-        const image = config.match(/^image\.sysdir\.1=(.+)$/m)?.[1];
+        const config = IniParser.parse(await readFile(join(path, "config.ini"), "utf8"));
+        const image = config.get("image.sysdir.1");
         const platformVersion = image?.match(/android-([^\\/]+)/)?.[1];
         options.push({
           id: name,
@@ -235,8 +236,8 @@ export class AndroidDeviceService {
     return value?.replaceAll("_", " ");
   }
 
-  private static hasGooglePlayTag(config: string): boolean {
-    const tags = [...config.matchAll(/^tag\.ids?=(.+)$/gm)].flatMap((match) => match[1]!.split(","));
+  private static hasGooglePlayTag(config: ReadonlyMap<string, string>): boolean {
+    const tags = [config.get("tag.id"), config.get("tag.ids")].flatMap((value) => value?.split(",") ?? []);
     return tags.some((tag) => /^google_apis_playstore(?:_|$)/.test(tag.trim()));
   }
 

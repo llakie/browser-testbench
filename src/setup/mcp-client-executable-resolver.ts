@@ -54,11 +54,13 @@ export class McpClientExecutableResolver {
     const home = context.home ?? homedir();
     const executableName = platform === "win32" ? `${definition.binary}.exe` : definition.binary;
     const pathExecutableName = platform === "win32" ? `${definition.binary}.cmd` : definition.binary;
-    const candidates: ResolvedMcpClientExecutable[] = [
-      { command: definition.binary, source: "path" },
+    const discoveredCandidates: ResolvedMcpClientExecutable[] = [
       ...this.pathCandidates(pathExecutableName, environment),
       ...this.userCandidates(executableName, pathExecutableName, platform, environment, home),
     ];
+    const bareCandidate = { command: definition.binary, source: "path" as const };
+    const candidates: ResolvedMcpClientExecutable[] =
+      platform === "win32" ? [...discoveredCandidates, bareCandidate] : [bareCandidate, ...discoveredCandidates];
 
     if (definition.id === "codex") {
       candidates.push(...this.codexIdeCandidates(executableName, home));
