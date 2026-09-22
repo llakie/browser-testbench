@@ -446,8 +446,8 @@
     "adminRequired": "Administrative setup requires an admin pairing.",
     "manualStep": "This step must be completed manually.",
     "setupFailed": {
-      "one": "{count} setup step failed.",
-      "other": "{count} setup steps failed."
+      "one": "{count} setup step failed: {details}",
+      "other": "{count} setup steps failed: {details}"
     },
     "setupCompleted": "Setup completed."
   },

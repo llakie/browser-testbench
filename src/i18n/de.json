@@ -446,8 +446,8 @@
     "adminRequired": "Für die administrative Einrichtung ist eine Admin-Kopplung erforderlich.",
     "manualStep": "Dieser Schritt muss manuell abgeschlossen werden.",
     "setupFailed": {
-      "one": "{count} Einrichtungsschritt ist fehlgeschlagen.",
-      "other": "{count} Einrichtungsschritte sind fehlgeschlagen."
+      "one": "{count} Einrichtungsschritt ist fehlgeschlagen: {details}",
+      "other": "{count} Einrichtungsschritte sind fehlgeschlagen: {details}"
     },
     "setupCompleted": "Einrichtung abgeschlossen."
   },
