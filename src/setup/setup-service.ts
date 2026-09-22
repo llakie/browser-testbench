@@ -172,7 +172,13 @@ export class SetupService {
           label: `Appium ${this.driverLabel(driver)}`,
           automatic: true,
           status: installation.code === 0 ? "completed" : "failed",
-          detail: installation.code === 0 ? installation.stdout.trim() : installation.stderr.trim(),
+          detail:
+            installation.code === 0
+              ? installation.stdout.trim()
+              : this.commandDiagnostic(
+                  installation,
+                  `Appium driver installation exited with code ${installation.code} without diagnostic output.`,
+                ),
         });
       }
     }
