@@ -122,10 +122,10 @@ emulator-5554 device product:sdk_gphone64_x86_64
     temporaryDirectories.push(avdHome);
     const avdDirectory = join(avdHome, "Pixel_10.avd");
     await mkdir(avdDirectory, { recursive: true });
-    await writeFile(join(avdHome, "Pixel_10.ini"), `path=${avdDirectory}\n`);
+    await writeFile(join(avdHome, "Pixel_10.ini"), `path = ${avdDirectory}\n`);
     await writeFile(
       join(avdDirectory, "config.ini"),
-      "image.sysdir.1=system-images\\android-37.2\\google_apis_playstore_ps16k\\x86_64\\\ntag.id=google_apis_playstore_ps16k\n",
+      "image.sysdir.1 = system-images\\android-37.2\\google_apis_playstore_ps16k\\x86_64\\\ntag.id = google_apis_playstore_ps16k\n",
     );
     const previousAvdHome = process.env.ANDROID_AVD_HOME;
     process.env.ANDROID_AVD_HOME = avdHome;
@@ -145,11 +145,11 @@ emulator-5554 device product:sdk_gphone64_x86_64
     temporaryDirectories.push(avdHome);
     const avdDirectory = join(avdHome, "Pixel_8_Pro_API_36.avd");
     await mkdir(avdDirectory, { recursive: true });
-    await writeFile(join(avdHome, "Pixel_8_Pro_API_36.ini"), `path=${avdDirectory}\n`);
+    await writeFile(join(avdHome, "Pixel_8_Pro_API_36.ini"), `path = ${avdDirectory}\n`);
     await writeFile(
       join(avdDirectory, "config.ini"),
-      "image.sysdir.1=system-images\\android-36\\google_apis_playstore_16k\\x86_64\\\n" +
-        "tag.id=google_apis\ntag.ids=page_size_16kx,google_apis_playstore\nPlayStore.enabled=true\n",
+      "image.sysdir.1 = system-images\\android-36\\google_apis_playstore_16k\\x86_64\\\n" +
+        "tag.id = google_apis\ntag.ids = page_size_16kx,google_apis_playstore\nPlayStore.enabled = true\n",
     );
     const previousAvdHome = process.env.ANDROID_AVD_HOME;
     process.env.ANDROID_AVD_HOME = avdHome;

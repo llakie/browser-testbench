@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { McpClientExecutableResolver } from "../../src/setup/mcp-client-executable-resolver.js";
 
@@ -47,5 +47,40 @@ describe("McpClientExecutableResolver", () => {
     );
 
     expect(candidates).toContainEqual({ command: executable, source: "ide" });
+  });
+
+  it("prefers Windows command wrappers over ambiguous bare executable names", async () => {
+    const home = await mkdtemp(join(tmpdir(), "browser-testbench-vscode-home-"));
+    const installDirectory = join(home, "AppData", "Local", "Programs", "Microsoft VS Code");
+    const binDirectory = join(installDirectory, "bin");
+    const commandWrapper = join(binDirectory, "code.cmd");
+    await mkdir(binDirectory, { recursive: true });
+    await writeFile(join(installDirectory, "Code.exe"), "");
+    await writeFile(commandWrapper, "");
+
+    try {
+      const candidates = McpClientExecutableResolver.candidates(
+        {
+          id: "copilot-vscode",
+          binary: "code",
+          environmentVariable: "BROWSER_TESTBENCH_CODE_PATH",
+        },
+        {
+          platform: "win32",
+          environment: {
+            PATH: [installDirectory, binDirectory].join(delimiter),
+            LOCALAPPDATA: join(home, "AppData", "Local"),
+          },
+          home,
+        },
+      );
+
+      expect(candidates[0]).toEqual({ command: commandWrapper, source: "path" });
+      expect(candidates.findIndex((candidate) => candidate.command === commandWrapper)).toBeLessThan(
+        candidates.findIndex((candidate) => candidate.command === "code"),
+      );
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
   });
 });
