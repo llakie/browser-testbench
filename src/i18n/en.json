@@ -514,6 +514,7 @@
     },
     "setupDriverInstalled": "Version {version} is installed locally.",
     "setupDriverMissing": "The driver is not installed yet.",
+    "setupDriverStatusFailed": "Could not inspect installed Appium drivers: {reason}",
     "setupDriverAlreadyInstalled": "Version {version} is already installed locally.",
     "setupNodeRequired": "Appium setup requires Node.js 22.12 LTS or Node.js 24 or newer.",
     "setupSafariOn": "Safari on {deviceName}",

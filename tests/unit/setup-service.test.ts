@@ -24,11 +24,41 @@ describe("SetupService Appium status", () => {
     ]);
   });
 
-  it("reports a driver as missing when Appium cannot list it", async () => {
+  it("reports the exact diagnostic when Appium cannot list installed drivers", async () => {
     vi.spyOn(CommandRunner, "run").mockResolvedValue({ code: 1, stdout: "", stderr: "not installed" });
 
     await expect(SetupService.appiumDriverStatus(["safari-ios"])).resolves.toEqual([
-      { name: "xcuitest", installed: false, version: undefined },
+      { name: "xcuitest", installed: false, error: "not installed" },
+    ]);
+  });
+
+  it("distinguishes malformed Appium output from a missing driver", async () => {
+    vi.spyOn(CommandRunner, "run").mockResolvedValue({ code: 0, stdout: "not-json", stderr: "" });
+
+    await expect(SetupService.appiumDriverStatus(["chrome-android"])).resolves.toEqual([
+      {
+        name: "uiautomator2",
+        installed: false,
+        error: "Appium returned invalid JSON while listing installed drivers: not-json",
+      },
+    ]);
+  });
+
+  it("surfaces an Appium inspection failure instead of offering a misleading installation", async () => {
+    vi.spyOn(DoctorService, "isNodeSupported").mockReturnValue(true);
+    vi.spyOn(SetupService, "appiumDriverStatus").mockResolvedValue([
+      { name: "uiautomator2", installed: false, error: "permission denied" },
+    ]);
+    vi.spyOn(AndroidAvdService, "plan").mockResolvedValue(undefined);
+    vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
+
+    await expect(SetupService.plan(["chrome-android"])).resolves.toEqual([
+      expect.objectContaining({
+        label: "Appium UiAutomator2",
+        automatic: false,
+        status: "failed",
+        detail: "Could not inspect installed Appium drivers: permission denied",
+      }),
     ]);
   });
 
