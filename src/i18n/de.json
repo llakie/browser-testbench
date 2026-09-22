@@ -449,6 +449,10 @@
       "one": "{count} Einrichtungsschritt ist fehlgeschlagen: {details}",
       "other": "{count} Einrichtungsschritte sind fehlgeschlagen: {details}"
     },
+    "setupIncomplete": {
+      "one": "Die automatische Einrichtung ist beendet, aber {count} Schritt erfordert noch Aufmerksamkeit: {details}",
+      "other": "Die automatische Einrichtung ist beendet, aber {count} Schritte erfordern noch Aufmerksamkeit: {details}"
+    },
     "setupCompleted": "Einrichtung abgeschlossen."
   },
   "errors": {

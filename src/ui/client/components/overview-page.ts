@@ -193,7 +193,8 @@ export const OverviewPage = defineComponent({
           body: JSON.stringify({ targets }),
         });
         const failures = actions.filter((item) => item.status === "failed");
-        const details = failures
+        const remaining = actions.filter((item) => item.status !== "completed");
+        const details = (failures.length ? failures : remaining)
           .map(
             (item) =>
               `${localized(item, "label")}: ${localized(item, "detail") || translator.t("overview.manualStep")}`,
@@ -202,8 +203,10 @@ export const OverviewPage = defineComponent({
         this.store.setNotice(
           failures.length
             ? translator.t("overview.setupFailed", { count: failures.length, details }, failures.length)
-            : translator.t("overview.setupCompleted"),
-          failures.length ? "error" : "success",
+            : remaining.length
+              ? translator.t("overview.setupIncomplete", { count: remaining.length, details }, remaining.length)
+              : translator.t("overview.setupCompleted"),
+          failures.length ? "error" : remaining.length ? "warning" : "success",
         );
       });
     },

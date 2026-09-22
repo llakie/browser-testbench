@@ -765,6 +765,23 @@ describe("workbench UI browser flow", () => {
           browser,
           "1 setup step failed: Appium UiAutomator2: npm registry certificate validation failed",
         );
+        await browser.active.$(".setup-action__status.is-planned").click();
+        await browser.active.execute(`
+          window.__completeEnvironmentSetup(new Response(JSON.stringify([{
+            id: "android-sdk",
+            label: "Chrome on Android",
+            automatic: false,
+            status: "manual",
+            detail: "Install the Android SDK and Android Emulator, then run setup again."
+          }]), { status: 200, headers: { "content-type": "application/json" } }));
+        `);
+        await waitForText(
+          browser,
+          "Automatic setup finished, but 1 step still requires attention: Chrome on Android: Install the Android SDK and Android Emulator, then run setup again.",
+        );
+        expect(await browser.active.execute("return document.querySelector('#notice').className")).toContain(
+          "is-warning",
+        );
         expect(
           await browser.active.execute(
             "const button = document.querySelector('#sidebar-collapse').getBoundingClientRect(); const icon = document.querySelector('#sidebar-collapse i').getBoundingClientRect(); return button.right - icon.right < icon.left - button.left",
