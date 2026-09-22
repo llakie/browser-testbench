@@ -138,16 +138,7 @@ program
     const targets = parseTargets(options.targets) ?? defaultTargets();
     const testbench = new RemoteTestbench({ server: options.server, token: options.token });
     const actions = options.yes ? await testbench.setup(targets) : await testbench.planSetup(targets);
-    console.log(
-      options.json
-        ? JSON.stringify(actions, null, 2)
-        : actions
-            .map(
-              (action) =>
-                `${action.status.toUpperCase().padEnd(9)} ${action.label}${action.command ? ` — ${action.command}` : ""}${action.detail ? `\n          ${action.detail}` : ""}`,
-            )
-            .join("\n"),
-    );
+    console.log(options.json ? JSON.stringify(actions, null, 2) : OutputFormatter.setup(actions));
     if (actions.some((action) => action.status === "failed")) process.exitCode = 1;
   });
 

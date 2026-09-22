@@ -183,7 +183,7 @@ describe("workbench UI browser flow", () => {
           command: "browser-testbench setup --yes --targets chrome-android",
           automatic: true,
           status: "planned",
-          detail: "Browser integration fixture",
+          detail: { key: "environment.setupDriverMissing" },
           targets: ["chrome-android"],
         },
         {
@@ -191,7 +191,10 @@ describe("workbench UI browser flow", () => {
           label: "Appium XCUITest",
           automatic: true,
           status: "completed",
-          detail: "Version 12.12.4 is installed locally.",
+          detail: {
+            key: "environment.setupDriverInstalled",
+            parameters: { version: "12.12.4" },
+          },
           targets: ["safari-ios"],
         },
         {
@@ -199,7 +202,7 @@ describe("workbench UI browser flow", () => {
           label: "Android SDK",
           automatic: false,
           status: "manual",
-          detail: "Browser integration fixture",
+          detail: { key: "environment.avdInstallSdk" },
         },
       ]);
       vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue(
@@ -726,6 +729,7 @@ describe("workbench UI browser flow", () => {
         await browser.navigate(`${baseUrl}/setup`);
         await waitForText(browser, "Google Chrome");
         expect(await browser.active.execute("return document.querySelector('#run-setup')")).toBeNull();
+        expect(await browser.active.$("#setup-action-list").getText()).toContain("The driver is not installed yet.");
         expect(
           await browser.active.execute(
             "const content = document.querySelector('.guided-actions__content').getBoundingClientRect(); const list = document.querySelector('#setup-action-list').getBoundingClientRect(); return { left: list.left === content.left, right: list.right === content.right }",

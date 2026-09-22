@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import type { DoctorCheck, TargetName } from "../config/types.js";
 import { TargetRegistry } from "../config/target-registry.js";
-import { CommandRunner } from "../infrastructure/command-runner.js";
+import { CommandRunner, type CommandResult } from "../infrastructure/command-runner.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { AndroidAvdService } from "./android-avd-service.js";
 import { DoctorService } from "./doctor-service.js";
@@ -27,71 +27,31 @@ export class SetupService {
     if (mobileTargets.length > 0 && DoctorService.isNodeSupported()) {
       const statuses = await this.appiumDriverStatus(mobileTargets);
       for (const driver of statuses) {
-        const target = driver.name === "xcuitest" ? "safari-ios" : "chrome-android";
-        if (driver.error) {
-          actions.push({
-            id: `appium-${driver.name}`,
-            label: `Appium ${this.driverLabel(driver.name)}`,
-            automatic: false,
-            status: "failed",
-            targets: [target],
-            detail: `Could not inspect installed Appium drivers: ${driver.error}`,
-            messages: {
-              detail: {
-                key: "environment.setupDriverStatusFailed",
-                parameters: { reason: driver.error },
-              },
-            },
-          });
-          continue;
-        }
-        actions.push({
-          id: `appium-${driver.name}`,
-          label: `Appium ${this.driverLabel(driver.name)}`,
-          command: driver.installed
-            ? undefined
-            : TestbenchPaths.cliCommand("setup", "--yes", "--targets", mobileTargets.join(",")),
-          automatic: true,
-          status: driver.installed ? "completed" : "planned",
-          targets: [target],
-          detail: driver.installed
-            ? `Version ${driver.version ?? "unknown"} is installed locally.`
-            : "The driver is not installed yet.",
-          messages: {
-            detail: driver.installed
-              ? {
-                  key: "environment.setupDriverInstalled",
-                  parameters: { version: driver.version ?? "unknown" },
-                }
-              : { key: "environment.setupDriverMissing" },
-          },
-        });
+        actions.push(this.appiumPlanAction(driver, mobileTargets));
       }
     }
     const checks = detectedChecks ?? (await DoctorService.inspect(targets));
-    const androidAction =
-      targets.includes("chrome-android") && !this.hasDetectedPhysicalAndroidDevice(checks)
-        ? await AndroidAvdService.plan()
-        : undefined;
-    if (androidAction) actions.push({ ...androidAction, targets: ["chrome-android"] });
+    if (targets.includes("chrome-android") && !this.hasDetectedPhysicalAndroidDevice(checks)) {
+      const androidAction = await AndroidAvdService.plan();
+      if (androidAction) actions.push({ ...androidAction, targets: ["chrome-android"] });
+    }
     const physicalIosActions = checks
       .find((check) => check.id === "safari-ios")
       ?.devices?.filter((device) => device.deviceKind === "physical" && !device.compatible && device.detail)
-      .map((device): SetupAction => ({
-        id: `ios-device-${device.id}`,
-        label: `Safari on ${device.name}`,
-        automatic: false,
-        status: "manual",
-        detail: device.detail,
-        messages: {
+      .map((device): SetupAction => {
+        const action: SetupAction = {
+          id: `ios-device-${device.id}`,
           label: { key: "environment.setupSafariOn", parameters: { deviceName: device.name } },
-          ...(device.messages?.detail ? { detail: device.messages.detail } : {}),
-        },
-        ...(device.setupChecks?.some((check) => check.id === "signing" && !check.ready)
-          ? { command: IosSigningService.openWdaCommand() }
-          : {}),
-        targets: ["safari-ios"],
-      }));
+          automatic: false,
+          status: "manual",
+          detail: device.messages?.detail ?? device.detail,
+          targets: ["safari-ios"],
+        };
+        if (device.setupChecks?.some((check) => check.id === "signing" && !check.ready)) {
+          action.command = IosSigningService.openWdaCommand();
+        }
+        return action;
+      });
     actions.push(...(physicalIosActions ?? []));
     for (const check of checks.filter((entry) => entry.status === "blocked" || entry.status === "action")) {
       if (check.id === "safari-ios" && physicalIosActions?.length) continue;
@@ -99,14 +59,10 @@ export class SetupService {
       if (check.action && !actions.some((action) => action.id === actionId)) {
         actions.push({
           id: actionId,
-          label: check.label,
+          label: check.messages?.label ?? check.label,
           automatic: false,
           status: "manual",
-          detail: check.action,
-          messages: {
-            ...(check.messages?.label ? { label: check.messages.label } : {}),
-            ...(check.messages?.action ? { detail: check.messages.action } : {}),
-          },
+          detail: check.messages?.action ?? check.action,
           command: check.commands?.[0],
         });
       }
@@ -128,8 +84,7 @@ export class SetupService {
           label: "Node.js",
           automatic: false,
           status: "failed",
-          detail: "Appium setup requires Node.js 22.12 LTS or Node.js 24 or newer.",
-          messages: { detail: { key: "environment.setupNodeRequired" } },
+          detail: { key: "environment.setupNodeRequired" },
         },
       ];
     }
@@ -140,7 +95,7 @@ export class SetupService {
         (await this.appiumDriverStatus(mobileTargets)).map((driver) => [driver.name, driver]),
       );
       for (const target of mobileTargets) {
-        const driver = target === "safari-ios" ? "xcuitest" : "uiautomator2";
+        const driver = this.targetDriver(target);
         const existing = existingDrivers.get(driver);
         if (existing?.installed) {
           results.push({
@@ -148,12 +103,9 @@ export class SetupService {
             label: `Appium ${this.driverLabel(driver)}`,
             automatic: true,
             status: "completed",
-            detail: `Version ${existing.version ?? "unknown"} is already installed locally.`,
-            messages: {
-              detail: {
-                key: "environment.setupDriverAlreadyInstalled",
-                parameters: { version: existing.version ?? "unknown" },
-              },
+            detail: {
+              key: "environment.setupDriverAlreadyInstalled",
+              parameters: { version: existing.version ?? "unknown" },
             },
           });
           continue;
@@ -167,19 +119,7 @@ export class SetupService {
             timeoutMs: DRIVER_INSTALL_TIMEOUT_MS,
           },
         );
-        results.push({
-          id: `appium-${driver}`,
-          label: `Appium ${this.driverLabel(driver)}`,
-          automatic: true,
-          status: installation.code === 0 ? "completed" : "failed",
-          detail:
-            installation.code === 0
-              ? installation.stdout.trim()
-              : this.commandDiagnostic(
-                  installation,
-                  `Appium driver installation exited with code ${installation.code} without diagnostic output.`,
-                ),
-        });
+        results.push(this.appiumInstallResult(driver, installation));
       }
     }
     let androidAvdAction: SetupAction | undefined;
@@ -200,10 +140,9 @@ export class SetupService {
   }
 
   static async appiumDriverStatus(targets: TargetName[]): Promise<AppiumDriverStatus[]> {
-    const drivers = [
-      ...(targets.includes("safari-ios") ? (["xcuitest"] as const) : []),
-      ...(targets.includes("chrome-android") ? (["uiautomator2"] as const) : []),
-    ];
+    const drivers: AppiumDriverStatus["name"][] = [];
+    if (targets.includes("safari-ios")) drivers.push("xcuitest");
+    if (targets.includes("chrome-android")) drivers.push("uiautomator2");
     if (drivers.length === 0) return [];
     const listed = await CommandRunner.run(
       process.execPath,
@@ -233,10 +172,65 @@ export class SetupService {
   }
 
   private static driverLabel(name: "xcuitest" | "uiautomator2"): string {
-    return name === "xcuitest" ? "XCUITest" : "UiAutomator2";
+    const labels = { xcuitest: "XCUITest", uiautomator2: "UiAutomator2" } as const;
+    return labels[name];
   }
 
-  private static commandDiagnostic(result: { code: number; stdout: string; stderr: string }, fallback: string): string {
+  private static appiumPlanAction(driver: AppiumDriverStatus, mobileTargets: TargetName[]): SetupAction {
+    const action: SetupAction = {
+      id: `appium-${driver.name}`,
+      label: `Appium ${this.driverLabel(driver.name)}`,
+      automatic: true,
+      status: "planned",
+      targets: [this.driverTarget(driver.name)],
+      detail: { key: "environment.setupDriverMissing" },
+    };
+    if (driver.error) {
+      action.automatic = false;
+      action.status = "failed";
+      action.detail = { key: "environment.setupDriverStatusFailed", parameters: { reason: driver.error } };
+      return action;
+    }
+    if (driver.installed) {
+      action.status = "completed";
+      action.detail = {
+        key: "environment.setupDriverInstalled",
+        parameters: { version: driver.version ?? "unknown" },
+      };
+      return action;
+    }
+    action.command = TestbenchPaths.cliCommand("setup", "--yes", "--targets", mobileTargets.join(","));
+    return action;
+  }
+
+  private static appiumInstallResult(driver: AppiumDriverStatus["name"], installation: CommandResult): SetupAction {
+    const action: SetupAction = {
+      id: `appium-${driver}`,
+      label: `Appium ${this.driverLabel(driver)}`,
+      automatic: true,
+      status: "completed",
+      detail: installation.stdout.trim() || { key: "environment.setupDriverInstallCompleted" },
+    };
+    if (installation.code === 0) return action;
+    action.status = "failed";
+    action.detail = this.commandDiagnostic(
+      installation,
+      `Appium driver installation exited with code ${installation.code} without diagnostic output.`,
+    );
+    return action;
+  }
+
+  private static driverTarget(name: AppiumDriverStatus["name"]): TargetName {
+    if (name === "xcuitest") return "safari-ios";
+    return "chrome-android";
+  }
+
+  private static targetDriver(target: TargetName): AppiumDriverStatus["name"] {
+    if (target === "safari-ios") return "xcuitest";
+    return "uiautomator2";
+  }
+
+  private static commandDiagnostic(result: CommandResult, fallback: string): string {
     return result.stderr.trim() || result.stdout.trim() || fallback;
   }
 

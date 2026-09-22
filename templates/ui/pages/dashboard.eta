@@ -216,7 +216,7 @@
               <div class="setup-action-list" id="setup-action-list">
                 <div class="setup-action" v-for="action in workbench.actions" :key="action.id ?? action.label">
                   <div class="setup-action__copy">
-                    <strong>{{ localized(action, 'label') }}</strong><small>{{ actionDetail(action) }}</small>
+                    <strong>{{ actionLabel(action) }}</strong><small>{{ actionDetail(action) }}</small>
                   </div>
                   <button
                     v-if="isInstallable(action)"

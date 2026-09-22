@@ -10,6 +10,8 @@ export interface MessageDescriptor {
   formats?: Partial<Record<string, "date" | "number">>;
 }
 
+export type TranslatableText = string | MessageDescriptor;
+
 type PluralMessage = Partial<Record<Intl.LDMLPluralRule, string>> & { other: string };
 type MessageTree = { [key: string]: string | PluralMessage | MessageTree };
 type NestedMessageKeys<T> = {
@@ -85,6 +87,12 @@ export class Translator {
       if (format === "number" && typeof value === "number") parameters[name] = this.formatNumber(value);
     }
     return this.t(descriptor.key, parameters, descriptor.count);
+  }
+
+  text(value: TranslatableText | undefined): string {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    return this.message(value, "");
   }
 
   formatDate(value: Date | string | number, options: Intl.DateTimeFormatOptions = {}): string {

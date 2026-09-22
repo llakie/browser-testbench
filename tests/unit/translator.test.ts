@@ -26,6 +26,13 @@ describe("Translator", () => {
     expect(new Translator("de").t("checklist.intro")).toContain("de[checklist.intro.deviceName]");
   });
 
+  it("resolves translatable text without a parallel fallback field", () => {
+    const translator = new Translator("de");
+
+    expect(translator.text("technical diagnostic")).toBe("technical diagnostic");
+    expect(translator.text({ key: "environment.avdLabel" })).toBe("Virtuelles Android-Gerät");
+  });
+
   it("keeps dictionary keys, plural categories, and placeholders aligned", () => {
     expect(Translator.keys("de")).toEqual(Translator.keys("en"));
     for (const key of Translator.keys("en")) {

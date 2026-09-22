@@ -81,7 +81,7 @@ describe("AndroidAvdService", () => {
 
     await expect(AndroidAvdService.ensure()).resolves.toMatchObject({
       status: "completed",
-      detail: "Using existing compatible AVD Pixel_9_API_35.",
+      detail: { key: "environment.avdExisting", parameters: { name: "Pixel_9_API_35" } },
     });
     expect(run).toHaveBeenCalledTimes(1);
   });
@@ -105,10 +105,13 @@ describe("AndroidAvdService", () => {
     vi.spyOn(CommandRunner, "run").mockResolvedValue({ code: 0, stdout: "", stderr: "" });
 
     await expect(AndroidAvdService.plan()).resolves.toMatchObject({
-      label: "Google Play system image",
+      label: { key: "environment.avdImageLabel" },
       automatic: false,
       status: "manual",
-      detail: expect.stringContaining("Install the latest available image"),
+      detail: {
+        key: "environment.avdImageMissing",
+        parameters: { architecture: AndroidAvdService.hostArchitecture() },
+      },
     });
   });
 
