@@ -16,6 +16,7 @@ export interface AppiumDriverStatus {
   name: "xcuitest" | "uiautomator2";
   installed: boolean;
   version?: string;
+  error?: string;
 }
 
 export class SetupService {
@@ -27,6 +28,23 @@ export class SetupService {
       const statuses = await this.appiumDriverStatus(mobileTargets);
       for (const driver of statuses) {
         const target = driver.name === "xcuitest" ? "safari-ios" : "chrome-android";
+        if (driver.error) {
+          actions.push({
+            id: `appium-${driver.name}`,
+            label: `Appium ${this.driverLabel(driver.name)}`,
+            automatic: false,
+            status: "failed",
+            targets: [target],
+            detail: `Could not inspect installed Appium drivers: ${driver.error}`,
+            messages: {
+              detail: {
+                key: "environment.setupDriverStatusFailed",
+                parameters: { reason: driver.error },
+              },
+            },
+          });
+          continue;
+        }
         actions.push({
           id: `appium-${driver.name}`,
           label: `Appium ${this.driverLabel(driver.name)}`,
@@ -189,13 +207,17 @@ export class SetupService {
         timeoutMs: DRIVER_STATUS_TIMEOUT_MS,
       },
     );
+    if (listed.code !== 0) {
+      const error = this.commandDiagnostic(listed, `Appium exited with code ${listed.code} without diagnostic output.`);
+      return drivers.map((name) => ({ name, installed: false, error }));
+    }
     let installed: Record<string, { version?: string; installed?: boolean }> = {};
-    if (listed.code === 0) {
-      try {
-        installed = JSON.parse(listed.stdout) as typeof installed;
-      } catch {
-        installed = {};
-      }
+    try {
+      installed = JSON.parse(listed.stdout) as typeof installed;
+    } catch {
+      const output = this.commandDiagnostic(listed, "Appium returned no output.");
+      const error = `Appium returned invalid JSON while listing installed drivers: ${output}`;
+      return drivers.map((name) => ({ name, installed: false, error }));
     }
     return drivers.map((name) => ({
       name,
@@ -206,6 +228,10 @@ export class SetupService {
 
   private static driverLabel(name: "xcuitest" | "uiautomator2"): string {
     return name === "xcuitest" ? "XCUITest" : "UiAutomator2";
+  }
+
+  private static commandDiagnostic(result: { code: number; stdout: string; stderr: string }, fallback: string): string {
+    return result.stderr.trim() || result.stdout.trim() || fallback;
   }
 
   private static hasDetectedPhysicalAndroidDevice(checks: DoctorCheck[]): boolean {

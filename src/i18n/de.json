@@ -514,6 +514,7 @@
     },
     "setupDriverInstalled": "Version {version} ist lokal installiert.",
     "setupDriverMissing": "Der Treiber ist noch nicht installiert.",
+    "setupDriverStatusFailed": "Die installierten Appium-Treiber konnten nicht geprüft werden: {reason}",
     "setupDriverAlreadyInstalled": "Version {version} ist bereits lokal installiert.",
     "setupNodeRequired": "Die Appium-Einrichtung erfordert Node.js 22.12 LTS oder Node.js 24 oder neuer.",
     "setupSafariOn": "Safari auf {deviceName}",
