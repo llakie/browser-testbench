@@ -16,6 +16,8 @@ export class TargetVerificationService {
     const fixture = new FixtureServer();
     const startedAt = Date.now();
     let sessionId: string | undefined;
+    let operationError: unknown;
+    let result: VerificationResult | undefined;
     try {
       let url = await fixture.start();
       const target = await TargetCatalogService.resolve(input.target);
@@ -31,16 +33,28 @@ export class TargetVerificationService {
       await controller.elementAction({ action: "fill", selector: "#name", value: "Testbench" });
       await controller.click("#submit");
       await controller.wait({ type: "elementText", selector: "#result", text: "Hello Testbench" });
-      await VerificationStore.record(input.target, session.runtime);
-      return {
+      result = {
         target: input.target,
         status: "passed",
         durationMs: Date.now() - startedAt,
         runtime: session.runtime,
       };
+    } catch (error) {
+      operationError = error;
+      throw error;
     } finally {
-      if (sessionId) await sessions.close(sessionId, ownerId).catch(() => undefined);
-      await fixture.stop();
+      const cleanupErrors: unknown[] = [];
+      if (sessionId) await sessions.close(sessionId, ownerId).catch((error) => cleanupErrors.push(error));
+      await fixture.stop().catch((error) => cleanupErrors.push(error));
+      if (cleanupErrors.length === 1 && !operationError) throw cleanupErrors[0];
+      if (cleanupErrors.length > 0)
+        throw new AggregateError(
+          operationError ? [operationError, ...cleanupErrors] : cleanupErrors,
+          operationError ? "Target verification and cleanup failed." : "Target verification cleanup failed.",
+          operationError ? { cause: operationError } : undefined,
+        );
     }
+    await VerificationStore.record(input.target, result!.runtime);
+    return result!;
   }
 }
