@@ -13,6 +13,7 @@ interface PendingPairing {
   key: Buffer;
   expiresAt: number;
   failedAttempts: number;
+  sourceAddress?: string;
 }
 
 export class PairingNotFoundError extends Error {}
@@ -27,14 +28,29 @@ export class RemotePairingService {
     private readonly announce: (message: string) => void = console.log,
   ) {}
 
-  begin(clientName: string, role: RemoteRole, clientId: string, clientPublicKey: string): PairingChallenge {
+  begin(
+    clientName: string,
+    role: RemoteRole,
+    clientId: string,
+    clientPublicKey: string,
+    sourceAddress?: string,
+  ): PairingChallenge {
     this.prune();
     const existing = [...this.pending.values()].find(
       (pairing) => pairing.clientId === clientId && pairing.clientName === clientName && pairing.role === role,
     );
     if (!existing && this.pending.size >= TestbenchDefaults.PAIRING_MAX_PENDING)
       throw new PairingRateLimitError("Too many pairing requests are pending. Wait for one to expire and try again.");
-    const pairing = existing ?? this.create(clientName, role, clientId, clientPublicKey);
+    if (
+      !existing &&
+      sourceAddress &&
+      [...this.pending.values()].filter((pairing) => pairing.sourceAddress === sourceAddress).length >=
+        TestbenchDefaults.PAIRING_MAX_PENDING_PER_ADDRESS
+    )
+      throw new PairingRateLimitError(
+        "Too many pairing requests are pending from this address. Wait for one to expire and try again.",
+      );
+    const pairing = existing ?? this.create(clientName, role, clientId, clientPublicKey, sourceAddress);
     if (!existing) {
       this.pending.set(pairing.pairingId, pairing);
       this.announce(
@@ -77,7 +93,13 @@ export class RemotePairingService {
     return RemoteCrypto.encrypt(pairing.key, client, pairing.pairingId);
   }
 
-  private create(clientName: string, role: RemoteRole, clientId: string, clientPublicKey: string): PendingPairing {
+  private create(
+    clientName: string,
+    role: RemoteRole,
+    clientId: string,
+    clientPublicKey: string,
+    sourceAddress?: string,
+  ): PendingPairing {
     const keys = RemoteCrypto.ephemeralKeyPair();
     const pairingId = randomUUID();
     return {
@@ -89,6 +111,7 @@ export class RemotePairingService {
       key: RemoteCrypto.pairingKey(keys.ecdh, clientPublicKey, pairingId),
       expiresAt: Date.now() + TestbenchDefaults.PAIRING_TTL_MS,
       failedAttempts: 0,
+      sourceAddress,
     };
   }
 

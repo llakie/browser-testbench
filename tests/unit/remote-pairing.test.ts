@@ -120,4 +120,41 @@ describe("RemotePairingService", () => {
     ).toThrow(PairingRateLimitError);
     expect(announcements).toHaveLength(TestbenchDefaults.PAIRING_MAX_PENDING);
   });
+
+  it("limits pending pairing requests from one network address", () => {
+    const pairing = new RemotePairingService(
+      new AuthorizedRemoteClientStore(join(tmpdir(), `unused-${Date.now()}.json`)),
+      () => {},
+    );
+    for (let index = 0; index < TestbenchDefaults.PAIRING_MAX_PENDING_PER_ADDRESS; index += 1) {
+      const keys = RemoteCrypto.ephemeralKeyPair();
+      pairing.begin(
+        `client-${index}`,
+        "control",
+        `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+        keys.publicKey,
+        "192.0.2.1",
+      );
+    }
+    const rejectedKeys = RemoteCrypto.ephemeralKeyPair();
+
+    expect(() =>
+      pairing.begin(
+        "one-too-many",
+        "control",
+        "00000000-0000-4000-8000-999999999999",
+        rejectedKeys.publicKey,
+        "192.0.2.1",
+      ),
+    ).toThrow(PairingRateLimitError);
+    expect(() =>
+      pairing.begin(
+        "different-address",
+        "control",
+        "00000000-0000-4000-8000-888888888888",
+        rejectedKeys.publicKey,
+        "192.0.2.2",
+      ),
+    ).not.toThrow();
+  });
 });

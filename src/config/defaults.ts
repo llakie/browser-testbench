@@ -19,6 +19,7 @@ export class TestbenchDefaults {
   static readonly EVENT_HEARTBEAT_INTERVAL_MS = 15_000;
   static readonly PAIRING_TTL_MS = 5 * 60_000;
   static readonly PAIRING_MAX_PENDING = 20;
+  static readonly PAIRING_MAX_PENDING_PER_ADDRESS = 5;
   static readonly REMOTE_REQUEST_MAX_AGE_MS = 30_000;
   static readonly REMOTE_CLIENT_TOUCH_INTERVAL_MS = 30_000;
   static readonly TARGET_LOCK_TIMEOUT_MS = 60_000;
