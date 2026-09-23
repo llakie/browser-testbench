@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-23
+
+### Added
+
+- The Targets page can start, list, and close browser or device debug sessions directly, while retaining the generated
+  CLI command as an alternative.
+- Local Chromium debug sessions expose a direct link to their hosted DevTools frontend.
+- Node and MCP clients can list active sessions and close recoverable sessions by ID after reconnecting.
+
+### Changed
+
+- Client waits and download operations honor their requested operation timeout in addition to transport overhead.
+- Remote-control documentation now covers the complete REST surface, proxy host configuration, and the trust boundary
+  of unencrypted HTTP transports.
+- Responsive target cards and debug controls use the available width more consistently across desktop and mobile
+  layouts.
+
+### Fixed
+
+- Aborted or partially started sessions clean up browser processes, device locks, Appium processes, and transferred
+  artifacts deterministically, while preserving cleanup failures and aggregate error causes.
+- Target verification rejects unavailable targets and reports cleanup errors instead of returning a misleading success.
+- Loopback services reject foreign host headers, while explicit wildcard bindings continue to accept valid remote host
+  names.
+- Remote pairing limits pending requests per address, diagnostic error bodies are bounded, and MCP safety annotations
+  correctly describe mutating operations.
+- Debug-session controls remain stable after partial navigation failures, and hosted Chrome DevTools can connect to the
+  selected local browser session.
+
 ## [0.3.1] - 2026-09-23
 
 ### Changed
@@ -176,7 +205,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Dynamic Android AVD discovery and provisioning without fixed API levels or Pixel profiles.
 - Automated CI for macOS, Windows, and Linux and npm publishing through GitHub Actions.
 
-[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/llakie/browser-testbench/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/llakie/browser-testbench/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/llakie/browser-testbench/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/llakie/browser-testbench/compare/v0.1.8...v0.2.0
