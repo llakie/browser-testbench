@@ -42,6 +42,7 @@ import { ClientVersion } from "../config/client-version.js";
 import { LocalizedError, Translator, type MessageDescriptor } from "../i18n/translator.js";
 import { RequestAbort } from "./request-abort.js";
 import { ErrorResponse } from "../i18n/error-response.js";
+import { NetworkUrl } from "../infrastructure/network-url.js";
 
 const english = new Translator("en");
 
@@ -130,6 +131,7 @@ export class ApiServer {
       ]);
     }
     this.app.disable("x-powered-by");
+    this.app.use((request, response, next) => this.requireExpectedHost(request, response, next));
     this.registerPublicRoutes();
     this.app.use(express.json({ limit: "1mb" }));
     this.app.use((request, response, next) => this.requireCompatibleClient(request, response, next));
@@ -225,6 +227,14 @@ export class ApiServer {
       }),
     );
     this.app.use("/fontawesome", express.static(TestbenchPaths.packageDirectory("@fortawesome/fontawesome-free")));
+  }
+
+  private requireExpectedHost(request: Request, response: Response, next: NextFunction): void {
+    if (!NetworkUrl.isLoopbackHostname(this.options.host) || NetworkUrl.isLoopbackHostname(request.hostname)) {
+      next();
+      return;
+    }
+    response.status(421).json({ error: "The request host is not allowed for this loopback Testbench." });
   }
 
   private requireCompatibleClient(request: Request, response: Response, next: NextFunction): void {

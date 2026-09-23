@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { request as httpRequest } from "node:http";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TARGET_NAMES } from "../../src/config/types.js";
 import { TestbenchDefaults } from "../../src/config/defaults.js";
@@ -57,6 +58,18 @@ describe("ApiServer", () => {
     expect((await targets.json()) as Array<{ id: string }>).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "chrome" })]),
     );
+  });
+
+  it("rejects foreign host headers on a loopback Testbench", async () => {
+    server = new ApiServer({ host: "127.0.0.1", port: 0 });
+    const address = await server.start();
+
+    const response = await rawRequest(address.host, address.port, "attacker.example");
+
+    expect(response.status).toBe(421);
+    expect(JSON.parse(response.body)).toEqual({
+      error: "The request host is not allowed for this loopback Testbench.",
+    });
   });
 
   it("does not expose a remote identity unless remote mode is enabled", async () => {
@@ -336,4 +349,17 @@ describe("ApiServer", () => {
 
 function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
   return fetch(url, { ...init, headers: ClientVersion.headers(init.headers) });
+}
+
+function rawRequest(hostname: string, port: number, host: string): Promise<{ status?: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({ hostname, port, path: "/health", headers: { host } }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => (body += chunk));
+      response.on("end", () => resolve({ status: response.statusCode, body }));
+    });
+    request.on("error", reject);
+    request.end();
+  });
 }
