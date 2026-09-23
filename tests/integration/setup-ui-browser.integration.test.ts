@@ -483,6 +483,19 @@ describe("workbench UI browser flow", () => {
         );
         expect(await browser.active.$("#debug-tools-note").getText()).toContain("desktop browser");
 
+        await browser.active.setWindowRect(1000, 812);
+        expect(
+          await browser.active.execute(`
+            const target = document.querySelector("#debug-target").getBoundingClientRect();
+            const button = document.querySelector("#start-debug-session").getBoundingClientRect();
+            return {
+              sameRow: button.left > target.right,
+              bottomAligned: Math.abs(target.bottom - button.bottom) < 1
+            };
+          `),
+        ).toEqual({ sameRow: true, bottomAligned: true });
+        await browser.active.setWindowRect(500, 812);
+
         await browser.active.execute(`
           window.__debugSessions = [];
           window.__debugSessionFetch = window.fetch;

@@ -1035,7 +1035,8 @@ pre code {
 
 .debug-controls {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr) auto;
+  align-items: end;
   gap: var(--space-3);
 }
 
@@ -1053,7 +1054,6 @@ pre code {
   font-size: 0.86rem;
 }
 
-.debug-start-actions,
 .debug-sessions__heading,
 .debug-session__heading,
 .debug-session__actions {
@@ -1062,16 +1062,20 @@ pre code {
   gap: var(--space-2);
 }
 
-.debug-start-actions {
-  flex-wrap: wrap;
+.debug-controls > .button {
+  white-space: nowrap;
 }
 
-.debug-start-actions > span,
+.debug-command-alternative,
 .debug-sessions__heading > span,
 .debug-session small,
 .debug-sessions__empty {
   color: var(--color-ink-muted);
   font-size: var(--font-size-secondary);
+}
+
+.debug-command-alternative {
+  margin: 0;
 }
 
 .debug-sessions {
