@@ -7,9 +7,33 @@ import { localized, translator } from "../core/translator.js";
 
 const defaultApplicationUrl = "http://127.0.0.1:3000";
 
+interface DebugToolsView {
+  tool?: string;
+  automatic?: boolean;
+  url?: string;
+}
+
+interface DebugSessionView {
+  id: string;
+  target: string;
+  createdAt: string;
+  runtime: Record<string, unknown>;
+  devtools?: DebugToolsView;
+}
+
 export const TargetsPage = defineComponent({
   template: "#targets-page-template",
-  data: () => ({ store: workbenchStore, debugUrl: "", debugTargetId: "", runningAll: false }),
+  data: () => ({
+    store: workbenchStore,
+    debugUrl: "",
+    debugTargetId: "",
+    debugSessions: [] as DebugSessionView[],
+    debugSessionsRequestId: 0,
+    loadingDebugSessions: false,
+    startingDebugSession: false,
+    closingDebugSessionId: "",
+    runningAll: false,
+  }),
   computed: {
     workbench(): WorkbenchState | null {
       return this.store.workbench;
@@ -38,8 +62,21 @@ export const TargetsPage = defineComponent({
         "--target",
         this.debugTarget.id,
         "--url",
-        this.debugUrl.trim() || this.applicationUrlPlaceholder,
+        this.debugApplicationUrl,
       ]);
+    },
+    debugApplicationUrl(): string {
+      return this.debugUrl.trim() || this.applicationUrlPlaceholder;
+    },
+    canStartDebugSession(): boolean {
+      return Boolean(
+        this.debugTarget?.ready &&
+        !this.debugTarget.busy &&
+        this.workbench?.permissions.control &&
+        !this.startingDebugSession &&
+        !this.closingDebugSessionId &&
+        !this.store.busy,
+      );
     },
     debugNote(): string {
       const notes: Partial<Record<WorkbenchTestTarget["browser"], string>> = {
@@ -81,6 +118,7 @@ for (const target of targets) {
         const targets = value?.testTargets ?? [];
         if (!targets.some((target) => target.id === this.debugTargetId))
           this.debugTargetId = (targets.find((target) => target.ready) ?? targets[0])?.id ?? "";
+        if (value) void this.loadDebugSessions();
       },
     },
   },
@@ -123,6 +161,85 @@ for (const target of targets) {
           ? translator.t("targets.runningAndroidDevice")
           : translator.t("targets.runningAndroidEmulator");
       return translator.t("targets.running");
+    },
+    debugSessionTarget(session: DebugSessionView): WorkbenchTestTarget | undefined {
+      return this.workbench?.testTargets.find((target) => target.id === session.target);
+    },
+    debugSessionLabel(session: DebugSessionView): string {
+      const target = this.debugSessionTarget(session);
+      return target ? localized(target, "label") : session.target;
+    },
+    debugSessionStartedAt(session: DebugSessionView): string {
+      return translator.formatDate(session.createdAt, { dateStyle: "medium", timeStyle: "short" });
+    },
+    debugSessionNote(session: DebugSessionView): string {
+      if (this.workbench?.connection.mode === "remote") return translator.t("targets.devtools.remote");
+      const browser = this.debugSessionTarget(session)?.browser;
+      return browser === "safari-ios"
+        ? translator.t("targets.devtools.ios")
+        : browser === "chrome-android"
+          ? translator.t("targets.devtools.android")
+          : translator.t("targets.devtools.desktop");
+    },
+    openableDevToolsUrl(session: DebugSessionView): string | undefined {
+      const url = session.devtools?.url;
+      return this.workbench?.connection.mode === "local" && url && /^https?:\/\//.test(url) ? url : undefined;
+    },
+    async loadDebugSessions(): Promise<void> {
+      const requestId = ++this.debugSessionsRequestId;
+      this.loadingDebugSessions = true;
+      try {
+        const sessions = await ApiClient.request<DebugSessionView[]>("/v1/sessions");
+        const detailed = await Promise.all(
+          sessions.map(async (session) => ({
+            ...session,
+            devtools: await ApiClient.request<DebugToolsView>(`/v1/sessions/${session.id}/devtools`).catch(
+              () => undefined,
+            ),
+          })),
+        );
+        if (requestId === this.debugSessionsRequestId) this.debugSessions = detailed;
+      } catch (error) {
+        if (requestId === this.debugSessionsRequestId) this.store.setNotice(this.store.message(error), "error");
+      } finally {
+        if (requestId === this.debugSessionsRequestId) this.loadingDebugSessions = false;
+      }
+    },
+    async startDebugSession(): Promise<void> {
+      const target = this.debugTarget;
+      if (!target || !this.canStartDebugSession) return;
+      this.startingDebugSession = true;
+      try {
+        await ApiClient.request<DebugSessionView>("/v1/sessions", {
+          method: "POST",
+          body: JSON.stringify({ target: target.id, url: this.debugApplicationUrl }),
+        });
+        await this.loadDebugSessions();
+        this.store.setNotice(
+          translator.t("targets.page.debugSessionStarted", { targetName: localized(target, "label") }),
+          "success",
+        );
+      } catch (error) {
+        this.store.setNotice(this.store.message(error), "error");
+      } finally {
+        this.startingDebugSession = false;
+      }
+    },
+    async closeDebugSession(session: DebugSessionView): Promise<void> {
+      this.closingDebugSessionId = session.id;
+      try {
+        await ApiClient.request(`/v1/sessions/${session.id}`, { method: "DELETE" });
+        await this.loadDebugSessions();
+        this.store.setNotice(
+          translator.t("targets.page.debugSessionClosed", { targetName: this.debugSessionLabel(session) }),
+          "success",
+        );
+      } catch (error) {
+        this.store.setNotice(this.store.message(error), "error");
+        await this.loadDebugSessions();
+      } finally {
+        this.closingDebugSessionId = "";
+      }
     },
     async runVerification(target: WorkbenchTestTarget): Promise<VerificationResultView> {
       this.store.state.verification[target.id] = { status: "running", message: this.progress(target) };

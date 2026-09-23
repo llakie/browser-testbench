@@ -416,7 +416,7 @@ export class InteractiveController {
     this.webSocketUrls.clear();
   }
 
-  debugTools(): Record<string, unknown> {
+  async debugTools(): Promise<Record<string, unknown>> {
     if (!this.target) throw new Error("No interactive target is active.");
     if (this.target.name === "safari-ios") {
       return {
@@ -431,6 +431,8 @@ export class InteractiveController {
     if (this.target.name === "chrome-android") {
       return { tool: "Chrome DevTools", automatic: false, url: "chrome://inspect/#devices" };
     }
+    const url = await this.session.active.devToolsFrontendUrl();
+    if (url) return { tool: "Chrome DevTools", automatic: true, url };
     return {
       tool: "Testbench diagnostics",
       automatic: true,

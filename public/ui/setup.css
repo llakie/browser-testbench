@@ -1053,6 +1053,94 @@ pre code {
   font-size: 0.86rem;
 }
 
+.debug-start-actions,
+.debug-sessions__heading,
+.debug-session__heading,
+.debug-session__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.debug-start-actions {
+  flex-wrap: wrap;
+}
+
+.debug-start-actions > span,
+.debug-sessions__heading > span,
+.debug-session small,
+.debug-sessions__empty {
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-secondary);
+}
+
+.debug-sessions {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+}
+
+.debug-sessions__heading {
+  justify-content: space-between;
+}
+
+.debug-sessions__heading h4,
+.debug-sessions__empty {
+  margin: 0;
+}
+
+.debug-session-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.debug-session {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-small);
+  background: var(--color-surface);
+}
+
+.debug-session__details {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.debug-session__details p {
+  margin: 0;
+  font-size: var(--font-size-secondary);
+}
+
+.debug-session__heading {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.debug-session__status {
+  color: var(--color-success);
+  font-size: var(--font-size-small);
+}
+
+.debug-session__status i {
+  font-size: var(--font-size-caption);
+}
+
+.debug-session__actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.debug-session__actions > .command-block {
+  flex: 1 1 auto;
+  margin-top: 0;
+}
+
 .integration-client {
   display: block;
   width: min(22rem, 100%);
