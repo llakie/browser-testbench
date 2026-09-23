@@ -348,7 +348,10 @@ export class BrowserHandle {
         targets.find((target) => target.type === "page");
       const frontendUrl = page?.devtoolsFrontendUrl;
       if (typeof frontendUrl !== "string") return undefined;
-      return frontendUrl.startsWith("/") ? new URL(frontendUrl, `http://${debuggerAddress}`).toString() : frontendUrl;
+      const resolvedUrl = frontendUrl.startsWith("/")
+        ? new URL(frontendUrl, `http://${debuggerAddress}`).toString()
+        : frontendUrl;
+      return resolvedUrl.replace("ws=localhost:", `ws=${TestbenchDefaults.LOOPBACK_HOST}:`);
     } catch {
       return undefined;
     }

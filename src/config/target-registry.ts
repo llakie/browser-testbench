@@ -79,14 +79,15 @@ export class TargetRegistry {
         return {
           browserName: "chrome",
           "goog:loggingPrefs": { browser: "ALL", performance: "ALL" },
-          ...((target.headless || target.downloadDir) && {
-            "goog:chromeOptions": {
-              ...(target.headless ? { args: ["--headless=new"] } : {}),
-              ...(target.downloadDir
-                ? { prefs: { "download.default_directory": target.downloadDir, "download.prompt_for_download": false } }
-                : {}),
-            },
-          }),
+          "goog:chromeOptions": {
+            args: [
+              `--remote-allow-origins=${TestbenchDefaults.CHROME_DEVTOOLS_FRONTEND_ORIGIN}`,
+              ...(target.headless ? ["--headless=new"] : []),
+            ],
+            ...(target.downloadDir
+              ? { prefs: { "download.default_directory": target.downloadDir, "download.prompt_for_download": false } }
+              : {}),
+          },
           ...common,
         };
       case "firefox":

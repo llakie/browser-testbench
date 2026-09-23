@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TARGET_NAMES, type DoctorCheck } from "../../src/config/types.js";
 import { ClientVersion } from "../../src/config/client-version.js";
+import { TestbenchDefaults } from "../../src/config/defaults.js";
 import { BrowserSession } from "../../src/automation/browser-session.js";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 import { McpIntegrationService, type McpClientId } from "../../src/setup/mcp-integration-service.js";
@@ -911,6 +912,34 @@ describe("workbench UI browser flow", () => {
       }
     },
     120_000,
+  );
+
+  browserTest(
+    "opens the hosted DevTools frontend for a local Chrome session",
+    async () => {
+      const target = new BrowserSession();
+      const viewer = new BrowserSession();
+
+      try {
+        await target.start({ name: "chrome", headless: true });
+        const frontendUrl = await target.active.devToolsFrontendUrl();
+        expect(frontendUrl).toContain(`ws=${TestbenchDefaults.LOOPBACK_HOST}:`);
+
+        await viewer.start({ name: "chrome", headless: true });
+        await viewer.navigate(frontendUrl!);
+        await viewer.active.waitForScript(
+          'return document.title.startsWith("DevTools -") && document.body.children.length > 2',
+          [],
+          15_000,
+        );
+
+        expect(await viewer.active.getTitle()).toMatch(/^DevTools -/);
+      } finally {
+        await viewer.close();
+        await target.close();
+      }
+    },
+    30_000,
   );
 
   browserTest(

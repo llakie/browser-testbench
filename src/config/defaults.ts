@@ -1,6 +1,7 @@
 export class TestbenchDefaults {
   static readonly LOOPBACK_HOST = "127.0.0.1";
   static readonly ANDROID_EMULATOR_LOOPBACK_HOST = "10.0.2.2";
+  static readonly CHROME_DEVTOOLS_FRONTEND_ORIGIN = "https://chrome-devtools-frontend.appspot.com";
   static readonly PORT = 55_808;
   static readonly SERVER_URL = `http://${this.LOOPBACK_HOST}:${this.PORT}`;
 
