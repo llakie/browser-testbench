@@ -54,7 +54,7 @@ export const TargetsPage = defineComponent({
       return this.workbench?.connection.mode === "remote" && address ? `http://${address}:3000` : undefined;
     },
     debugCommand(): string {
-      if (!this.debugTarget || !this.workbench) return "";
+      if (!this.debugTarget || !this.workbench || !this.debugApplicationUrl) return "";
       return this.shellCommand([
         "npx",
         this.workbench.packageName,
@@ -66,11 +66,12 @@ export const TargetsPage = defineComponent({
       ]);
     },
     debugApplicationUrl(): string {
-      return this.debugUrl.trim() || this.applicationUrlPlaceholder;
+      return this.debugUrl.trim();
     },
     canStartDebugSession(): boolean {
       return Boolean(
         this.debugTarget?.ready &&
+        this.debugApplicationUrl &&
         !this.debugTarget.busy &&
         this.workbench?.permissions.control &&
         !this.startingDebugSession &&
@@ -207,14 +208,19 @@ for (const target of targets) {
     },
     async startDebugSession(): Promise<void> {
       const target = this.debugTarget;
-      if (!target || !this.canStartDebugSession) return;
+      const url = this.debugApplicationUrl;
+      if (!target || !url || !this.canStartDebugSession) return;
       this.startingDebugSession = true;
       try {
-        await ApiClient.request<DebugSessionView>("/v1/sessions", {
+        const session = await ApiClient.request<DebugSessionView>("/v1/sessions", {
           method: "POST",
-          body: JSON.stringify({ target: target.id, url: this.debugApplicationUrl }),
+          body: JSON.stringify({ target: target.id }),
         });
         await this.loadDebugSessions();
+        await ApiClient.request(`/v1/sessions/${session.id}/navigate`, {
+          method: "POST",
+          body: JSON.stringify({ url }),
+        });
         this.store.setNotice(
           translator.t("targets.page.debugSessionStarted", { targetName: localized(target, "label") }),
           "success",

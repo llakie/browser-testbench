@@ -1149,6 +1149,10 @@ pre code {
   margin-top: 0;
 }
 
+.debug-session__actions > .close-debug-session {
+  margin-left: auto;
+}
+
 .integration-client {
   display: block;
   width: min(22rem, 100%);
@@ -1628,7 +1632,7 @@ select:focus {
 }
 
 .button:disabled {
-  cursor: wait;
+  cursor: default;
   opacity: 0.58;
 }
 
