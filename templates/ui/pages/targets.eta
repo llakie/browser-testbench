@@ -131,14 +131,6 @@
                     </option></select
                   ><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span
               ></label>
-            </div>
-            <p class="debug-tools-note" id="local-network-address" v-if="workbench.connection.mode === 'remote'">
-              {{ t('targets.page.remoteLocalhost') }}
-              <template v-if="networkApplicationUrl"
-                >{{ t('targets.page.remoteAddress', { url: networkApplicationUrl }) }}</template
-              ><template v-else>{{ t('targets.page.remoteAddressFallback') }}</template>
-            </p>
-            <div class="debug-start-actions">
               <button
                 class="button button--secondary"
                 id="start-debug-session"
@@ -152,8 +144,14 @@
                 ></i>
                 {{ startingDebugSession ? t('targets.page.openingDebugSession') : t('targets.page.openDebugSession') }}
               </button>
-              <span>{{ t('targets.page.commandAlternative') }}</span>
             </div>
+            <p class="debug-tools-note" id="local-network-address" v-if="workbench.connection.mode === 'remote'">
+              {{ t('targets.page.remoteLocalhost') }}
+              <template v-if="networkApplicationUrl"
+                >{{ t('targets.page.remoteAddress', { url: networkApplicationUrl }) }}</template
+              ><template v-else>{{ t('targets.page.remoteAddressFallback') }}</template>
+            </p>
+            <p class="debug-command-alternative">{{ t('targets.page.commandAlternative') }}</p>
             <div id="debug-open-command"><command-block v-if="debugCommand" :value="debugCommand"></command-block></div>
             <p class="debug-tools-note" id="debug-tools-note">{{ debugNote }}</p>
             <section class="debug-sessions" aria-live="polite">
