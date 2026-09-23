@@ -40,6 +40,7 @@ import { RemoteSessionPolicy, RemoteSessionPolicyError } from "../remote/remote-
 import { IosPhysicalLoopbackUrlError } from "../automation/ios-physical-url-guard.js";
 import { ClientVersion } from "../config/client-version.js";
 import { LocalizedError, Translator, type MessageDescriptor } from "../i18n/translator.js";
+import { RequestAbort } from "./request-abort.js";
 
 const english = new Translator("en");
 
@@ -385,7 +386,11 @@ export class ApiServer {
       );
       const prepared = await this.artifactHost.prepareSession(input, transferArtifacts);
       try {
-        const session = await this.sessions.start(prepared.input, this.ownerId(request));
+        const session = await this.sessions.start(
+          prepared.input,
+          this.ownerId(request),
+          RequestAbort.signal(request, response),
+        );
         this.artifactHost.track(session.id, prepared.directory);
         this.notifyWorkbenchChanged("session");
         response.status(201).json(session);

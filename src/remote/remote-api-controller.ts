@@ -13,6 +13,7 @@ import { RemotePairingService } from "./remote-pairing-service.js";
 import { RemoteRequestAuthentication } from "./remote-request-authentication.js";
 import { RemoteUrlGuard } from "./remote-url-guard.js";
 import { ErrorResponse, type ErrorResponsePayload } from "../i18n/error-response.js";
+import { RequestAbort } from "../transports/request-abort.js";
 
 interface RemoteApiControllerOptions {
   remote: boolean;
@@ -145,6 +146,7 @@ export class RemoteApiController {
       body: upload ? (upload.body as unknown as BodyInit) : body,
       bodyHash: upload?.bodyHash,
       headers: upload ? { "content-type": "application/octet-stream" } : undefined,
+      signal: RequestAbort.signal(request, response),
       ...(request.path === "/v1/workbench/setup" ? { timeoutMs: TestbenchDefaults.SETUP_REQUEST_TIMEOUT_MS } : {}),
       ...(mobileSessionRequest ? { timeoutMs: TestbenchDefaults.MOBILE_SESSION_REQUEST_TIMEOUT_MS } : {}),
     };

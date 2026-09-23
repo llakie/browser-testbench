@@ -61,4 +61,27 @@ describe("SessionManager", () => {
 
     expect(sessions.isTargetBusy("device-a")).toBe(false);
   });
+
+  it("closes a session that finishes starting after its request was aborted", async () => {
+    vi.spyOn(TargetCatalogService, "sessionOptions").mockResolvedValue({
+      target: { id: "chrome", serial: false },
+      options: {},
+    } as never);
+    let finishStart!: () => void;
+    vi.spyOn(InteractiveController.prototype, "start").mockImplementation(
+      () => new Promise((resolve) => (finishStart = () => resolve({}))),
+    );
+    const close = vi.spyOn(InteractiveController.prototype, "close").mockResolvedValue({});
+    const controller = new AbortController();
+    const sessions = new SessionManager();
+
+    const starting = sessions.start({ target: "chrome" }, "local", controller.signal);
+    await vi.waitFor(() => expect(finishStart).toBeTypeOf("function"));
+    controller.abort();
+    finishStart();
+
+    await expect(starting).rejects.toThrow();
+    expect(close).toHaveBeenCalledOnce();
+    expect(sessions.list()).toEqual([]);
+  });
 });
