@@ -207,7 +207,7 @@ export class McpServerHost {
       "browser_action",
       {
         description:
-          "Control browser navigation, scrolling, tabs/windows, frames, JavaScript dialogs, cookies, web storage, or viewport size.",
+          "Control navigation, scrolling, tabs/windows, frames, dialogs, cookies, storage, viewport, downloads, JavaScript, network, geolocation, permissions, orientation, URL blocking, and clipboard access.",
         inputSchema: InputSchemas.browserAction,
       },
       async (input) => textResult(await active().browserAction(input)),
@@ -290,7 +290,7 @@ export class McpServerHost {
       "wait_condition",
       {
         description:
-          "Wait for an element, text, URL, element state, value, count, attribute, or text inside a specific element.",
+          "Wait for an element, text, URL, element state, value, count, attribute, element text, window count, network idle state, or JavaScript condition.",
         inputSchema: InputSchemas.wait,
         annotations: { readOnlyHint: false },
       },
