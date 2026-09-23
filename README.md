@@ -134,8 +134,9 @@ browser-testbench start --host 0.0.0.0 --token "$BROWSER_TESTBENCH_TOKEN"
 
 Browser Testbench serves plain HTTP. A bearer token authenticates requests but does not encrypt the token or test
 traffic. Use a non-loopback binding only on a trusted private network. For any other network, keep Browser Testbench
-on loopback and expose it only through a TLS-terminating reverse proxy. Never expose the HTTP service directly to the
-public internet.
+on loopback and expose it only through a TLS-terminating reverse proxy. Configure the proxy's upstream `Host` header
+as `127.0.0.1` or `localhost`; foreign host headers are rejected by the loopback service. Never expose the HTTP
+service directly to the public internet.
 
 ## Setup examples
 

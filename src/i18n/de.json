@@ -80,7 +80,7 @@
         "eyebrow": "Windows, macOS und Linux",
         "title": "Remote-Testbench",
         "intro": "Starte den Computer mit den Browsern und Geräten mit browser-testbench start --remote. Starte den Entwicklungscomputer normal und verwende dann Suchen auf der Übersichtsseite. Bei der ersten Verbindung wirst du nach dem sechsstelligen Code des entfernten Computers gefragt; spätere explizite Verbindungen verwenden die gespeicherte Kopplung.",
-        "network": "Wenn die Suche blockiert ist, verwende browser-testbench connect --server http://HOST:55808. Ein Remote-Browser kann eine Anwendung nicht über die localhost-Adresse des Entwicklungscomputers erreichen. Binde die Anwendung an das LAN und verwende ihre ausdrückliche LAN-URL. Der Remote-Modus verwendet unverschlüsseltes HTTP: Die Kopplung authentifiziert Anfragen, verschlüsselt aber weder Testeingaben noch Diagnosen, Screenshots oder Artefakte. Verwende ihn nur in einem vertrauenswürdigen privaten Netzwerk."
+        "network": "Wenn die Suche blockiert ist, verwende browser-testbench connect --server http://HOST:55808. Ein Remote-Browser kann eine Anwendung nicht über die localhost-Adresse des Entwicklungscomputers erreichen. Binde die Anwendung an das LAN und verwende ihre ausdrückliche LAN-URL. Der Remote-Modus verwendet unverschlüsseltes HTTP: Die Kopplung authentifiziert Anfragen, verschlüsselt aber weder Testeingaben noch Diagnosen, Screenshots oder Artefakte. Verwende ihn nur in einem vertrauenswürdigen privaten Netzwerk. Setze für andere Netze einen TLS-terminierenden Reverse-Proxy vor eine Loopback-Testbench und stelle seinen Upstream-Host-Header auf 127.0.0.1 oder localhost ein."
       },
       "targetIds": {
         "eyebrow": "Konvention vor Konfiguration",
