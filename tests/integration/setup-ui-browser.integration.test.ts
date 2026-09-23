@@ -487,6 +487,38 @@ describe("workbench UI browser flow", () => {
         await browser.active.setWindowRect(1000, 812);
         expect(
           await browser.active.execute(`
+            const card = [...document.querySelectorAll(".test-target")].find(item => item.querySelector(".test-target__actions > .button"));
+            const command = card.querySelector(".command-block").getBoundingClientRect();
+            const button = card.querySelector(".test-target__actions > .button").getBoundingClientRect();
+            const status = card.querySelector(".test-target__status").getBoundingClientRect();
+            const detail = card.querySelector(".test-target__content > small");
+            return {
+              containerType: getComputedStyle(card).containerType,
+              actionsUseTwoRows: button.top > command.bottom,
+              contentFitsCard: card.scrollWidth === card.clientWidth,
+              statusFitsCard: status.right <= card.getBoundingClientRect().right,
+              detailWraps: detail.scrollWidth === detail.clientWidth
+            };
+          `),
+        ).toEqual({
+          containerType: "inline-size",
+          actionsUseTwoRows: true,
+          contentFitsCard: true,
+          statusFitsCard: true,
+          detailWraps: true,
+        });
+        await browser.active.setWindowRect(1600, 812);
+        expect(
+          await browser.active.execute(`
+            const card = [...document.querySelectorAll(".test-target")].find(item => item.querySelector(".test-target__actions > .button"));
+            const command = card.querySelector(".command-block").getBoundingClientRect();
+            const button = card.querySelector(".test-target__actions > .button").getBoundingClientRect();
+            return Math.abs(command.top - button.top) < 1;
+          `),
+        ).toBe(true);
+        await browser.active.setWindowRect(1000, 812);
+        expect(
+          await browser.active.execute(`
             const target = document.querySelector("#debug-target").getBoundingClientRect();
             const button = document.querySelector("#start-debug-session").getBoundingClientRect();
             const controls = document.querySelector(".debug-controls").getBoundingClientRect();
@@ -502,6 +534,19 @@ describe("workbench UI browser flow", () => {
           `),
         ).toEqual({ sameRow: true, bottomAligned: true, balancedCommandSpacing: true });
         await browser.active.setWindowRect(500, 812);
+        expect(
+          await browser.active.execute(`
+            const controls = document.querySelector(".debug-controls").getBoundingClientRect();
+            const url = document.querySelector("#debug-url").closest("label").getBoundingClientRect();
+            const target = document.querySelector("#debug-target").getBoundingClientRect();
+            const button = document.querySelector("#start-debug-session").getBoundingClientRect();
+            return {
+              urlUsesFullRow: Math.abs(url.left - controls.left) < 1 && Math.abs(url.right - controls.right) < 1,
+              controlsOnNextRow: target.top > url.bottom && button.left > target.right,
+              bottomAligned: Math.abs(target.bottom - button.bottom) < 1
+            };
+          `),
+        ).toEqual({ urlUsesFullRow: true, controlsOnNextRow: true, bottomAligned: true });
 
         await browser.active.execute(`
           window.__debugSessions = [];
