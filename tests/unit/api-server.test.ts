@@ -279,6 +279,29 @@ describe("ApiServer", () => {
     expect(gesture.status).toBe(400);
   });
 
+  it("returns the underlying causes of aggregate runtime failures", async () => {
+    vi.spyOn(SessionManager.prototype, "start").mockRejectedValue(
+      new AggregateError(
+        [new Error("The browser driver could not start."), new Error("The Appium process could not stop.")],
+        "Session startup and cleanup failed.",
+      ),
+    );
+    server = new ApiServer({ host: "127.0.0.1", port: 0 });
+    const address = await server.start();
+
+    const response = await apiFetch(`http://${address.host}:${address.port}/v1/sessions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ target: "chrome" }),
+    });
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error:
+        "Session startup and cleanup failed.\n- The browser driver could not start.\n- The Appium process could not stop.",
+    });
+  });
+
   it("requires the exact client version for API requests but keeps diagnostics reachable", async () => {
     server = new ApiServer(
       { host: "127.0.0.1", port: 0, remote: true },

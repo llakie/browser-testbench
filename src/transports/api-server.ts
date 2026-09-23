@@ -41,6 +41,7 @@ import { IosPhysicalLoopbackUrlError } from "../automation/ios-physical-url-guar
 import { ClientVersion } from "../config/client-version.js";
 import { LocalizedError, Translator, type MessageDescriptor } from "../i18n/translator.js";
 import { RequestAbort } from "./request-abort.js";
+import { ErrorResponse } from "../i18n/error-response.js";
 
 const english = new Translator("en");
 
@@ -182,7 +183,7 @@ export class ApiServer {
         response.status(error.status).json({ error: error.message });
         return;
       }
-      response.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+      response.status(500).json({ error: ErrorResponse.describe(error) });
     });
     this.server = createServer(this.app);
   }
