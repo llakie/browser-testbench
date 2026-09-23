@@ -130,6 +130,22 @@ export class McpServerHost {
     );
 
     server.registerTool(
+      "list_sessions",
+      {
+        description: "List active sessions owned by this Browser Testbench client, including recoverable sessions.",
+        annotations: { readOnlyHint: true },
+      },
+      async () =>
+        textResult(
+          (await testbench.sessions()).map((session) => ({
+            id: session.id,
+            target: session.target,
+            runtime: session.runtime,
+          })),
+        ),
+    );
+
+    server.registerTool(
       "navigate",
       {
         description: "Navigate the active session to a URL and return a compact page inspection.",
@@ -376,11 +392,14 @@ export class McpServerHost {
     server.registerTool(
       "close_session",
       {
-        description: "Close the active interactive browser/device session and its Appium process.",
+        description:
+          "Close the current interactive session, or close a recoverable session by ID after using list_sessions.",
+        inputSchema: { id: z.uuid().optional() },
         annotations: { readOnlyHint: false, destructiveHint: true },
       },
-      async () => {
-        return textResult({ closed: true, ...(await closeSession()) });
+      async ({ id }) => {
+        const result = !id || sessions.activeId() === id ? await closeSession() : await testbench.closeSession(id);
+        return textResult({ closed: true, ...result });
       },
     );
 
