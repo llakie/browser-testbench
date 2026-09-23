@@ -20,6 +20,13 @@ export class UnknownTargetError extends LocalizedError {
   }
 }
 
+export class TargetNotReadyError extends LocalizedError {
+  constructor(id: string) {
+    super({ key: "errors.targetNotReady", parameters: { targetId: id } }, 409);
+    this.name = "TargetNotReadyError";
+  }
+}
+
 export class TargetCatalogService {
   private static cached?: { expiresAt: number; targets: TestTarget[] };
 
@@ -62,6 +69,7 @@ export class TargetCatalogService {
 
   static async sessionOptions(input: StartSessionInput) {
     const target = await this.resolve(input.target);
+    if (target.ready === false) throw new TargetNotReadyError(target.id);
     IosPhysicalUrlGuard.assertReachable(input.url, target.config);
     return {
       target,

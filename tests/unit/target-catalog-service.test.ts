@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DoctorCheck, TargetDeviceOption } from "../../src/config/types.js";
-import { TargetCatalogService } from "../../src/setup/target-catalog-service.js";
+import { TargetCatalogService, TargetNotReadyError } from "../../src/setup/target-catalog-service.js";
 import { VerificationStore } from "../../src/setup/verification-store.js";
 import { Translator } from "../../src/i18n/translator.js";
 
@@ -65,6 +65,20 @@ describe("TargetCatalogService", () => {
 
     expect(target).toMatchObject({ id: "chrome", ready: true, verifiedAt: "2026-09-16T10:00:00.000Z" });
     expect(target).not.toHaveProperty("config");
+  });
+
+  it("rejects session options for a known target that is not ready", async () => {
+    vi.spyOn(TargetCatalogService, "resolve").mockResolvedValue(
+      TargetCatalogService.build([check("safari", "skip")])[0]!,
+    );
+
+    const options = TargetCatalogService.sessionOptions({ target: "safari" });
+
+    await expect(options).rejects.toBeInstanceOf(TargetNotReadyError);
+    await expect(options).rejects.toMatchObject({
+      status: 409,
+      descriptor: { key: "errors.targetNotReady", parameters: { targetId: "safari" } },
+    });
   });
 });
 

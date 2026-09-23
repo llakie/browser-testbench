@@ -4,6 +4,7 @@ import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 import open from "open";
 import { OutputFormatter } from "./cli/output-formatter.js";
+import { Translator } from "./i18n/translator.js";
 import { TestbenchDefaults } from "./config/defaults.js";
 import { PackageMetadata } from "./config/package-metadata.js";
 import { TargetRegistry } from "./config/target-registry.js";
@@ -155,7 +156,7 @@ program
     const target = (await testbench.targets()).find((candidate) => candidate.id === targetId);
     if (!target) throw new Error(`Unknown target '${targetId}'. Run 'browser-testbench targets' to list valid IDs.`);
     if (target.status === "blocked" || target.status === "skip")
-      throw new Error(`Target '${targetId}' is not ready: ${target.detail}`);
+      throw new Error(`Target '${targetId}' is not ready: ${new Translator("en").text(target.detail)}`);
     const result = await testbench.verify(target.id, { headless: options.headless });
     console.log(options.json ? JSON.stringify(result, null, 2) : `PASS ${target.id} (${result.durationMs} ms)`);
   });

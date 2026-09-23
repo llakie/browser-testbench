@@ -472,7 +472,8 @@
   "errors": {
     "clientVersionMissing": "Die Client-Version fehlt. Installiere Browser Testbench {expectedVersion}.",
     "clientVersionMismatch": "Client-Version {actualVersion} ist nicht mit Browser Testbench {expectedVersion} kompatibel. Installiere auf allen Clients und Testbenches dieselbe Version.",
-    "unknownTarget": "Unbekanntes Testziel '{targetId}'. Aktualisiere die Browser-Testbench-Oberfläche, um die verfügbaren IDs anzuzeigen."
+    "unknownTarget": "Unbekanntes Testziel '{targetId}'. Aktualisiere die Browser-Testbench-Oberfläche, um die verfügbaren IDs anzuzeigen.",
+    "targetNotReady": "Das Testziel '{targetId}' ist nicht bereit. Prüfe seinen aktuellen Status mit list_targets oder GET /v1/targets."
   },
   "environment": {
     "safariIosLabel": "Safari auf iOS",
