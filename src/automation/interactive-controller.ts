@@ -479,7 +479,7 @@ export class InteractiveController {
             method: request?.method,
             url: request?.url,
             headers: request?.headers,
-            body: request?.postData,
+            body: request?.postData?.slice(0, TestbenchDefaults.PAGE_SOURCE_LIMIT),
           });
         }
         if (message?.method === "Network.responseReceived") {

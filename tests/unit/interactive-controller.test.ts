@@ -4,6 +4,7 @@ import { IosSessionCleanup } from "../../src/automation/ios-session-cleanup.js";
 import { IosPhysicalSafariNavigator } from "../../src/automation/ios-physical-safari-navigator.js";
 import { ServiceManager } from "../../src/infrastructure/process-manager.js";
 import { TargetRegistry } from "../../src/config/target-registry.js";
+import { TestbenchDefaults } from "../../src/config/defaults.js";
 
 describe("InteractiveController", () => {
   afterEach(() => {
@@ -150,6 +151,27 @@ describe("InteractiveController", () => {
     );
     controller.clearDiagnostics();
     await expect(controller.diagnostics()).resolves.toEqual([]);
+  });
+
+  it("caps diagnostic request bodies", async () => {
+    const controller = new InteractiveController();
+    const postData = "x".repeat(TestbenchDefaults.PAGE_SOURCE_LIMIT + 1_000);
+    const logs = vi.fn(async (type: string) =>
+      type === "performance"
+        ? [
+            performanceEntry("Network.requestWillBeSent", {
+              requestId: "request-1",
+              timestamp: 1,
+              request: { method: "POST", url: "https://example.com", postData },
+            }),
+          ]
+        : [],
+    );
+    Object.assign(controller, { session: { active: { logs } } });
+
+    const diagnostics = await controller.diagnostics();
+
+    expect(diagnostics[0]).toMatchObject({ type: "request", body: "x".repeat(TestbenchDefaults.PAGE_SOURCE_LIMIT) });
   });
 
   it("reports cleanup failures after clearing every managed resource", async () => {
