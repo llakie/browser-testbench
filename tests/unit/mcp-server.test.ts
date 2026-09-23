@@ -63,6 +63,16 @@ describe("MCP transport", () => {
         readOnlyHint: false,
         destructiveHint: true,
       });
+      expect(tools.tools.find((tool) => tool.name === "take_screenshot")?.annotations).toMatchObject({
+        readOnlyHint: false,
+      });
+      expect(tools.tools.find((tool) => tool.name === "wait_condition")?.annotations).toMatchObject({
+        readOnlyHint: false,
+      });
+      expect(tools.tools.find((tool) => tool.name === "close_session")?.annotations).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: true,
+      });
       const result = await client.callTool({ name: "list_targets", arguments: {} });
       expect(JSON.stringify(result.content)).toContain("chrome");
     } finally {
