@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { RemoteInstance } from "../remote/remote-types.js";
 import { RemoteSession, RemoteTestbench, type RemoteTestbenchOptions } from "./testbench-client.js";
 import { McpSessionCoordinator } from "./mcp-session-coordinator.js";
+import { ErrorResponse } from "../i18n/error-response.js";
 
 export class McpServerHost {
   static async start(options: RemoteTestbenchOptions = {}): Promise<void> {
@@ -76,7 +77,11 @@ export class McpServerHost {
         annotations: { readOnlyHint: false, destructiveHint: true },
       },
       async () => {
-        return textResult(await sessions.transition(() => testbench.disconnectTestbench(), { ignoreCloseError: true }));
+        let cleanupWarning: string | undefined;
+        const result = await sessions.transition(() => testbench.disconnectTestbench(), {
+          onCloseError: (error) => (cleanupWarning = ErrorResponse.describe(error)),
+        });
+        return textResult({ ...result, ...(cleanupWarning ? { cleanupWarning } : {}) });
       },
     );
 

@@ -18,6 +18,20 @@ describe("McpSessionCoordinator", () => {
     await coordinator.close();
     expect(second.close).toHaveBeenCalledOnce();
   });
+
+  it("can continue a transition while reporting a close failure", async () => {
+    const coordinator = new McpSessionCoordinator();
+    const current = session("current");
+    current.close.mockRejectedValue(new Error("cleanup failed"));
+    await coordinator.replace(async () => current.session);
+    const onCloseError = vi.fn();
+    const operation = vi.fn().mockResolvedValue("disconnected");
+
+    await expect(coordinator.transition(operation, { onCloseError })).resolves.toBe("disconnected");
+
+    expect(onCloseError).toHaveBeenCalledWith(expect.objectContaining({ message: "cleanup failed" }));
+    expect(operation).toHaveBeenCalledOnce();
+  });
 });
 
 function session(id: string): { session: RemoteSession; close: ReturnType<typeof vi.fn> } {
