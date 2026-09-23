@@ -132,6 +132,11 @@ A bearer token is required when binding a normal, non-discoverable server to an 
 browser-testbench start --host 0.0.0.0 --token "$BROWSER_TESTBENCH_TOKEN"
 ```
 
+Browser Testbench serves plain HTTP. A bearer token authenticates requests but does not encrypt the token or test
+traffic. Use a non-loopback binding only on a trusted private network. For any other network, keep Browser Testbench
+on loopback and expose it only through a TLS-terminating reverse proxy. Never expose the HTTP service directly to the
+public internet.
+
 ## Setup examples
 
 ### Local setup
@@ -178,7 +183,8 @@ npm run dev -- start --remote
 
 `--remote` binds to all network interfaces, advertises the service through DNS-SD/mDNS, and requires an
 individually paired client credential. Use it only on a trusted private LAN. No bearer token or knowledge of the
-host's IP address grants remote access. A headless host can run the same command with `--no-open` under the
+host's IP address grants remote access. Pairing authenticates control requests but does not encrypt HTTP traffic,
+including test input, diagnostics, screenshots, and artifacts. A headless host can run the same command with `--no-open` under the
 operating system's normal service or process manager.
 
 ### Connect the development machine

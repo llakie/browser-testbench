@@ -80,7 +80,7 @@
         "eyebrow": "Windows, macOS, and Linux",
         "title": "Remote Testbench",
         "intro": "Start the machine that owns the browsers and devices with browser-testbench start --remote. Start the development computer normally, then use Discover on the Overview page. The first connection asks for the six-digit code shown by the remote computer; later explicit connections reuse the saved pairing.",
-        "network": "If discovery is blocked, use browser-testbench connect --server http://HOST:55808. A remote browser cannot reach an application through the development computer's localhost address. Bind the application to the LAN and use its explicit LAN URL. Use remote mode only on a trusted private network."
+        "network": "If discovery is blocked, use browser-testbench connect --server http://HOST:55808. A remote browser cannot reach an application through the development computer's localhost address. Bind the application to the LAN and use its explicit LAN URL. Remote mode uses unencrypted HTTP: pairing authenticates requests but does not encrypt test input, diagnostics, screenshots, or artifacts. Use it only on a trusted private network."
       },
       "targetIds": {
         "eyebrow": "Convention over Configuration",
