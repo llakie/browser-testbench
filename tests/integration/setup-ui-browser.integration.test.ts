@@ -488,12 +488,18 @@ describe("workbench UI browser flow", () => {
           await browser.active.execute(`
             const target = document.querySelector("#debug-target").getBoundingClientRect();
             const button = document.querySelector("#start-debug-session").getBoundingClientRect();
+            const controls = document.querySelector(".debug-controls").getBoundingClientRect();
+            const alternative = document.querySelector(".debug-command-alternative").getBoundingClientRect();
+            const command = document.querySelector("#debug-open-command .command-block").getBoundingClientRect();
             return {
               sameRow: button.left > target.right,
-              bottomAligned: Math.abs(target.bottom - button.bottom) < 1
+              bottomAligned: Math.abs(target.bottom - button.bottom) < 1,
+              balancedCommandSpacing: Math.abs(
+                (alternative.top - controls.bottom) - (command.top - alternative.bottom)
+              ) < 1
             };
           `),
-        ).toEqual({ sameRow: true, bottomAligned: true });
+        ).toEqual({ sameRow: true, bottomAligned: true, balancedCommandSpacing: true });
         await browser.active.setWindowRect(500, 812);
 
         await browser.active.execute(`
