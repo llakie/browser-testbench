@@ -24,12 +24,8 @@ export class AndroidDeviceService {
         id: "chrome-android",
         label,
         status: "blocked",
-        detail: "Android SDK not found.",
-        action: "Install Android Studio or set the ANDROID_HOME environment variable.",
-        messages: {
-          detail: { key: "environment.androidSdkMissing" },
-          action: { key: "environment.androidSdkAction" },
-        },
+        detail: { key: "environment.androidSdkMissing" },
+        action: { key: "environment.androidSdkAction" },
       };
     }
 
@@ -41,9 +37,8 @@ export class AndroidDeviceService {
         id: "chrome-android",
         label,
         status: "ready",
-        detail: this.readyDetail(devices),
+        detail: this.readyMessage(devices),
         devices,
-        messages: { detail: this.readyMessage(devices) },
       };
     }
 
@@ -53,13 +48,9 @@ export class AndroidDeviceService {
         id: "chrome-android",
         label,
         status: "action",
-        detail: unavailablePhysical.detail ?? "A connected Android device is not ready.",
+        detail: unavailablePhysical.detail ?? { key: "environment.androidPhysicalAttention" },
         action: this.physicalDeviceAction(unavailablePhysical.state),
         devices,
-        messages: {
-          detail: unavailablePhysical.messages?.detail ?? { key: "environment.androidPhysicalAttention" },
-          action: { key: this.physicalDeviceActionKey(unavailablePhysical.state) },
-        },
       };
     }
     if (virtual.length > 0) {
@@ -67,41 +58,18 @@ export class AndroidDeviceService {
         id: "chrome-android",
         label,
         status: "action",
-        detail: "Android emulators were found, but none has a Chrome-compatible Google Play system image.",
-        action: "Create an AVD with a Google Play system image.",
+        detail: { key: "environment.androidEmulatorIncompatible" },
+        action: { key: "environment.androidCreateAvd" },
         devices,
-        messages: {
-          detail: { key: "environment.androidEmulatorIncompatible" },
-          action: { key: "environment.androidCreateAvd" },
-        },
       };
     }
     return {
       id: "chrome-android",
       label,
       status: "action",
-      detail: "No Android device or compatible emulator was found.",
-      action: "Connect a USB-debug-enabled Android device or create a Google Play AVD in Android Studio.",
-      messages: {
-        detail: { key: "environment.androidNone" },
-        action: { key: "environment.androidConnect" },
-      },
+      detail: { key: "environment.androidNone" },
+      action: { key: "environment.androidConnect" },
     };
-  }
-
-  static readyDetail(devices: TargetDeviceOption[]): string {
-    const ready = devices.filter((device) => device.compatible);
-    const physicalReady = ready.filter((device) => device.deviceKind === "physical").length;
-    const emulatorReady = ready.length - physicalReady;
-    const physicalAttention = devices.filter((device) => device.deviceKind === "physical" && !device.compatible).length;
-    const parts = [
-      physicalReady ? `${physicalReady} connected ${physicalReady === 1 ? "device" : "devices"}` : "",
-      emulatorReady ? `${emulatorReady} ${emulatorReady === 1 ? "emulator" : "emulators"}` : "",
-    ].filter(Boolean);
-    const attention = physicalAttention
-      ? ` ${physicalAttention} physical ${physicalAttention === 1 ? "device needs" : "devices need"} attention.`
-      : "";
-    return `${parts.join(" and ")} ready for Chrome testing.${attention}`;
   }
 
   static parseAdbDevices(output: string): AdbDevice[] {
@@ -187,12 +155,9 @@ export class AndroidDeviceService {
         state: device.state,
         deviceKind: "physical",
         compatible: false,
-        detail: `Android device ${fallbackName} is ${device.state}.`,
-        messages: {
-          detail: {
-            key: "environment.androidDeviceState",
-            parameters: { deviceName: fallbackName, state: device.state },
-          },
+        detail: {
+          key: "environment.androidDeviceState",
+          parameters: { deviceName: fallbackName, state: device.state },
         },
         config: { name: "chrome-android", deviceKind: "physical", deviceName: fallbackName, udid: device.serial },
       };
@@ -204,19 +169,13 @@ export class AndroidDeviceService {
     ]);
     const name = model || fallbackName;
     const compatible = chrome.startsWith("package:");
-    return {
+    const option: TargetDeviceOption = {
       id: device.serial,
       name,
       platformVersion: version || undefined,
       state: "Connected",
       deviceKind: "physical",
       compatible,
-      ...(!compatible
-        ? {
-            detail: `Chrome is not installed on ${name}.`,
-            messages: { detail: { key: "environment.chromeMissing" as const, parameters: { deviceName: name } } },
-          }
-        : {}),
       config: {
         name: "chrome-android",
         deviceKind: "physical",
@@ -225,6 +184,8 @@ export class AndroidDeviceService {
         udid: device.serial,
       },
     };
+    if (!compatible) option.detail = { key: "environment.chromeMissing", parameters: { deviceName: name } };
+    return option;
   }
 
   private static async query(adb: string, serial: string, args: string[]): Promise<string> {
@@ -241,21 +202,14 @@ export class AndroidDeviceService {
     return tags.some((tag) => /^google_apis_playstore(?:_|$)/.test(tag.trim()));
   }
 
-  private static physicalDeviceAction(state?: string): string {
-    if (state === "unauthorized") return "Unlock the device and accept the USB debugging authorization prompt.";
-    if (state === "offline") return "Reconnect the USB cable and restart USB debugging on the device.";
-    if (state === "no permissions") return "Grant this user access to the Android USB device, then reconnect it.";
-    return "Install or enable Chrome on the connected Android device.";
+  private static physicalDeviceAction(state?: string) {
+    if (state === "unauthorized") return { key: "environment.androidUnauthorized" as const };
+    if (state === "offline") return { key: "environment.androidOffline" as const };
+    if (state === "no permissions") return { key: "environment.androidPermissions" as const };
+    return { key: "environment.androidChromeAction" as const };
   }
 
-  private static physicalDeviceActionKey(state?: string) {
-    if (state === "unauthorized") return "environment.androidUnauthorized" as const;
-    if (state === "offline") return "environment.androidOffline" as const;
-    if (state === "no permissions") return "environment.androidPermissions" as const;
-    return "environment.androidChromeAction" as const;
-  }
-
-  private static readyMessage(devices: TargetDeviceOption[]) {
+  static readyMessage(devices: TargetDeviceOption[]) {
     const count = devices.filter((device) => device.compatible).length;
     const attention = devices.filter((device) => device.deviceKind === "physical" && !device.compatible).length;
     return {

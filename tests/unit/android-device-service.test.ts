@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AndroidSdk } from "../../src/infrastructure/android-sdk.js";
 import { CommandRunner } from "../../src/infrastructure/command-runner.js";
 import { AndroidDeviceService } from "../../src/setup/android-device-service.js";
+import { Translator } from "../../src/i18n/translator.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -54,9 +55,9 @@ emulator-5554 device product:sdk_gphone64_x86_64
       return { code: 1, stdout: "", stderr: "unexpected command" };
     });
 
-    await expect(AndroidDeviceService.inspect()).resolves.toMatchObject({
+    const check = await AndroidDeviceService.inspect();
+    expect(check).toMatchObject({
       status: "ready",
-      detail: "1 connected device ready for Chrome testing.",
       devices: [
         {
           id: "R5CT1234",
@@ -75,6 +76,7 @@ emulator-5554 device product:sdk_gphone64_x86_64
         },
       ],
     });
+    expect(new Translator("en").text(check.detail)).toBe("1 Android test target is ready for Chrome testing.");
   });
 
   it("explains how to authorize a detected USB device", async () => {
@@ -91,30 +93,32 @@ emulator-5554 device product:sdk_gphone64_x86_64
 
     await expect(AndroidDeviceService.inspect()).resolves.toMatchObject({
       status: "action",
-      action: "Unlock the device and accept the USB debugging authorization prompt.",
+      action: { key: "environment.androidUnauthorized" },
       devices: [expect.objectContaining({ state: "unauthorized", compatible: false })],
     });
   });
 
   it("includes a detected physical device that needs attention in the ready summary", () => {
     expect(
-      AndroidDeviceService.readyDetail([
-        {
-          id: "emulator-1",
-          name: "Pixel Emulator",
-          deviceKind: "emulator",
-          compatible: true,
-          config: { name: "chrome-android", deviceKind: "emulator", avd: "Pixel_Emulator" },
-        },
-        {
-          id: "physical-1",
-          name: "Pixel 8",
-          deviceKind: "physical",
-          compatible: false,
-          config: { name: "chrome-android", deviceKind: "physical", udid: "physical-1" },
-        },
-      ]),
-    ).toBe("1 emulator ready for Chrome testing. 1 physical device needs attention.");
+      new Translator("en").text(
+        AndroidDeviceService.readyMessage([
+          {
+            id: "emulator-1",
+            name: "Pixel Emulator",
+            deviceKind: "emulator",
+            compatible: true,
+            config: { name: "chrome-android", deviceKind: "emulator", avd: "Pixel_Emulator" },
+          },
+          {
+            id: "physical-1",
+            name: "Pixel 8",
+            deviceKind: "physical",
+            compatible: false,
+            config: { name: "chrome-android", deviceKind: "physical", udid: "physical-1" },
+          },
+        ]),
+      ),
+    ).toBe("1 Android test target is ready for Chrome testing; physical devices requiring attention: 1.");
   });
 
   it("reads an AVD version from Windows-style SDK paths", async () => {

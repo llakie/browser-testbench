@@ -2,6 +2,7 @@ import { RemoteRequestSigner } from "./remote-request-authentication.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import type { RemoteClientCredential } from "./remote-types.js";
 import { ClientVersion } from "../config/client-version.js";
+import { ErrorResponse, type ErrorResponsePayload } from "../i18n/error-response.js";
 
 export interface RemoteApiRequestInit extends RequestInit {
   timeoutMs?: number;
@@ -57,10 +58,10 @@ export class RemoteApiClient {
 
   async request<T = unknown>(path: string, init: RemoteApiRequestInit = {}): Promise<T> {
     const response = await this.response(path, init);
-    const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
+    const payload = (await response.json().catch(() => ({}))) as T & ErrorResponsePayload;
     if (!response.ok)
       throw new RemoteApiError(
-        payload.error ?? `Remote Testbench responded with HTTP ${response.status}.`,
+        ErrorResponse.message(payload, `Remote Testbench responded with HTTP ${response.status}.`),
         response.status,
       );
     return payload;

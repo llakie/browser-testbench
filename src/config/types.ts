@@ -1,3 +1,5 @@
+import type { TranslatableText } from "../i18n/translator.js";
+
 export const TARGET_NAMES = ["chrome", "firefox", "safari", "edge", "safari-ios", "chrome-android"] as const;
 
 export type TargetName = (typeof TARGET_NAMES)[number];
@@ -24,13 +26,12 @@ export interface TargetConfig {
 
 export interface DoctorCheck {
   id: string;
-  label: string;
+  label: TranslatableText;
   status: CheckStatus;
-  detail: string;
-  action?: string;
+  detail: TranslatableText;
+  action?: TranslatableText;
   commands?: string[];
   devices?: TargetDeviceOption[];
-  messages?: LocalizedFields;
 }
 
 export interface TargetDeviceOption {
@@ -39,20 +40,18 @@ export interface TargetDeviceOption {
   platformVersion?: string;
   state?: string;
   deviceKind?: MobileDeviceKind;
-  detail?: string;
+  detail?: TranslatableText;
   documentationUrl?: string;
   setupChecks?: DeviceSetupCheck[];
   compatible: boolean;
   config: TargetConfig;
-  messages?: LocalizedFields;
 }
 
 export interface DeviceSetupCheck {
   id: "usb" | "trust" | "developer-mode" | "signing";
-  label: string;
+  label: TranslatableText;
   ready: boolean;
-  detail: string;
-  messages?: LocalizedFields;
+  detail: TranslatableText;
 }
 
 export interface TargetDefinition {
@@ -66,17 +65,16 @@ export interface TargetDefinition {
 export interface TestTarget {
   id: string;
   browser: TargetName;
-  label: string;
+  label: TranslatableText;
   kind: TargetKind;
   status: CheckStatus;
   ready: boolean;
   serial: boolean;
   deviceKind?: MobileDeviceKind;
   deviceId?: string;
-  detail: string;
+  detail: TranslatableText;
   verifiedAt?: string;
   config: TargetConfig;
-  messages?: LocalizedFields;
 }
 export type TestTargetInfo = Omit<TestTarget, "config">;
 
@@ -86,6 +84,3 @@ export interface VerificationResult {
   durationMs: number;
   runtime: Record<string, unknown>;
 }
-import type { MessageDescriptor } from "../i18n/translator.js";
-
-export type LocalizedFields = Partial<Record<"label" | "detail" | "action", MessageDescriptor>>;

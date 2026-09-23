@@ -3,6 +3,7 @@ import type { WorkbenchEventType } from "../setup/workbench-events.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { PackageMetadata } from "../config/package-metadata.js";
 import { ClientVersion } from "../config/client-version.js";
+import { ErrorResponse, type ErrorResponsePayload } from "../i18n/error-response.js";
 import { RemoteApiClient, RemoteApiError } from "./remote-api-client.js";
 import { RemoteCredentialStore } from "./remote-client-store.js";
 import { RemoteCrypto, type EphemeralKeyPair } from "./remote-crypto.js";
@@ -381,8 +382,9 @@ export class RemoteConnectionService {
           : `Remote Testbench is not reachable at ${url}: ${detail}`,
       );
     }
-    const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
-    if (!response.ok) throw new Error(payload.error ?? `Remote Testbench responded with HTTP ${response.status}.`);
+    const payload = (await response.json().catch(() => ({}))) as T & ErrorResponsePayload;
+    if (!response.ok)
+      throw new Error(ErrorResponse.message(payload, `Remote Testbench responded with HTTP ${response.status}.`));
     return payload;
   }
 }

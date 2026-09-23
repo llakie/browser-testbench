@@ -15,7 +15,7 @@ import { WorkbenchService } from "../setup/workbench-service.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 import { UiRenderer } from "../ui/ui-renderer.js";
 import { UiLiveReload } from "../ui/ui-live-reload.js";
-import { TargetCatalogService, UnknownTargetError } from "../setup/target-catalog-service.js";
+import { TargetCatalogService } from "../setup/target-catalog-service.js";
 import { TargetVerificationService } from "../setup/target-verification-service.js";
 import { AndroidDeviceMonitor } from "../setup/android-device-monitor.js";
 import { IosDeviceMonitor } from "../setup/ios-device-monitor.js";
@@ -39,7 +39,7 @@ import { RemoteApiController } from "../remote/remote-api-controller.js";
 import { RemoteSessionPolicy, RemoteSessionPolicyError } from "../remote/remote-session-policy.js";
 import { IosPhysicalLoopbackUrlError } from "../automation/ios-physical-url-guard.js";
 import { ClientVersion } from "../config/client-version.js";
-import { Translator, type MessageDescriptor } from "../i18n/translator.js";
+import { LocalizedError, Translator, type MessageDescriptor } from "../i18n/translator.js";
 
 const english = new Translator("en");
 
@@ -149,6 +149,10 @@ export class ApiServer {
         response.status(400).json({ error: "Invalid request", issues: error.issues });
         return;
       }
+      if (error instanceof LocalizedError) {
+        response.status(error.status).json({ message: error.descriptor });
+        return;
+      }
       if (error instanceof SessionNotFoundError || error instanceof PairingNotFoundError) {
         response.status(404).json({ error: error.message });
         return;
@@ -175,10 +179,6 @@ export class ApiServer {
       }
       if (error instanceof RemoteSessionPolicyError) {
         response.status(error.status).json({ error: error.message });
-        return;
-      }
-      if (error instanceof UnknownTargetError) {
-        response.status(404).json({ error: error.message });
         return;
       }
       response.status(500).json({ error: error instanceof Error ? error.message : String(error) });

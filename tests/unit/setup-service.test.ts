@@ -28,7 +28,11 @@ describe("SetupService Appium status", () => {
     vi.spyOn(CommandRunner, "run").mockResolvedValue({ code: 1, stdout: "", stderr: "not installed" });
 
     await expect(SetupService.appiumDriverStatus(["safari-ios"])).resolves.toEqual([
-      { name: "xcuitest", installed: false, error: "not installed" },
+      {
+        name: "xcuitest",
+        installed: false,
+        problem: { key: "environment.setupDriverStatusFailed", parameters: { reason: "not installed" } },
+      },
     ]);
   });
 
@@ -39,7 +43,7 @@ describe("SetupService Appium status", () => {
       {
         name: "uiautomator2",
         installed: false,
-        error: "Appium returned invalid JSON while listing installed drivers: not-json",
+        problem: { key: "environment.setupDriverStatusInvalid", parameters: { output: "not-json" } },
       },
     ]);
   });
@@ -47,7 +51,11 @@ describe("SetupService Appium status", () => {
   it("surfaces an Appium inspection failure instead of offering a misleading installation", async () => {
     vi.spyOn(DoctorService, "isNodeSupported").mockReturnValue(true);
     vi.spyOn(SetupService, "appiumDriverStatus").mockResolvedValue([
-      { name: "uiautomator2", installed: false, error: "permission denied" },
+      {
+        name: "uiautomator2",
+        installed: false,
+        problem: { key: "environment.setupDriverStatusFailed", parameters: { reason: "permission denied" } },
+      },
     ]);
     vi.spyOn(AndroidAvdService, "plan").mockResolvedValue(undefined);
     vi.spyOn(DoctorService, "inspect").mockResolvedValue([]);
@@ -88,7 +96,7 @@ describe("SetupService Appium status", () => {
     {
       name: "the exit code when the command has no output",
       result: { code: 23, stdout: "", stderr: "" },
-      detail: "Appium driver installation exited with code 23 without diagnostic output.",
+      detail: { key: "environment.setupDriverInstallExited", parameters: { code: 23 } },
     },
   ])("reports $name for a failed Appium installation", async ({ result, detail }) => {
     vi.spyOn(TargetRegistry, "isSupported").mockReturnValue(true);

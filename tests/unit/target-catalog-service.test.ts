@@ -37,10 +37,8 @@ describe("TargetCatalogService", () => {
     const german = new Translator("de");
     const safari = targets.find((target) => target.browser === "safari-ios")!;
     const android = targets.find((target) => target.browser === "chrome-android")!;
-    expect(german.message(safari.messages?.label, safari.label)).toBe("Safari auf iOS · iPhone 17 Pro · 26.5");
-    expect(german.message(android.messages?.label, android.label)).toBe(
-      "Chrome auf Android · Browser Testbench API 36 · 36 · Emulator",
-    );
+    expect(german.text(safari.label)).toBe("Safari auf iOS · iPhone 17 Pro · 26.5");
+    expect(german.text(android.label)).toBe("Chrome auf Android · Browser Testbench API 36 · 36 · Emulator");
   });
 
   it("uses deterministic alphabetic suffixes when readable IDs collide", () => {

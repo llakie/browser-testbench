@@ -1124,20 +1124,17 @@ describe("workbench UI browser flow", () => {
     "renders the complete German UI on a remote Testbench",
     async () => {
       vi.spyOn(DoctorService, "inspect").mockResolvedValue(
-        TARGET_NAMES.map((id) => ({
-          id,
-          label: TargetRegistry.definitions[id].label,
-          status: "ready" as const,
-          detail: "Test environment",
-          messages: {
+        TARGET_NAMES.map((id) => {
+          let label: DoctorCheck["label"] = TargetRegistry.definitions[id].label;
+          if (id === "safari-ios") label = { key: "environment.safariIosLabel" };
+          if (id === "chrome-android") label = { key: "environment.chromeAndroidLabel" };
+          return {
+            id,
+            label,
+            status: "ready" as const,
             detail: { key: "environment.browserNotFound" as const },
-            ...(id === "safari-ios"
-              ? { label: { key: "environment.safariIosLabel" as const } }
-              : id === "chrome-android"
-                ? { label: { key: "environment.chromeAndroidLabel" as const } }
-                : {}),
-          },
-        })),
+          };
+        }),
       );
       vi.spyOn(SetupService, "plan").mockResolvedValue([]);
       vi.spyOn(McpIntegrationService, "statuses").mockResolvedValue([]);

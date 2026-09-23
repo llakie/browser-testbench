@@ -136,3 +136,16 @@ export class Translator {
     );
   }
 }
+
+const englishErrors = new Translator("en");
+
+export class LocalizedError extends Error {
+  constructor(
+    readonly descriptor: MessageDescriptor,
+    readonly status = 500,
+    options?: ErrorOptions,
+  ) {
+    super(englishErrors.message(descriptor, descriptor.key), options);
+    this.name = "LocalizedError";
+  }
+}

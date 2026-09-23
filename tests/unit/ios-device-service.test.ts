@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { IosDeviceService } from "../../src/setup/ios-device-service.js";
 import { IosDeviceDiscovery } from "../../src/setup/ios-device-discovery.js";
+import { Translator } from "../../src/i18n/translator.js";
 
 describe("IosDeviceService", () => {
   const device = {
@@ -68,9 +69,9 @@ describe("IosDeviceService", () => {
 
     expect(option).toMatchObject({
       compatible: false,
-      detail: expect.stringContaining("Developer Mode"),
       setupChecks: expect.arrayContaining([expect.objectContaining({ id: "developer-mode", ready: false })]),
     });
+    expect(new Translator("en").text(option?.detail)).toContain("Developer Mode");
     expect(option?.documentationUrl).toBeUndefined();
   });
 
@@ -107,8 +108,8 @@ describe("IosDeviceService", () => {
       Date.parse("2026-09-20T10:00:30.000Z"),
     );
 
-    expect(IosDeviceService.readyDetail([...simulators, physical!])).toBe(
-      "2 simulators ready for Safari testing. 1 physical device needs attention.",
+    expect(new Translator("en").text(IosDeviceService.readyMessage([...simulators, physical!]))).toBe(
+      "2 iOS test targets are ready for Safari testing; physical devices requiring attention: 1.",
     );
   });
 

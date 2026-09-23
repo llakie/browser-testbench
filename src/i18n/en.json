@@ -457,7 +457,8 @@
   },
   "errors": {
     "clientVersionMissing": "Client version is missing. Install Browser Testbench {expectedVersion}.",
-    "clientVersionMismatch": "Client version {actualVersion} is incompatible with Browser Testbench {expectedVersion}. Install the same version on every client and Testbench."
+    "clientVersionMismatch": "Client version {actualVersion} is incompatible with Browser Testbench {expectedVersion}. Install the same version on every client and Testbench.",
+    "unknownTarget": "Unknown test target '{targetId}'. Refresh the Browser Testbench UI to see available IDs."
   },
   "environment": {
     "safariIosLabel": "Safari on iOS",
@@ -499,12 +500,24 @@
     "iosReady": "Connected via USB with signing available. WebDriverAgent bundle ID: {bundleId}. Enable UI Automation, Safari Web Inspector, and Remote Automation before the first test.",
     "iosUsbReady": "Connected directly by USB.",
     "iosUsbConnect": "Connect and unlock the device by USB.",
+    "iosUsbLabel": "USB connection",
     "iosTrustReady": "The device is paired and available to Xcode.",
     "iosTrust": "Accept “Trust This Computer” and wait for Xcode to finish preparing the device.",
+    "iosTrustLabel": "Xcode device readiness",
     "iosDeveloperReady": "Developer Mode is enabled.",
     "iosDeveloper": "Enable Developer Mode, restart the device, and confirm it after restart.",
+    "iosDeveloperLabel": "Developer Mode",
+    "iosDeveloperAction": "Enable Developer Mode, restart the device, confirm it after restart, then enable UI Automation and Safari Web Inspector.",
     "iosSigningReady": "The certificate, private key, and trust chain form a valid signing identity.",
     "iosSigning": "Create and validate an Apple Development signing identity.",
+    "iosSigningLabel": "Apple Development signing",
+    "iosCompleteSetup": "Complete the required setup on the device and refresh this page.",
+    "iosSigningCheckFailed": "The Apple signing configuration could not be checked: {reason}",
+    "iosSigningTeamMissing": "BROWSER_TESTBENCH_IOS_TEAM_ID is set to {teamId}, but no matching Apple Development signing identity is available.",
+    "iosSigningMultipleTeams": "Multiple Apple Development teams are available. Set BROWSER_TESTBENCH_IOS_TEAM_ID to the team that should sign WebDriverAgent.",
+    "iosSigningUntrusted": "An Apple Development certificate and private key are present, but macOS does not trust the signing identity. Check the certificate status and install Apple's Worldwide Developer Relations G3 intermediate certificate.",
+    "iosSigningPrivateKeyMissing": "An Apple Development certificate is present without its matching private key. In Keychain Access, select login → My Certificates and recreate or import the identity through Xcode.",
+    "iosSigningIdentityMissing": "No Apple Development signing identity is available. In Xcode Settings → Accounts, select your team, open Manage Certificates, create an Apple Development certificate, then check again.",
     "iosUnlock": "Unlock the device, connect it by USB, and keep it connected during setup.",
     "iosWired": "Connect the device directly by USB; wireless iOS connections are not supported yet.",
     "iosAccount": "Add a free Apple Account or paid Developer team in Xcode and prepare WebDriverAgent signing.",
@@ -519,8 +532,12 @@
     "setupDriverInstalled": "Version {version} is installed locally.",
     "setupDriverMissing": "The driver is not installed yet.",
     "setupDriverStatusFailed": "Could not inspect installed Appium drivers: {reason}",
+    "setupDriverStatusExited": "Appium exited with code {code} while checking installed drivers and returned no diagnostic output.",
+    "setupDriverStatusInvalid": "Appium returned invalid JSON while checking installed drivers: {output}",
+    "setupDriverStatusEmpty": "Appium returned no output while checking installed drivers.",
     "setupDriverAlreadyInstalled": "Version {version} is already installed locally.",
     "setupDriverInstallCompleted": "The Appium driver was installed successfully.",
+    "setupDriverInstallExited": "Appium driver installation exited with code {code} without diagnostic output.",
     "setupNodeRequired": "Appium setup requires Node.js 22.12 LTS or Node.js 24 or newer.",
     "setupSafariOn": "Safari on {deviceName}",
     "avdInstallSdk": "Install the Android SDK and Android Emulator, then run setup again.",
@@ -547,6 +564,10 @@
     "geminiInstruction": "The connection applies to new Gemini CLI sessions in every project. Restart after setup.",
     "copilotInstruction": "Run the command, then confirm the new MCP server in VS Code.",
     "otherLabel": "Other MCP client",
-    "otherInstruction": "Add this project-independent MCP entry to your client's configuration, then restart it."
+    "otherInstruction": "Add this project-independent MCP entry to your client's configuration, then restart it.",
+    "clientUnavailable": "{clientName} was not found on this machine.",
+    "launcherPreparationFailed": "The project-independent Browser Testbench MCP launcher could not be prepared through npm.",
+    "connectionRemovalFailed": "The existing connection to {clientName} could not be removed.",
+    "connectionSetupFailed": "The connection to {clientName} could not be set up."
   }
 }

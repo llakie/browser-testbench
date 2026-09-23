@@ -457,7 +457,8 @@
   },
   "errors": {
     "clientVersionMissing": "Die Client-Version fehlt. Installiere Browser Testbench {expectedVersion}.",
-    "clientVersionMismatch": "Client-Version {actualVersion} ist nicht mit Browser Testbench {expectedVersion} kompatibel. Installiere auf allen Clients und Testbenches dieselbe Version."
+    "clientVersionMismatch": "Client-Version {actualVersion} ist nicht mit Browser Testbench {expectedVersion} kompatibel. Installiere auf allen Clients und Testbenches dieselbe Version.",
+    "unknownTarget": "Unbekanntes Testziel '{targetId}'. Aktualisiere die Browser-Testbench-Oberfläche, um die verfügbaren IDs anzuzeigen."
   },
   "environment": {
     "safariIosLabel": "Safari auf iOS",
@@ -499,12 +500,24 @@
     "iosReady": "Über USB verbunden und Signierung verfügbar. WebDriverAgent-Bundle-ID: {bundleId}. Aktiviere vor dem ersten Test UI-Automatisierung, Safari Web Inspector und Remote Automation.",
     "iosUsbReady": "Direkt über USB verbunden.",
     "iosUsbConnect": "Verbinde und entsperre das Gerät über USB.",
+    "iosUsbLabel": "USB-Verbindung",
     "iosTrustReady": "Das Gerät ist gekoppelt und für Xcode verfügbar.",
     "iosTrust": "Bestätige Diesem Computer vertrauen? (Trust This Computer) und warte, bis Xcode das Gerät vorbereitet hat.",
+    "iosTrustLabel": "Xcode-Gerätebereitschaft",
     "iosDeveloperReady": "Der Entwicklermodus (Developer Mode) ist aktiviert.",
     "iosDeveloper": "Aktiviere den Entwicklermodus (Developer Mode), starte das Gerät neu und bestätige ihn danach.",
+    "iosDeveloperLabel": "Entwicklermodus (Developer Mode)",
+    "iosDeveloperAction": "Aktiviere den Entwicklermodus (Developer Mode), starte das Gerät neu, bestätige ihn danach und aktiviere anschließend UI Automation und Safari Web Inspector.",
     "iosSigningReady": "Zertifikat, privater Schlüssel und Vertrauenskette bilden eine gültige Signierungsidentität.",
     "iosSigning": "Erstelle und validiere eine Apple-Development-Signierungsidentität.",
+    "iosSigningLabel": "Apple-Development-Signierung",
+    "iosCompleteSetup": "Schließe die erforderliche Einrichtung auf dem Gerät ab und aktualisiere diese Seite.",
+    "iosSigningCheckFailed": "Die Apple-Signierungskonfiguration konnte nicht geprüft werden: {reason}",
+    "iosSigningTeamMissing": "BROWSER_TESTBENCH_IOS_TEAM_ID ist auf {teamId} gesetzt, aber es ist keine passende Apple-Development-Signierungsidentität verfügbar.",
+    "iosSigningMultipleTeams": "Es sind mehrere Apple-Development-Teams verfügbar. Setze BROWSER_TESTBENCH_IOS_TEAM_ID auf das Team, das WebDriverAgent signieren soll.",
+    "iosSigningUntrusted": "Ein Apple-Development-Zertifikat und der private Schlüssel sind vorhanden, aber macOS vertraut der Signierungsidentität nicht. Prüfe den Zertifikatsstatus und installiere Apples Zwischenzertifikat Worldwide Developer Relations G3.",
+    "iosSigningPrivateKeyMissing": "Ein Apple-Development-Zertifikat ist ohne den passenden privaten Schlüssel vorhanden. Wähle in der Schlüsselbundverwaltung Anmeldung → Meine Zertifikate und erstelle oder importiere die Identität erneut über Xcode.",
+    "iosSigningIdentityMissing": "Es ist keine Apple-Development-Signierungsidentität verfügbar. Wähle in Xcode Einstellungen → Accounts dein Team, öffne Manage Certificates, erstelle ein Apple-Development-Zertifikat und prüfe erneut.",
     "iosUnlock": "Entsperre das Gerät, verbinde es über USB und lasse es während der Einrichtung verbunden.",
     "iosWired": "Verbinde das Gerät direkt über USB; drahtlose iOS-Verbindungen werden noch nicht unterstützt.",
     "iosAccount": "Füge in Xcode einen kostenlosen Apple Account oder ein bezahltes Developer-Team hinzu und bereite die WebDriverAgent-Signierung vor.",
@@ -519,8 +532,12 @@
     "setupDriverInstalled": "Version {version} ist lokal installiert.",
     "setupDriverMissing": "Der Treiber ist noch nicht installiert.",
     "setupDriverStatusFailed": "Die installierten Appium-Treiber konnten nicht geprüft werden: {reason}",
+    "setupDriverStatusExited": "Appium wurde beim Prüfen der installierten Treiber mit Code {code} beendet und hat keine Diagnose ausgegeben.",
+    "setupDriverStatusInvalid": "Appium hat beim Prüfen der installierten Treiber ungültiges JSON ausgegeben: {output}",
+    "setupDriverStatusEmpty": "Appium hat beim Prüfen der installierten Treiber keine Ausgabe geliefert.",
     "setupDriverAlreadyInstalled": "Version {version} ist bereits lokal installiert.",
     "setupDriverInstallCompleted": "Der Appium-Treiber wurde erfolgreich installiert.",
+    "setupDriverInstallExited": "Die Appium-Treiberinstallation wurde mit Code {code} ohne Diagnoseausgabe beendet.",
     "setupNodeRequired": "Die Appium-Einrichtung erfordert Node.js 22.12 LTS oder Node.js 24 oder neuer.",
     "setupSafariOn": "Safari auf {deviceName}",
     "avdInstallSdk": "Installiere das Android SDK und den Android Emulator und führe die Einrichtung erneut aus.",
@@ -547,6 +564,10 @@
     "geminiInstruction": "Die Verbindung gilt für neue Gemini-CLI-Sitzungen in jedem Projekt. Starte Gemini CLI nach der Einrichtung neu.",
     "copilotInstruction": "Führe den Befehl aus und bestätige anschließend den neuen MCP-Server in VS Code.",
     "otherLabel": "Anderer MCP-Client",
-    "otherInstruction": "Füge diesen projektunabhängigen MCP-Eintrag zur Konfiguration deines Clients hinzu und starte ihn anschließend neu."
+    "otherInstruction": "Füge diesen projektunabhängigen MCP-Eintrag zur Konfiguration deines Clients hinzu und starte ihn anschließend neu.",
+    "clientUnavailable": "{clientName} wurde auf diesem Rechner nicht gefunden.",
+    "launcherPreparationFailed": "Der projektunabhängige Browser-Testbench-MCP-Starter konnte nicht über npm vorbereitet werden.",
+    "connectionRemovalFailed": "Die bestehende Verbindung zu {clientName} konnte nicht entfernt werden.",
+    "connectionSetupFailed": "Die Verbindung zu {clientName} konnte nicht eingerichtet werden."
   }
 }
