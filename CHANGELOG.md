@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-23
+
+### Changed
+
+- Setup, device, signing, MCP, target, and API status messages use shared translation descriptors so the web interface
+  and CLI present consistent English and German guidance without duplicated compatibility fields.
+- Unit tests and browser integration tests run separately, with integration files serialized to prevent resource
+  contention and intermittent timeouts on Windows CI runners.
+
+### Fixed
+
+- Appium driver inspection and installation failures preserve the original command diagnostics instead of appearing as
+  missing drivers or empty setup failures.
+- Automatic setup results distinguish failed, incomplete, and completed outcomes and include the affected step details
+  in the web interface.
+- Local development discovery handles Windows command shims and Android AVD configuration files with BOMs, comments,
+  sections, and platform-specific line endings.
+
 ## [0.3.0] - 2026-09-21
 
 ### Added
@@ -158,7 +176,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Dynamic Android AVD discovery and provisioning without fixed API levels or Pixel profiles.
 - Automated CI for macOS, Windows, and Linux and npm publishing through GitHub Actions.
 
-[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/llakie/browser-testbench/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/llakie/browser-testbench/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/llakie/browser-testbench/compare/v0.1.8...v0.2.0
 [0.1.8]: https://github.com/llakie/browser-testbench/compare/v0.1.7...v0.1.8
