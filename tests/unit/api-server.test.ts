@@ -72,6 +72,16 @@ describe("ApiServer", () => {
     });
   });
 
+  it("allows LAN host headers on an explicit wildcard binding", async () => {
+    server = new ApiServer({ host: "0.0.0.0", port: 0, token: "test-secret" });
+    const address = await server.start();
+
+    const response = await rawRequest("127.0.0.1", address.port, "testbench.example", "test-secret");
+
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({ status: "ok" });
+  });
+
   it("does not expose a remote identity unless remote mode is enabled", async () => {
     server = new ApiServer({ host: "127.0.0.1", port: 0 });
     const address = await server.start();
@@ -351,9 +361,15 @@ function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
   return fetch(url, { ...init, headers: ClientVersion.headers(init.headers) });
 }
 
-function rawRequest(hostname: string, port: number, host: string): Promise<{ status?: number; body: string }> {
+function rawRequest(
+  hostname: string,
+  port: number,
+  host: string,
+  token?: string,
+): Promise<{ status?: number; body: string }> {
   return new Promise((resolve, reject) => {
-    const request = httpRequest({ hostname, port, path: "/health", headers: { host } }, (response) => {
+    const headers = { host, ...(token ? { authorization: `Bearer ${token}` } : {}) };
+    const request = httpRequest({ hostname, port, path: "/health", headers }, (response) => {
       let body = "";
       response.setEncoding("utf8");
       response.on("data", (chunk) => (body += chunk));

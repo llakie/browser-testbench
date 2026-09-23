@@ -230,7 +230,8 @@ export class ApiServer {
   }
 
   private requireExpectedHost(request: Request, response: Response, next: NextFunction): void {
-    if (!NetworkUrl.isLoopbackHostname(this.options.host) || NetworkUrl.isLoopbackHostname(request.hostname)) {
+    const loopbackBinding = this.options.host !== "0.0.0.0" && NetworkUrl.isLoopbackHostname(this.options.host);
+    if (!loopbackBinding || NetworkUrl.isLoopbackHostname(request.hostname)) {
       next();
       return;
     }
