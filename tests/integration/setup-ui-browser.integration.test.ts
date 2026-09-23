@@ -415,6 +415,17 @@ describe("workbench UI browser flow", () => {
         expect(await browser.active.execute("return document.querySelector('#debug-url').placeholder")).toBe(
           "http://127.0.0.1:3000",
         );
+        expect(await browser.active.execute("return document.querySelector('#start-debug-session').disabled")).toBe(
+          true,
+        );
+        expect(
+          await browser.active.execute(
+            "return getComputedStyle(document.querySelector('#start-debug-session')).cursor",
+          ),
+        ).toBe("default");
+        expect(
+          await browser.active.execute("return Boolean(document.querySelector('#debug-open-command .command-block'))"),
+        ).toBe(false);
         expect(await browser.active.$("#test-target-list").getText()).toContain("Ready on this machine");
         expect(await browser.active.$("#test-target-list").getText()).toContain(
           "Not available on this operating system",
@@ -478,6 +489,9 @@ describe("workbench UI browser flow", () => {
           url.value = "http://127.0.0.1:5173/debug";
           url.dispatchEvent(new Event("input", { bubbles: true }));
         `);
+        expect(await browser.active.execute("return document.querySelector('#start-debug-session').disabled")).toBe(
+          false,
+        );
         await browser.active.$("#debug-open-command .copy-command").click();
         expect(await browser.active.execute<string>("return window.__copiedCommand")).toBe(
           "npx browser-testbench open --target chrome --url http://127.0.0.1:5173/debug",
@@ -568,8 +582,14 @@ describe("workbench UI browser flow", () => {
               }];
               return json(window.__debugSessions[0], 201);
             }
+            if (requestPath === "/v1/sessions/ui-debug-session/navigate" && method === "POST") {
+              window.__navigatedDebugSession = JSON.parse(options.body);
+              if (window.__failDebugNavigation) return json({ error: "Navigation failed" }, 500);
+              return json({ url: window.__navigatedDebugSession.url, title: "", elements: [] });
+            }
             if (requestPath === "/v1/sessions" && method === "GET") return json(window.__debugSessions);
             if (requestPath === "/v1/sessions/ui-debug-session/devtools") {
+              if (window.__hideDebugTools) return json({});
               return json({
                 tool: "Chrome DevTools",
                 automatic: true,
@@ -590,8 +610,11 @@ describe("workbench UI browser flow", () => {
           [],
           15_000,
         );
+        await browser.active.waitForScript("return Boolean(window.__navigatedDebugSession)", [], 15_000);
         expect(await browser.active.execute("return window.__startedDebugSession")).toEqual({
           target: "chrome",
+        });
+        expect(await browser.active.execute("return window.__navigatedDebugSession")).toEqual({
           url: "http://127.0.0.1:5173/debug",
         });
         expect(
@@ -606,6 +629,36 @@ describe("workbench UI browser flow", () => {
           15_000,
         );
         expect(await browser.active.execute("return window.__closedDebugSession")).toBe(true);
+
+        await browser.active.execute(`
+          window.__closedDebugSession = false;
+          window.__failDebugNavigation = true;
+          window.__hideDebugTools = true;
+          window.__navigatedDebugSession = undefined;
+        `);
+        await browser.active.$("#start-debug-session").click();
+        await browser.active.waitForScript("return Boolean(window.__navigatedDebugSession)", [], 15_000);
+        await waitForText(browser, "Navigation failed");
+        expect(
+          await browser.active.execute('return document.querySelectorAll("#debug-session-list .debug-session").length'),
+        ).toBe(1);
+        expect(
+          await browser.active.execute(`
+            const actions = document.querySelector("#debug-session-list .debug-session__actions");
+            const close = actions.querySelector(".close-debug-session");
+            return {
+              onlyCloseButton: actions.children.length === 1,
+              alignedRight: Math.abs(actions.getBoundingClientRect().right - close.getBoundingClientRect().right) < 1
+            };
+          `),
+        ).toEqual({ onlyCloseButton: true, alignedRight: true });
+        expect(await browser.active.execute("return window.__closedDebugSession")).toBe(false);
+        await browser.active.$("#debug-session-list .close-debug-session").click();
+        await browser.active.waitForScript(
+          'return !document.querySelector("#debug-session-list .debug-session")',
+          [],
+          15_000,
+        );
 
         await browser.active.execute(
           'document.querySelector("#test-target-list .copy-command").scrollIntoView({ block: "center" })',
