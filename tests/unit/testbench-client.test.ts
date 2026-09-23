@@ -84,6 +84,21 @@ describe("RemoteTestbench.availableTargets", () => {
     );
   });
 
+  it("lists and closes recoverable sessions", async () => {
+    const testbench = new RemoteTestbench();
+    const request = vi
+      .spyOn(testbench, "request")
+      .mockResolvedValueOnce([{ id: "session", target: "chrome", createdAt: new Date().toISOString(), runtime: {} }])
+      .mockResolvedValueOnce({ closed: true });
+
+    const [session] = await testbench.sessions();
+    await testbench.closeSession(session!.id);
+
+    expect(session).toMatchObject({ id: "session", target: "chrome" });
+    expect(request).toHaveBeenNthCalledWith(1, "/v1/sessions");
+    expect(request).toHaveBeenNthCalledWith(2, "/v1/sessions/session", { method: "DELETE" });
+  });
+
   it("aborts requests after the configured client timeout", async () => {
     vi.stubGlobal(
       "fetch",

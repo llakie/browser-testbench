@@ -183,6 +183,15 @@ export class RemoteTestbench {
     return new RemoteSession(this, started);
   }
 
+  async sessions(): Promise<RemoteSession[]> {
+    const sessions = await this.request<StartedSession[]>("/v1/sessions");
+    return sessions.map((session) => new RemoteSession(this, session));
+  }
+
+  closeSession(id: string): Promise<{ closed: true; videoPath?: string }> {
+    return this.request(`/v1/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
   verify(target: string, options: { headless?: boolean } = {}): Promise<VerificationResult> {
     return this.request<VerificationResult>("/v1/verify", {
       method: "POST",
@@ -684,7 +693,7 @@ export class RemoteSession {
   }
 
   close(): Promise<{ closed: true; videoPath?: string }> {
-    return this.testbench.request(`/v1/sessions/${this.id}`, { method: "DELETE" });
+    return this.testbench.closeSession(this.id);
   }
 
   private gesture(input: GestureRequest): Promise<GestureExecution> {

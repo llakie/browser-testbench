@@ -33,6 +33,7 @@ describe("MCP transport", () => {
           "doctor",
           "verify_target",
           "start_session",
+          "list_sessions",
           "inspect_page",
           "take_screenshot",
           "tap",

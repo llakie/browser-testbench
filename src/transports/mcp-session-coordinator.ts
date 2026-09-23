@@ -9,6 +9,10 @@ export class McpSessionCoordinator {
     return this.current;
   }
 
+  activeId(): string | undefined {
+    return this.current?.id;
+  }
+
   replace(start: () => Promise<RemoteSession>): Promise<RemoteSession> {
     return this.exclusive(async () => {
       await this.closeCurrent();
