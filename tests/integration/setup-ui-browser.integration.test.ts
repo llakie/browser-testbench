@@ -1024,6 +1024,11 @@ describe("workbench UI browser flow", () => {
         expect(frontendUrl).toContain(`ws=${TestbenchDefaults.LOOPBACK_HOST}:`);
 
         await viewer.start({ name: "chrome", headless: true });
+        await viewer.active.devtools("Browser.setPermission", {
+          permission: { name: "loopback-network" },
+          setting: "granted",
+          origin: TestbenchDefaults.CHROME_DEVTOOLS_FRONTEND_ORIGIN,
+        });
         await viewer.navigate(frontendUrl!);
         await viewer.active.waitForScript(
           'return document.title.startsWith("DevTools -") && document.body.children.length > 2',
