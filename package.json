@@ -56,7 +56,9 @@
     "licenses": "node scripts/generate-licenses.mjs",
     "licenses:check": "node scripts/generate-licenses.mjs --check",
     "pretest": "npm run build:ui",
-    "test": "vitest run",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:integration": "vitest run tests/integration --no-file-parallelism",
+    "test:unit": "vitest run tests/unit",
     "pretest:watch": "npm run build:ui",
     "test:watch": "vitest",
     "prepare": "npm run build"
