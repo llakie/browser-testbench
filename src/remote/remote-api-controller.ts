@@ -49,7 +49,13 @@ export class RemoteApiController {
     app.post("/v1/remote/pairing", (request, response) => {
       if (!this.options.remote) return this.remoteDisabled(response);
       const input = InputSchemas.remotePairingBegin.parse(request.body);
-      const pairing = this.options.pairing.begin(input.clientName, input.role, input.clientId, input.clientPublicKey);
+      const pairing = this.options.pairing.begin(
+        input.clientName,
+        input.role,
+        input.clientId,
+        input.clientPublicKey,
+        request.socket.remoteAddress,
+      );
       this.options.notifyConnectionChanged();
       response.status(201).json(pairing);
     });
