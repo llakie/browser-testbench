@@ -92,7 +92,9 @@ describe("remote gateway", () => {
     const connected = await testbench.completePairing((pairing as { pairingId: string }).pairingId, code!);
     expect(connected).toMatchObject({ mode: "remote", remote: { instanceId: instance.instanceId, role: "control" } });
     expect((await testbench.targets()).map((target) => target.id)).toContain("edge");
-    expect(JSON.stringify(await testbench.request("/v1/workbench"))).not.toContain("Program Files");
+    expect(JSON.stringify(withoutLocalMcpClients(await testbench.request("/v1/workbench")))).not.toContain(
+      "Program Files",
+    );
     expect(JSON.stringify(await testbench.request("/v1/doctor"))).not.toContain("Program Files");
     expect(JSON.stringify(await testbench.capabilities())).not.toContain("Program Files");
     expect(JSON.stringify(await testbench.targets())).not.toContain("Program Files");
@@ -135,7 +137,7 @@ describe("remote gateway", () => {
     ).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ clientId: connected.remote!.clientId, connected: true })]),
     );
-    expect(JSON.stringify(await testbench.request("/v1/workbench"))).toContain("Program Files");
+    expect(JSON.stringify(withoutLocalMcpClients(await testbench.request("/v1/workbench")))).toContain("Program Files");
     await expect(testbench.request("/v1/sessions/missing", { method: "DELETE" })).rejects.toThrow(
       "Session 'missing' was not found.",
     );
@@ -214,3 +216,8 @@ describe("remote gateway", () => {
     await expect(testbench.connectTestbench(discovered)).resolves.toMatchObject({ pairingRequired: true });
   });
 });
+
+function withoutLocalMcpClients(value: unknown): Record<string, unknown> {
+  const { mcpClients: _mcpClients, ...remoteWorkbench } = value as Record<string, unknown>;
+  return remoteWorkbench;
+}
