@@ -1078,6 +1078,10 @@ pre code {
   margin: 0;
 }
 
+#debug-open-command .command-block {
+  margin-top: 0;
+}
+
 .debug-sessions {
   display: grid;
   gap: var(--space-3);
