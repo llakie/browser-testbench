@@ -12,6 +12,7 @@ import type { RemoteDiscoveryBrowser } from "./remote-discovery-service.js";
 import { RemotePairingService } from "./remote-pairing-service.js";
 import { RemoteRequestAuthentication } from "./remote-request-authentication.js";
 import { RemoteUrlGuard } from "./remote-url-guard.js";
+import { ErrorResponse, type ErrorResponsePayload } from "../i18n/error-response.js";
 
 interface RemoteApiControllerOptions {
   remote: boolean;
@@ -271,9 +272,9 @@ export class RemoteApiController {
 
   private async assertRemoteResponse(response: globalThis.Response): Promise<void> {
     if (response.ok) return;
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    const payload = (await response.json().catch(() => ({}))) as ErrorResponsePayload;
     throw new RemoteApiError(
-      payload.error ?? `Remote Testbench responded with HTTP ${response.status}.`,
+      ErrorResponse.message(payload, `Remote Testbench responded with HTTP ${response.status}.`),
       response.status,
     );
   }

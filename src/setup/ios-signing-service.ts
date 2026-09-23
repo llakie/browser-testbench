@@ -1,10 +1,9 @@
 import { X509Certificate } from "node:crypto";
+import type { TranslatableText } from "../i18n/translator.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
 
 const SIGNING_CHECK_TIMEOUT_MS = 5_000;
-const CREATE_IDENTITY_PROBLEM =
-  "No Apple Development signing identity is available. In Xcode Settings → Accounts, select your team, open Manage Certificates, create an Apple Development certificate, then check again.";
 
 export interface IosSigningIdentity {
   name: string;
@@ -15,21 +14,37 @@ export interface IosSigningConfiguration extends IosSigningIdentity {
   bundleId: string;
 }
 
+export interface IosSigningStatus {
+  selected?: IosSigningConfiguration;
+  identities: IosSigningIdentity[];
+  problem?: TranslatableText;
+}
+
 export class IosSigningService {
-  static async configuration(
-    environment: NodeJS.ProcessEnv = process.env,
-  ): Promise<{ selected?: IosSigningConfiguration; identities: IosSigningIdentity[]; problem?: string }> {
+  static async configuration(environment: NodeJS.ProcessEnv = process.env): Promise<IosSigningStatus> {
     const result = await CommandRunner.run("security", ["find-identity", "-v", "-p", "codesigning"], {
       timeoutMs: SIGNING_CHECK_TIMEOUT_MS,
     });
-    const identities = result.code === 0 ? await this.resolveTeamIds(this.parseIdentities(result.stdout)) : [];
+    if (result.code !== 0) {
+      return {
+        identities: [],
+        problem: {
+          key: "environment.iosSigningCheckFailed",
+          parameters: { reason: this.commandDiagnostic(result) },
+        },
+      };
+    }
+    const identities = await this.resolveTeamIds(this.parseIdentities(result.stdout));
     const requestedTeam = environment.BROWSER_TESTBENCH_IOS_TEAM_ID?.trim();
     if (requestedTeam) {
       const identity = identities.find((candidate) => candidate.teamId === requestedTeam);
       if (!identity) {
         return {
           identities,
-          problem: `BROWSER_TESTBENCH_IOS_TEAM_ID is set to ${requestedTeam}, but no matching Apple Development signing identity is available.`,
+          problem: {
+            key: "environment.iosSigningTeamMissing",
+            parameters: { teamId: requestedTeam },
+          },
         };
       }
       return { identities, selected: this.withBundleId(identity) };
@@ -38,8 +53,7 @@ export class IosSigningService {
     if (identities.length > 1) {
       return {
         identities,
-        problem:
-          "Multiple Apple Development teams are available. Set BROWSER_TESTBENCH_IOS_TEAM_ID to the team that should sign WebDriverAgent.",
+        problem: { key: "environment.iosSigningMultipleTeams" },
       };
     }
     return {
@@ -103,12 +117,18 @@ export class IosSigningService {
     }
   }
 
-  private static async unavailableIdentityProblem(): Promise<string> {
+  private static async unavailableIdentityProblem(): Promise<TranslatableText> {
     const matching = await CommandRunner.run("security", ["find-identity", "-p", "codesigning"], {
       timeoutMs: SIGNING_CHECK_TIMEOUT_MS,
     });
     if (matching.code === 0 && this.parseIdentities(matching.stdout).length > 0) {
-      return "An Apple Development certificate and private key are present, but macOS does not trust the signing identity. Check the certificate status and install Apple's Worldwide Developer Relations G3 intermediate certificate.";
+      return { key: "environment.iosSigningUntrusted" };
+    }
+    if (matching.code === -1) {
+      return {
+        key: "environment.iosSigningCheckFailed",
+        parameters: { reason: this.commandDiagnostic(matching) },
+      };
     }
     const certificate = await CommandRunner.run(
       "security",
@@ -116,8 +136,18 @@ export class IosSigningService {
       { timeoutMs: SIGNING_CHECK_TIMEOUT_MS },
     );
     if (certificate.code === 0 && certificate.stdout.trim()) {
-      return "An Apple Development certificate is present without its matching private key. In Keychain Access, select login → My Certificates and recreate or import the identity through Xcode.";
+      return { key: "environment.iosSigningPrivateKeyMissing" };
     }
-    return CREATE_IDENTITY_PROBLEM;
+    if (certificate.code === -1) {
+      return {
+        key: "environment.iosSigningCheckFailed",
+        parameters: { reason: this.commandDiagnostic(certificate) },
+      };
+    }
+    return { key: "environment.iosSigningIdentityMissing" };
+  }
+
+  private static commandDiagnostic(result: { code: number; stdout: string; stderr: string }): string {
+    return result.stderr.trim() || result.stdout.trim() || `security exited with code ${result.code}`;
   }
 }

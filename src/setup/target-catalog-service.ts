@@ -11,8 +11,14 @@ import { DoctorService } from "./doctor-service.js";
 import { VerificationStore } from "./verification-store.js";
 import type { StartSessionInput } from "../config/input-schemas.js";
 import { IosPhysicalUrlGuard } from "../automation/ios-physical-url-guard.js";
+import { LocalizedError } from "../i18n/translator.js";
 
-export class UnknownTargetError extends Error {}
+export class UnknownTargetError extends LocalizedError {
+  constructor(id: string) {
+    super({ key: "errors.unknownTarget", parameters: { targetId: id } }, 404);
+    this.name = "UnknownTargetError";
+  }
+}
 
 export class TargetCatalogService {
   private static cached?: { expiresAt: number; targets: TestTarget[] };
@@ -32,7 +38,7 @@ export class TargetCatalogService {
     if (current) return current;
     const refreshed = (await this.list({ refresh: true })).find((target) => target.id === id);
     if (refreshed) return refreshed;
-    throw new UnknownTargetError(`Unknown test target '${id}'. Refresh the Testbench UI to see available IDs.`);
+    throw new UnknownTargetError(id);
   }
 
   static async publicList(options: { refresh?: boolean } = {}): Promise<TestTargetInfo[]> {
@@ -85,7 +91,6 @@ export class TargetCatalogService {
             ready: check.status === "ready",
             serial: definition.serial,
             detail: check.detail,
-            messages: check.messages,
             config: { name: browser },
           },
         ];
@@ -112,14 +117,13 @@ export class TargetCatalogService {
       const position = positions.get(baseId) ?? 0;
       positions.set(baseId, position + 1);
       const id = counts.get(baseId)! > 1 ? `${baseId}-${this.alphaSuffix(position)}` : baseId;
-      const kindLabel =
-        device.deviceKind === "physical" ? "USB device" : device.deviceKind === "emulator" ? "Emulator" : "";
       return {
         id,
         browser,
-        label: [TargetRegistry.definitions[browser].label, device.name, device.platformVersion, kindLabel]
-          .filter(Boolean)
-          .join(" · "),
+        label: {
+          key: this.mobileLabelKey(browser, device),
+          parameters: { deviceName: device.name, version: device.platformVersion ?? "" },
+        },
         kind: "mobile",
         status: check.status,
         ready: check.status === "ready",
@@ -127,13 +131,6 @@ export class TargetCatalogService {
         deviceKind: device.deviceKind,
         deviceId: device.id,
         detail: check.detail,
-        messages: {
-          ...check.messages,
-          label: {
-            key: this.mobileLabelKey(browser, device),
-            parameters: { deviceName: device.name, version: device.platformVersion ?? "" },
-          },
-        },
         config: { ...device.config },
       };
     });

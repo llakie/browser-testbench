@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandRunner } from "../../src/infrastructure/command-runner.js";
 import { IosSigningService } from "../../src/setup/ios-signing-service.js";
+import { Translator } from "../../src/i18n/translator.js";
 
 describe("IosSigningService", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -38,9 +39,8 @@ C=US`),
         stderr: "",
       });
 
-    await expect(IosSigningService.configuration({})).resolves.toMatchObject({
-      problem: expect.stringContaining("Worldwide Developer Relations G3"),
-    });
+    const status = await IosSigningService.configuration({});
+    expect(new Translator("en").text(status.problem)).toContain("Worldwide Developer Relations G3");
   });
 
   it("explains when an Apple Development certificate has no private key", async () => {
@@ -49,8 +49,7 @@ C=US`),
       .mockResolvedValueOnce({ code: 0, stdout: "0 identities found", stderr: "" })
       .mockResolvedValueOnce({ code: 0, stdout: "-----BEGIN CERTIFICATE-----", stderr: "" });
 
-    await expect(IosSigningService.configuration({})).resolves.toMatchObject({
-      problem: expect.stringContaining("without its matching private key"),
-    });
+    const status = await IosSigningService.configuration({});
+    expect(new Translator("en").text(status.problem)).toContain("without its matching private key");
   });
 });

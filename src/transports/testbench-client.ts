@@ -22,6 +22,7 @@ import type { DoctorCheck, TargetDefinition, TestTargetInfo, VerificationResult 
 import type { ConnectionStatus, PairingRequired, RemoteInstance, RemoteRole } from "../remote/remote-types.js";
 import type { SetupAction } from "../setup/setup-types.js";
 import { ClientVersion } from "../config/client-version.js";
+import { ErrorResponse, type ErrorResponsePayload } from "../i18n/error-response.js";
 
 export type { SetupAction } from "../setup/setup-types.js";
 
@@ -237,8 +238,9 @@ export class RemoteTestbench {
         `Browser Testbench is not reachable at ${this.server}: ${error instanceof Error ? error.message : error}`,
       );
     }
-    const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
-    if (!response.ok) throw new Error(payload.error ?? `Browser Testbench responded with HTTP ${response.status}.`);
+    const payload = (await response.json().catch(() => ({}))) as T & ErrorResponsePayload;
+    if (!response.ok)
+      throw new Error(ErrorResponse.message(payload, `Browser Testbench responded with HTTP ${response.status}.`));
     return payload;
   }
 }

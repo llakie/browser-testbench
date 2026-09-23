@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import type { DoctorCheck, TargetName } from "../config/types.js";
+import type { TranslatableText } from "../i18n/translator.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import { CommandRunner, type CommandResult } from "../infrastructure/command-runner.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
@@ -16,7 +17,7 @@ export interface AppiumDriverStatus {
   name: "xcuitest" | "uiautomator2";
   installed: boolean;
   version?: string;
-  error?: string;
+  problem?: TranslatableText;
 }
 
 export class SetupService {
@@ -44,7 +45,7 @@ export class SetupService {
           label: { key: "environment.setupSafariOn", parameters: { deviceName: device.name } },
           automatic: false,
           status: "manual",
-          detail: device.messages?.detail ?? device.detail,
+          detail: device.detail,
           targets: ["safari-ios"],
         };
         if (device.setupChecks?.some((check) => check.id === "signing" && !check.ready)) {
@@ -59,10 +60,10 @@ export class SetupService {
       if (check.action && !actions.some((action) => action.id === actionId)) {
         actions.push({
           id: actionId,
-          label: check.messages?.label ?? check.label,
+          label: check.label,
           automatic: false,
           status: "manual",
-          detail: check.messages?.action ?? check.action,
+          detail: check.action,
           command: check.commands?.[0],
         });
       }
@@ -153,16 +154,21 @@ export class SetupService {
       },
     );
     if (listed.code !== 0) {
-      const error = this.commandDiagnostic(listed, `Appium exited with code ${listed.code} without diagnostic output.`);
-      return drivers.map((name) => ({ name, installed: false, error }));
+      const diagnostic = this.commandDiagnostic(listed);
+      const problem: TranslatableText = diagnostic
+        ? { key: "environment.setupDriverStatusFailed", parameters: { reason: diagnostic } }
+        : { key: "environment.setupDriverStatusExited", parameters: { code: listed.code } };
+      return drivers.map((name) => ({ name, installed: false, problem }));
     }
     let installed: Record<string, { version?: string; installed?: boolean }> = {};
     try {
       installed = JSON.parse(listed.stdout) as typeof installed;
     } catch {
-      const output = this.commandDiagnostic(listed, "Appium returned no output.");
-      const error = `Appium returned invalid JSON while listing installed drivers: ${output}`;
-      return drivers.map((name) => ({ name, installed: false, error }));
+      const output = this.commandDiagnostic(listed);
+      const problem: TranslatableText = output
+        ? { key: "environment.setupDriverStatusInvalid", parameters: { output } }
+        : { key: "environment.setupDriverStatusEmpty" };
+      return drivers.map((name) => ({ name, installed: false, problem }));
     }
     return drivers.map((name) => ({
       name,
@@ -185,10 +191,10 @@ export class SetupService {
       targets: [this.driverTarget(driver.name)],
       detail: { key: "environment.setupDriverMissing" },
     };
-    if (driver.error) {
+    if (driver.problem) {
       action.automatic = false;
       action.status = "failed";
-      action.detail = { key: "environment.setupDriverStatusFailed", parameters: { reason: driver.error } };
+      action.detail = driver.problem;
       return action;
     }
     if (driver.installed) {
@@ -213,10 +219,11 @@ export class SetupService {
     };
     if (installation.code === 0) return action;
     action.status = "failed";
-    action.detail = this.commandDiagnostic(
-      installation,
-      `Appium driver installation exited with code ${installation.code} without diagnostic output.`,
-    );
+    const diagnostic = this.commandDiagnostic(installation);
+    action.detail = diagnostic ?? {
+      key: "environment.setupDriverInstallExited",
+      parameters: { code: installation.code },
+    };
     return action;
   }
 
@@ -230,8 +237,8 @@ export class SetupService {
     return "uiautomator2";
   }
 
-  private static commandDiagnostic(result: CommandResult, fallback: string): string {
-    return result.stderr.trim() || result.stdout.trim() || fallback;
+  private static commandDiagnostic(result: CommandResult): string | undefined {
+    return result.stderr.trim() || result.stdout.trim() || undefined;
   }
 
   private static hasDetectedPhysicalAndroidDevice(checks: DoctorCheck[]): boolean {

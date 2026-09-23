@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandRunner } from "../../src/infrastructure/command-runner.js";
 import { McpIntegrationService } from "../../src/setup/mcp-integration-service.js";
+import { Translator } from "../../src/i18n/translator.js";
 import { McpServerLauncher } from "../../src/setup/mcp-server-launcher.js";
 
 describe("McpIntegrationService", () => {
@@ -137,21 +138,22 @@ describe("McpIntegrationService", () => {
   it("checks whether the VS Code command-line launcher is actually available", async () => {
     vi.spyOn(CommandRunner, "run").mockResolvedValue({ code: -1, stdout: "", stderr: "not found" });
 
-    await expect(McpIntegrationService.status("copilot-vscode")).resolves.toMatchObject({
+    const status = await McpIntegrationService.status("copilot-vscode");
+    expect(status).toMatchObject({
       installed: false,
       automatic: false,
-      detail: expect.stringContaining("BROWSER_TESTBENCH_CODE_PATH"),
     });
+    expect(new Translator("en").text(status.detail)).toContain("BROWSER_TESTBENCH_CODE_PATH");
   });
 
   it("reports an invalid explicit client executable separately", async () => {
     vi.stubEnv("BROWSER_TESTBENCH_GEMINI_PATH", "/missing/gemini");
     vi.spyOn(CommandRunner, "run").mockResolvedValue({ code: -1, stdout: "", stderr: "not found" });
 
-    await expect(McpIntegrationService.status("gemini-cli")).resolves.toMatchObject({
-      installed: false,
-      detail:
-        "Gemini CLI could not be started through BROWSER_TESTBENCH_GEMINI_PATH. Check the configured executable path.",
-    });
+    const status = await McpIntegrationService.status("gemini-cli");
+    expect(status.installed).toBe(false);
+    expect(new Translator("en").text(status.detail)).toBe(
+      "Gemini CLI could not be started through BROWSER_TESTBENCH_GEMINI_PATH. Check the configured executable path.",
+    );
   });
 });

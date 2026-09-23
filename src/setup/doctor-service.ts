@@ -22,18 +22,14 @@ export class DoctorService {
 
   private static async nodeCheck(): Promise<DoctorCheck> {
     const supported = this.isNodeSupported();
-    return {
+    const check: DoctorCheck = {
       id: "node",
       label: "Node.js",
       status: supported ? "ready" : "blocked",
       detail: process.version,
-      ...(!supported
-        ? {
-            action: "Install Node.js 22.12 LTS or Node.js 24 or newer.",
-            messages: { action: { key: "environment.nodeUnsupported" as const } },
-          }
-        : {}),
     };
+    if (!supported) check.action = { key: "environment.nodeUnsupported" };
+    return check;
   }
 
   static isNodeSupported(version = process.versions.node): boolean {
@@ -47,13 +43,9 @@ export class DoctorService {
     if (!TargetRegistry.isSupported(name)) {
       return {
         id: name,
-        label: definition.label,
+        label: label ?? definition.label,
         status: "skip",
-        detail: `Not available on ${this.platformLabel()}.`,
-        messages: {
-          ...(label ? { label } : {}),
-          detail: { key: "environment.notAvailablePlatform", parameters: { platform: this.platformLabel() } },
-        },
+        detail: { key: "environment.notAvailablePlatform", parameters: { platform: this.platformLabel() } },
       };
     }
 
@@ -78,7 +70,8 @@ export class DoctorService {
         check = await AndroidDeviceService.inspect();
         break;
     }
-    return label ? { ...check, messages: { ...check.messages, label } } : check;
+    if (label) check.label = label;
+    return check;
   }
 
   private static async applicationCheck(id: string, label: string, paths: string[]): Promise<DoctorCheck> {
@@ -89,12 +82,8 @@ export class DoctorService {
       id,
       label,
       status: "blocked",
-      detail: "Browser not found.",
-      action: `Install ${label}.`,
-      messages: {
-        detail: { key: "environment.browserNotFound" },
-        action: { key: "environment.installProduct", parameters: { product: label } },
-      },
+      detail: { key: "environment.browserNotFound" },
+      action: { key: "environment.installProduct", parameters: { product: label } },
     };
   }
 
@@ -105,8 +94,7 @@ export class DoctorService {
         id: "safari",
         label: "Apple Safari",
         status: "blocked",
-        detail: "Safari WebDriver not found.",
-        messages: { detail: { key: "environment.safariNotFound" } },
+        detail: { key: "environment.safariNotFound" },
       };
     }
     const verified = await VerificationStore.read("safari");
@@ -115,13 +103,10 @@ export class DoctorService {
         id: "safari",
         label: "Apple Safari",
         status: "ready",
-        detail: `WebDriver verified on ${this.formatDate(verified.verifiedAt)}.`,
-        messages: {
-          detail: {
-            key: "environment.safariVerified",
-            parameters: { date: verified.verifiedAt },
-            formats: { date: "date" },
-          },
+        detail: {
+          key: "environment.safariVerified",
+          parameters: { date: verified.verifiedAt },
+          formats: { date: "date" },
         },
       };
     }
@@ -129,12 +114,8 @@ export class DoctorService {
       id: "safari",
       label: "Apple Safari",
       status: "action",
-      detail: "Safari WebDriver is installed. Permission is not checked automatically to avoid opening macOS dialogs.",
-      action: "Enable Safari WebDriver once, then verify it for Browser Testbench.",
-      messages: {
-        detail: { key: "environment.safariPermission" },
-        action: { key: "environment.safariEnable" },
-      },
+      detail: { key: "environment.safariPermission" },
+      action: { key: "environment.safariEnable" },
       commands: ["sudo safaridriver --enable", TestbenchPaths.cliCommand("verify", "safari")],
     };
   }
@@ -190,12 +171,6 @@ export class DoctorService {
     if (process.platform === "darwin") return "macOS";
     if (process.platform === "win32") return "Windows";
     return "Linux";
-  }
-
-  private static formatDate(value: string): string {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(date);
   }
 
   private static targetLabelMessage(name: TargetName) {

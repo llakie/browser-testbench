@@ -103,13 +103,13 @@ export const OverviewPage = defineComponent({
     t: translator.t.bind(translator),
     localized,
     mcpLabel(client: McpIntegrationStatus): string {
-      return translator.message(client.labelMessage, client.label);
+      return translator.text(client.label);
     },
     mcpDetail(client: McpIntegrationStatus): string {
-      return translator.message(client.detailMessage, client.detail);
+      return translator.text(client.detail);
     },
     mcpInstruction(client: McpIntegrationStatus): string {
-      return translator.message(client.instructionMessage, client.instruction);
+      return translator.text(client.instruction);
     },
     statusIcon(status: CheckStatus): string {
       return { ready: "fa-check", action: "fa-triangle-exclamation", blocked: "fa-xmark", skip: "fa-minus" }[status];
@@ -239,7 +239,7 @@ export const OverviewPage = defineComponent({
           method: "POST",
           body: JSON.stringify({ client: client.id }),
         });
-        this.store.setNotice(translator.t("overview.mcpConnected", { clientName: client.label }), "success");
+        this.store.setNotice(translator.t("overview.mcpConnected", { clientName: this.mcpLabel(client) }), "success");
       });
     },
     async discoverRemotes(): Promise<void> {
