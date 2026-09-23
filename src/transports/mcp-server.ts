@@ -197,7 +197,7 @@ export class McpServerHost {
       {
         description: "Capture the active browser or device screen and return both the path and image.",
         inputSchema: InputSchemas.screenshot.shape,
-        annotations: { readOnlyHint: true },
+        annotations: { readOnlyHint: false },
       },
       async ({ path, fullPage }) => {
         const screenshotPath = path ? resolve(path) : resolve("artifacts", `interactive-${Date.now()}.png`);
@@ -271,7 +271,7 @@ export class McpServerHost {
         description:
           "Wait for an element, text, URL, element state, value, count, attribute, or text inside a specific element.",
         inputSchema: InputSchemas.wait,
-        annotations: { readOnlyHint: true },
+        annotations: { readOnlyHint: false },
       },
       async (input) => {
         await active().wait(input);
@@ -377,6 +377,7 @@ export class McpServerHost {
       "close_session",
       {
         description: "Close the active interactive browser/device session and its Appium process.",
+        annotations: { readOnlyHint: false, destructiveHint: true },
       },
       async () => {
         return textResult({ closed: true, ...(await closeSession()) });
