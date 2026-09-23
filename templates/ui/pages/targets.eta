@@ -138,8 +138,80 @@
                 >{{ t('targets.page.remoteAddress', { url: networkApplicationUrl }) }}</template
               ><template v-else>{{ t('targets.page.remoteAddressFallback') }}</template>
             </p>
+            <div class="debug-start-actions">
+              <button
+                class="button button--secondary"
+                id="start-debug-session"
+                type="button"
+                :disabled="!canStartDebugSession"
+                @click="startDebugSession"
+              >
+                <i
+                  :class="['fa-solid', startingDebugSession ? 'fa-spinner fa-spin' : 'fa-arrow-up-right-from-square']"
+                  aria-hidden="true"
+                ></i>
+                {{ startingDebugSession ? t('targets.page.openingDebugSession') : t('targets.page.openDebugSession') }}
+              </button>
+              <span>{{ t('targets.page.commandAlternative') }}</span>
+            </div>
             <div id="debug-open-command"><command-block v-if="debugCommand" :value="debugCommand"></command-block></div>
             <p class="debug-tools-note" id="debug-tools-note">{{ debugNote }}</p>
+            <section class="debug-sessions" aria-live="polite">
+              <div class="debug-sessions__heading">
+                <h4>{{ t('targets.page.activeDebugSessions') }}</h4>
+                <span v-if="loadingDebugSessions"
+                  ><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> {{
+                  t('targets.page.loadingDebugSessions') }}</span
+                >
+              </div>
+              <p class="debug-sessions__empty" v-if="!loadingDebugSessions && !debugSessions.length">
+                {{ t('targets.page.noActiveDebugSessions') }}
+              </p>
+              <div class="debug-session-list" id="debug-session-list" v-else>
+                <article class="debug-session" v-for="session in debugSessions" :key="session.id">
+                  <div class="debug-session__details">
+                    <div class="debug-session__heading">
+                      <strong>{{ debugSessionLabel(session) }}</strong
+                      ><span class="debug-session__status"
+                        ><i class="fa-solid fa-circle" aria-hidden="true"></i> {{ t('targets.page.debugSessionActive')
+                        }}</span
+                      >
+                    </div>
+                    <small
+                      >{{ t('targets.page.debugSessionStartedAt', { date: debugSessionStartedAt(session) }) }}</small
+                    >
+                    <p>{{ debugSessionNote(session) }}</p>
+                  </div>
+                  <div class="debug-session__actions">
+                    <a
+                      v-if="openableDevToolsUrl(session)"
+                      class="button button--secondary open-devtools"
+                      :href="openableDevToolsUrl(session)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      ><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> {{
+                      t('targets.page.openDevTools') }}</a
+                    ><command-block
+                      v-else-if="session.devtools?.url && workbench.connection.mode === 'local'"
+                      :value="session.devtools.url"
+                    ></command-block
+                    ><button
+                      class="button button--secondary close-debug-session"
+                      type="button"
+                      :disabled="Boolean(closingDebugSessionId)"
+                      @click="closeDebugSession(session)"
+                    >
+                      <i
+                        :class="['fa-solid', closingDebugSessionId === session.id ? 'fa-spinner fa-spin' : 'fa-xmark']"
+                        aria-hidden="true"
+                      ></i>
+                      {{ closingDebugSessionId === session.id ? t('targets.page.closingDebugSession') :
+                      t('targets.page.closeDebugSession') }}
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </section>
           </div>
         </div>
       </section>

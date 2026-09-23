@@ -520,8 +520,10 @@ export class ApiServer {
       this.sessions.get(request.params.id, this.ownerId(request)).clearDiagnostics();
       response.json({ cleared: true });
     });
-    this.app.get("/v1/sessions/:id/devtools", (request, response) => {
-      response.json(this.sessions.get(request.params.id, this.ownerId(request)).debugTools());
+    this.app.get("/v1/sessions/:id/devtools", async (request, response) => {
+      response.json(
+        await this.sessions.run(request.params.id, (session) => session.debugTools(), this.ownerId(request)),
+      );
     });
     this.app.use((_request, response) => response.status(404).json({ error: "Not found" }));
   }

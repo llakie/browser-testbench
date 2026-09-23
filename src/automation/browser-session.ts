@@ -325,6 +325,35 @@ export class BrowserHandle {
     return driver.sendAndGetDevToolsCommand(command, parameters);
   }
 
+  async devToolsFrontendUrl(): Promise<string | undefined> {
+    const options = [this.capabilities["goog:chromeOptions"], this.capabilities["ms:edgeOptions"]].find(
+      (value): value is Record<string, unknown> => Boolean(value && typeof value === "object"),
+    );
+    const debuggerAddress = options?.debuggerAddress;
+    if (typeof debuggerAddress !== "string" || !debuggerAddress) return undefined;
+
+    try {
+      const response = await fetch(`http://${debuggerAddress}/json/list`, {
+        signal: AbortSignal.timeout(TestbenchDefaults.DEVTOOLS_DISCOVERY_TIMEOUT_MS),
+      });
+      if (!response.ok) return undefined;
+      const targets = (await response.json()) as Array<{
+        type?: string;
+        url?: string;
+        devtoolsFrontendUrl?: string;
+      }>;
+      const currentUrl = await this.getUrl().catch(() => undefined);
+      const page =
+        targets.find((target) => target.type === "page" && target.url === currentUrl) ??
+        targets.find((target) => target.type === "page");
+      const frontendUrl = page?.devtoolsFrontendUrl;
+      if (typeof frontendUrl !== "string") return undefined;
+      return frontendUrl.startsWith("/") ? new URL(frontendUrl, `http://${debuggerAddress}`).toString() : frontendUrl;
+    } catch {
+      return undefined;
+    }
+  }
+
   async networkConditions(input: {
     offline: boolean;
     latencyMs: number;

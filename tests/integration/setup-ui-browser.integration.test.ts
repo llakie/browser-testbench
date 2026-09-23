@@ -483,6 +483,65 @@ describe("workbench UI browser flow", () => {
         );
         expect(await browser.active.$("#debug-tools-note").getText()).toContain("desktop browser");
 
+        await browser.active.execute(`
+          window.__debugSessions = [];
+          window.__debugSessionFetch = window.fetch;
+          window.fetch = async (path, options = {}) => {
+            const requestPath = String(path);
+            const method = options.method ?? "GET";
+            const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
+              status,
+              headers: { "content-type": "application/json" }
+            });
+            if (requestPath === "/v1/sessions" && method === "POST") {
+              window.__startedDebugSession = JSON.parse(options.body);
+              window.__debugSessions = [{
+                id: "ui-debug-session",
+                target: window.__startedDebugSession.target,
+                createdAt: "2026-09-23T10:00:00.000Z",
+                runtime: {}
+              }];
+              return json(window.__debugSessions[0], 201);
+            }
+            if (requestPath === "/v1/sessions" && method === "GET") return json(window.__debugSessions);
+            if (requestPath === "/v1/sessions/ui-debug-session/devtools") {
+              return json({
+                tool: "Chrome DevTools",
+                automatic: true,
+                url: "https://devtools.example/inspector.html?ws=localhost:45678/devtools/page/1"
+              });
+            }
+            if (requestPath === "/v1/sessions/ui-debug-session" && method === "DELETE") {
+              window.__closedDebugSession = true;
+              window.__debugSessions = [];
+              return json({ closed: true });
+            }
+            return window.__debugSessionFetch(path, options);
+          };
+        `);
+        await browser.active.$("#start-debug-session").click();
+        await browser.active.waitForScript(
+          'return document.querySelectorAll("#debug-session-list .debug-session").length === 1',
+          [],
+          15_000,
+        );
+        expect(await browser.active.execute("return window.__startedDebugSession")).toEqual({
+          target: "chrome",
+          url: "http://127.0.0.1:5173/debug",
+        });
+        expect(
+          await browser.active.execute(
+            'return document.querySelector("#debug-session-list .open-devtools").getAttribute("href")',
+          ),
+        ).toBe("https://devtools.example/inspector.html?ws=localhost:45678/devtools/page/1");
+        await browser.active.$("#debug-session-list .close-debug-session").click();
+        await browser.active.waitForScript(
+          'return !document.querySelector("#debug-session-list .debug-session")',
+          [],
+          15_000,
+        );
+        expect(await browser.active.execute("return window.__closedDebugSession")).toBe(true);
+
         await browser.active.execute(
           'document.querySelector("#test-target-list .copy-command").scrollIntoView({ block: "center" })',
         );

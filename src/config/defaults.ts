@@ -23,6 +23,7 @@ export class TestbenchDefaults {
   static readonly TARGET_LOCK_TIMEOUT_MS = 60_000;
   static readonly REMOTE_CLEANUP_TIMEOUT_MS = 10_000;
   static readonly REMOTE_CONNECT_TIMEOUT_MS = 10_000;
+  static readonly DEVTOOLS_DISCOVERY_TIMEOUT_MS = 2_000;
   static readonly REMOTE_REQUEST_TIMEOUT_MS = 120_000;
   static readonly MOBILE_SESSION_REQUEST_TIMEOUT_MS = 7 * 60_000;
   static readonly SETUP_REQUEST_TIMEOUT_MS = 11 * 60_000;

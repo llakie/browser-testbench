@@ -321,13 +321,26 @@
       "testTitle": "Use it in your own test",
       "testIntro": "Your test opens the session. The flow and assertions remain with your test runner.",
       "debugTitle": "Open a browser for debugging",
-      "debugIntro": "Open a URL directly. The session stays active until you press Ctrl + C in the terminal.",
+      "debugIntro": "Open a URL directly from the interface and close the session here when you are done.",
       "applicationUrl": "Application URL",
       "browserOrDevice": "Browser or device",
       "setupRequiredSuffix": "Setup required",
       "remoteLocalhost": "Remote browsers cannot use this computer's localhost.",
       "remoteAddress": "Bind your application to the LAN and use {url}.",
-      "remoteAddressFallback": "Bind your application to the LAN and use this computer's LAN address."
+      "remoteAddressFallback": "Bind your application to the LAN and use this computer's LAN address.",
+      "openDebugSession": "Open browser",
+      "openingDebugSession": "Opening browser …",
+      "commandAlternative": "Or copy the command and run it in a terminal.",
+      "activeDebugSessions": "Active debug sessions",
+      "loadingDebugSessions": "Loading …",
+      "noActiveDebugSessions": "No debug session is active.",
+      "debugSessionActive": "Active",
+      "debugSessionStartedAt": "Opened {date}",
+      "openDevTools": "Open DevTools",
+      "closeDebugSession": "Close browser",
+      "closingDebugSession": "Closing browser …",
+      "debugSessionStarted": "{targetName} was opened for debugging.",
+      "debugSessionClosed": "The debug session for {targetName} was closed."
     },
     "status": {
       "busy": "Busy",
@@ -354,7 +367,8 @@
     "devtools": {
       "desktop": "You can open DevTools as usual directly in the desktop browser.",
       "ios": "DevTools: Open Safari's Develop menu and select the simulator and open page.",
-      "android": "DevTools: Open chrome://inspect/#devices in Chrome on your machine."
+      "android": "DevTools: Open chrome://inspect/#devices in Chrome on your machine.",
+      "remote": "Developer tools must be opened on the computer running the remote Browser Testbench."
     }
   },
   "overview": {

@@ -250,11 +250,13 @@ browser-testbench verify safari
 
 An AI assistant can use MCP to open a session, navigate, inspect elements, click, type, take screenshots, and perform mobile gestures. The MCP process is a lightweight bridge to the running Browser Testbench server; target resolution, sessions, and device locks remain centralized. Console output, HTTP requests and responses, and WebSocket connections and frames are available through `get_diagnostics` on Chromium desktop targets.
 
+The Targets page in the web interface can also open a browser or device directly. Enter the application URL, select a target, and choose **Open browser**. Active debug sessions are listed there until you close them. For local Chromium desktop sessions, the interface provides a direct link to the DevTools instance. The generated `browser-testbench open` command remains available as a terminal alternative.
+
 `get_devtools_instructions` provides the appropriate connection for native browser developer tools:
 
 - iOS Simulator: Safari Web Inspector through Safari's Develop menu.
 - Android devices and emulators: Chrome DevTools through `chrome://inspect/#devices`.
-- Chromium on desktop: console and network diagnostics directly through Browser Testbench; the regular browser developer tools can also be opened manually.
+- Chromium on desktop: a direct DevTools link when Chrome exposes one, plus console and network diagnostics through Browser Testbench.
 
 ### Automated project tests
 

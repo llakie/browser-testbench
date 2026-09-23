@@ -321,13 +321,26 @@
       "testTitle": "In deinem eigenen Test verwenden",
       "testIntro": "Dein Test öffnet die Sitzung. Ablauf und Prüfungen bleiben bei deinem Test-Runner.",
       "debugTitle": "Browser zum Debuggen öffnen",
-      "debugIntro": "Öffne direkt eine URL. Die Sitzung bleibt aktiv, bis du im Terminal Strg + C drückst.",
+      "debugIntro": "Öffne direkt über die Oberfläche eine URL und schließe die Sitzung hier wieder, wenn du fertig bist.",
       "applicationUrl": "Anwendungs-URL",
       "browserOrDevice": "Browser oder Gerät",
       "setupRequiredSuffix": "Einrichtung erforderlich",
       "remoteLocalhost": "Remote-Browser können localhost dieses Computers nicht verwenden.",
       "remoteAddress": "Binde deine Anwendung an das LAN und verwende {url}.",
-      "remoteAddressFallback": "Binde deine Anwendung an das LAN und verwende die LAN-Adresse dieses Computers."
+      "remoteAddressFallback": "Binde deine Anwendung an das LAN und verwende die LAN-Adresse dieses Computers.",
+      "openDebugSession": "Browser öffnen",
+      "openingDebugSession": "Browser wird geöffnet …",
+      "commandAlternative": "Oder kopiere den Befehl und führe ihn in einem Terminal aus.",
+      "activeDebugSessions": "Aktive Debug-Sitzungen",
+      "loadingDebugSessions": "Wird geladen …",
+      "noActiveDebugSessions": "Es ist keine Debug-Sitzung aktiv.",
+      "debugSessionActive": "Aktiv",
+      "debugSessionStartedAt": "Geöffnet: {date}",
+      "openDevTools": "DevTools öffnen",
+      "closeDebugSession": "Browser schließen",
+      "closingDebugSession": "Browser wird geschlossen …",
+      "debugSessionStarted": "{targetName} wurde zum Debuggen geöffnet.",
+      "debugSessionClosed": "Die Debug-Sitzung für {targetName} wurde geschlossen."
     },
     "status": {
       "busy": "Belegt",
@@ -354,7 +367,8 @@
     "devtools": {
       "desktop": "Du kannst die DevTools wie gewohnt direkt im Desktop-Browser öffnen.",
       "ios": "DevTools: Öffne in Safari das Menü Entwickeln (Develop) und wähle den Simulator sowie die geöffnete Seite.",
-      "android": "DevTools: Öffne chrome://inspect/#devices in Chrome auf deinem Rechner."
+      "android": "DevTools: Öffne chrome://inspect/#devices in Chrome auf deinem Rechner.",
+      "remote": "Die Entwicklerwerkzeuge musst du auf dem Computer öffnen, auf dem die Remote-Browser-Testbench läuft."
     }
   },
   "overview": {
