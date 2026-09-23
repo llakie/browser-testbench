@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BrowserSession } from "../../src/automation/browser-session.js";
+import { TestbenchDefaults } from "../../src/config/defaults.js";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TestbenchPaths } from "../../src/infrastructure/paths.js";
 
@@ -9,7 +10,12 @@ describe("TargetRegistry", () => {
     expect(command).toBe("browser-testbench doctor");
   });
   it("uses branded desktop browser capabilities", () => {
-    expect(TargetRegistry.capabilities({ name: "chrome" })).toMatchObject({ browserName: "chrome" });
+    expect(TargetRegistry.capabilities({ name: "chrome" })).toMatchObject({
+      browserName: "chrome",
+      "goog:chromeOptions": {
+        args: [`--remote-allow-origins=${TestbenchDefaults.CHROME_DEVTOOLS_FRONTEND_ORIGIN}`],
+      },
+    });
     expect(TargetRegistry.capabilities({ name: "firefox" })).toMatchObject({ browserName: "firefox" });
     expect(TargetRegistry.capabilities({ name: "safari" })).toMatchObject({ browserName: "safari" });
     expect(TargetRegistry.capabilities({ name: "edge" })).toMatchObject({ browserName: "MicrosoftEdge" });

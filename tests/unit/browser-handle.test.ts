@@ -30,7 +30,7 @@ describe("BrowserHandle DevTools discovery", () => {
     }) as unknown as BrowserHandle;
 
     await expect(browser.devToolsFrontendUrl()).resolves.toBe(
-      "http://localhost:45678/devtools/inspector.html?ws=localhost:45678/devtools/page/application",
+      "http://localhost:45678/devtools/inspector.html?ws=127.0.0.1:45678/devtools/page/application",
     );
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:45678/json/list",
