@@ -22,7 +22,7 @@ export class SessionManager {
   private readonly sessions = new Map<string, ManagedSession>();
   private readonly locks = new TargetLockManager();
 
-  async start(input: StartSessionInput, ownerId = "local"): Promise<PublicManagedSession> {
+  async start(input: StartSessionInput, ownerId = "local", signal?: AbortSignal): Promise<PublicManagedSession> {
     const id = randomUUID();
     const controller = new InteractiveController();
     const { target, options } = await TargetCatalogService.sessionOptions(input);
@@ -30,7 +30,9 @@ export class SessionManager {
       ? await this.locks.acquire(target.id, input.lockTimeoutMs ?? TestbenchDefaults.TARGET_LOCK_TIMEOUT_MS, ownerId)
       : () => undefined;
     try {
+      signal?.throwIfAborted();
       const runtime = await controller.start(options);
+      signal?.throwIfAborted();
       const session = {
         id,
         target: target.id,
