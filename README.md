@@ -381,9 +381,9 @@ Key tools:
 
 - Connection: `discover_testbenches`, `get_testbench_connection`, `connect_testbench`, `disconnect_testbench`
 - Environment: `list_targets`, `doctor`, `verify_target`
-- Session: `start_session`, `navigate`, `inspect_page`, `close_session`
+- Session: `start_session`, `list_sessions`, `navigate`, `inspect_page`, `close_session`
 - Interaction: `click`, `type`, `element_action`, `browser_action`, `tap`, `swipe`, `pinch`
-- Synchronization: `wait_for_element`, `wait_for_text`, `wait_for_url`, `wait_for_state`, `wait_for_value`, `wait_for_count`
+- Synchronization: `wait_condition`, `wait_for_element`, `wait_for_text`, `wait_for_url`, `wait_for_state`, `wait_for_value`, `wait_for_count`
 - Debugging: `get_page_source`, `take_screenshot`, `get_diagnostics`, `clear_diagnostics`, `get_devtools_instructions`
 
 ## REST API
@@ -408,6 +408,7 @@ POST   /v1/sessions/:id/navigate
 POST   /v1/sessions/:id/click
 POST   /v1/sessions/:id/type
 POST   /v1/sessions/:id/element
+POST   /v1/sessions/:id/upload
 POST   /v1/sessions/:id/browser
 POST   /v1/sessions/:id/wait
 POST   /v1/sessions/:id/gesture
@@ -415,6 +416,19 @@ POST   /v1/sessions/:id/screenshot
 GET    /v1/sessions/:id/diagnostics
 DELETE /v1/sessions/:id/diagnostics
 GET    /v1/sessions/:id/devtools
+GET    /v1/connections/status
+GET    /v1/connections/discover
+GET    /v1/connections/identity
+POST   /v1/connections/connect
+POST   /v1/connections/pair
+DELETE /v1/connections/active
+GET    /v1/remote/identity
+POST   /v1/remote/pairing
+POST   /v1/remote/pairing/complete
+GET    /v1/remote/me
+GET    /v1/remote/clients
+PUT    /v1/remote/clients/:id
+DELETE /v1/remote/clients/:id
 ```
 
 Multiple sessions can exist at the same time. Mobile targets typically remain serial because of their drivers and devices. All client calls go through the central REST API.
