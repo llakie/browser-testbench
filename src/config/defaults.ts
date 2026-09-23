@@ -26,6 +26,7 @@ export class TestbenchDefaults {
   static readonly REMOTE_CONNECT_TIMEOUT_MS = 10_000;
   static readonly DEVTOOLS_DISCOVERY_TIMEOUT_MS = 2_000;
   static readonly REMOTE_REQUEST_TIMEOUT_MS = 120_000;
+  static readonly REQUEST_TIMEOUT_GRACE_MS = 5_000;
   static readonly MOBILE_SESSION_REQUEST_TIMEOUT_MS = 7 * 60_000;
   static readonly SETUP_REQUEST_TIMEOUT_MS = 11 * 60_000;
   static readonly REMOTE_HEARTBEAT_INTERVAL_MS = 30_000;

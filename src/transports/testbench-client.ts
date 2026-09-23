@@ -379,15 +379,15 @@ export class RemoteSession {
   }
 
   async waitForElement(selector: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.post("wait", { type: "element", selector, timeoutMs });
+    await this.wait({ type: "element", selector, timeoutMs });
   }
 
   async waitForText(text: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.post("wait", { type: "text", text, timeoutMs });
+    await this.wait({ type: "text", text, timeoutMs });
   }
 
   async waitForUrl(value: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.post("wait", { type: "url", value, timeoutMs });
+    await this.wait({ type: "url", value, timeoutMs });
   }
 
   async waitForState(
@@ -395,15 +395,15 @@ export class RemoteSession {
     state: "visible" | "hidden" | "present" | "absent" | "enabled" | "disabled" | "checked" | "unchecked",
     timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.post("wait", { type: "state", selector, state, timeoutMs });
+    await this.wait({ type: "state", selector, state, timeoutMs });
   }
 
   async waitForValue(selector: string, value: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.post("wait", { type: "value", selector, value, timeoutMs });
+    await this.wait({ type: "value", selector, value, timeoutMs });
   }
 
   async waitForCount(selector: string, count: number, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.post("wait", { type: "count", selector, count, timeoutMs });
+    await this.wait({ type: "count", selector, count, timeoutMs });
   }
 
   async waitForAttribute(
@@ -412,7 +412,7 @@ export class RemoteSession {
     value?: string,
     timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.post("wait", { type: "attribute", selector, name, value, timeoutMs });
+    await this.wait({ type: "attribute", selector, name, value, timeoutMs });
   }
 
   async waitForElementText(
@@ -420,18 +420,18 @@ export class RemoteSession {
     text: string,
     timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.post("wait", { type: "elementText", selector, text, timeoutMs });
+    await this.wait({ type: "elementText", selector, text, timeoutMs });
   }
 
   async waitForWindowCount(count: number, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.post("wait", { type: "windowCount", count, timeoutMs });
+    await this.wait({ type: "windowCount", count, timeoutMs });
   }
 
   async waitForNetworkIdle(
     quietMs = TestbenchDefaults.NETWORK_IDLE_QUIET_MS,
     timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.post("wait", { type: "networkIdle", quietMs, timeoutMs });
+    await this.wait({ type: "networkIdle", quietMs, timeoutMs });
   }
 
   async waitForScript(
@@ -439,7 +439,7 @@ export class RemoteSession {
     arguments_: unknown[] = [],
     timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.post("wait", { type: "script", script, arguments: arguments_, timeoutMs });
+    await this.wait({ type: "script", script, arguments: arguments_, timeoutMs });
   }
 
   async back(): Promise<void> {
@@ -649,7 +649,11 @@ export class RemoteSession {
   }
 
   async wait(input: WaitRequest): Promise<void> {
-    await this.post("wait", input);
+    await this.post(
+      "wait",
+      input,
+      (input.timeoutMs ?? TestbenchDefaults.WAIT_TIMEOUT_MS) + TestbenchDefaults.REQUEST_TIMEOUT_GRACE_MS,
+    );
   }
 
   source(maxCharacters = TestbenchDefaults.PAGE_SOURCE_LIMIT): Promise<string> {
@@ -692,13 +696,18 @@ export class RemoteSession {
   }
 
   private browser<T = unknown>(input: BrowserActionRequest): Promise<T> {
-    return this.post("browser", input);
+    const timeoutMs =
+      input.action === "waitDownload"
+        ? (input.timeoutMs ?? TestbenchDefaults.WAIT_TIMEOUT_MS) + TestbenchDefaults.REQUEST_TIMEOUT_GRACE_MS
+        : undefined;
+    return this.post("browser", input, timeoutMs);
   }
 
-  private post<T = unknown>(action: string, body: unknown): Promise<T> {
+  private post<T = unknown>(action: string, body: unknown, timeoutMs?: number): Promise<T> {
     return this.testbench.request(`/v1/sessions/${this.id}/${action}`, {
       method: "POST",
       body: JSON.stringify(body),
+      ...(timeoutMs === undefined ? {} : { timeoutMs }),
     });
   }
 }

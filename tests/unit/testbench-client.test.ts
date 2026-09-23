@@ -58,6 +58,32 @@ describe("RemoteTestbench.availableTargets", () => {
     expect(request).toHaveBeenNthCalledWith(2, "/v1/verify", expect.objectContaining({ timeoutMs: 7 * 60_000 }));
   });
 
+  it("keeps the transport alive for caller-defined waits and downloads", async () => {
+    const testbench = new RemoteTestbench();
+    const request = vi.spyOn(testbench, "request").mockResolvedValue({
+      id: "session",
+      target: "chrome",
+      createdAt: new Date().toISOString(),
+      runtime: {},
+    });
+    const session = await testbench.open({ target: "chrome" });
+    request.mockClear();
+
+    await session.waitForText("ready", 180_000);
+    await session.waitForDownload("report.pdf", 240_000);
+
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      "/v1/sessions/session/wait",
+      expect.objectContaining({ timeoutMs: 185_000 }),
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      "/v1/sessions/session/browser",
+      expect.objectContaining({ timeoutMs: 245_000 }),
+    );
+  });
+
   it("aborts requests after the configured client timeout", async () => {
     vi.stubGlobal(
       "fetch",
