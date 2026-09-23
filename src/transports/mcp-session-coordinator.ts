@@ -25,10 +25,14 @@ export class McpSessionCoordinator {
     return this.exclusive(() => this.closeCurrent());
   }
 
-  transition<T>(operation: () => Promise<T>, options: { ignoreCloseError?: boolean } = {}): Promise<T> {
+  transition<T>(operation: () => Promise<T>, options: { onCloseError?: (error: unknown) => void } = {}): Promise<T> {
     return this.exclusive(async () => {
-      if (options.ignoreCloseError) await this.closeCurrent().catch(() => undefined);
-      else await this.closeCurrent();
+      try {
+        await this.closeCurrent();
+      } catch (error) {
+        if (!options.onCloseError) throw error;
+        options.onCloseError(error);
+      }
       return operation();
     });
   }
