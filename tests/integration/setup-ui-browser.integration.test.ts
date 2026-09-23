@@ -638,7 +638,7 @@ describe("workbench UI browser flow", () => {
         `);
         await browser.active.$("#start-debug-session").click();
         await browser.active.waitForScript("return Boolean(window.__navigatedDebugSession)", [], 15_000);
-        await waitForText(browser, "Navigation failed");
+        await waitForText(browser, "Chrome was opened, but navigation failed: Navigation failed");
         expect(
           await browser.active.execute('return document.querySelectorAll("#debug-session-list .debug-session").length'),
         ).toBe(1);

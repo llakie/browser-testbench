@@ -340,6 +340,7 @@
       "closeDebugSession": "Close browser",
       "closingDebugSession": "Closing browser …",
       "debugSessionStarted": "{targetName} was opened for debugging.",
+      "debugSessionNavigationFailed": "{targetName} was opened, but navigation failed: {message} Close the active session when you no longer need it.",
       "debugSessionClosed": "The debug session for {targetName} was closed."
     },
     "status": {

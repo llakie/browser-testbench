@@ -217,10 +217,21 @@ for (const target of targets) {
           body: JSON.stringify({ target: target.id }),
         });
         await this.loadDebugSessions();
-        await ApiClient.request(`/v1/sessions/${session.id}/navigate`, {
-          method: "POST",
-          body: JSON.stringify({ url }),
-        });
+        try {
+          await ApiClient.request(`/v1/sessions/${session.id}/navigate`, {
+            method: "POST",
+            body: JSON.stringify({ url }),
+          });
+        } catch (error) {
+          this.store.setNotice(
+            translator.t("targets.page.debugSessionNavigationFailed", {
+              targetName: localized(target, "label"),
+              message: this.store.message(error),
+            }),
+            "warning",
+          );
+          return;
+        }
         this.store.setNotice(
           translator.t("targets.page.debugSessionStarted", { targetName: localized(target, "label") }),
           "success",
