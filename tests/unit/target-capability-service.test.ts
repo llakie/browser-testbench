@@ -39,6 +39,15 @@ describe("TargetCapabilityService", () => {
     expect(simulator.recording.screen).toBe(MediaTooling.isAvailable());
   });
 
+  it("keeps non-cropped screenshots available without FFmpeg", () => {
+    vi.mocked(MediaTooling.isAvailable).mockReturnValue(false);
+
+    expect(android()).toMatchObject({
+      recording: { screen: false, viewport: false },
+      screenshots: { screen: true, viewport: false, element: true },
+    });
+  });
+
   it("reports every missing nested capability", () => {
     expect(
       TargetCapabilityService.missing(
