@@ -1,4 +1,4 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { stat } from "node:fs/promises";
 import { TestbenchDefaults } from "../config/defaults.js";
@@ -20,7 +20,8 @@ import { IosPhysicalSafariNavigator } from "./ios-physical-safari-navigator.js";
 import { IosSessionCleanup } from "./ios-session-cleanup.js";
 import { MobileGestures, type GestureExecution } from "./mobile-gestures.js";
 import { PageInspectionScript } from "./page-inspection-script.js";
-import { VideoRecorder } from "./video-recorder.js";
+import { VideoRecorder, type RecordingArtifact } from "./video-recorder.js";
+import { randomUUID } from "node:crypto";
 import { AndroidCameraUtilities } from "./android-camera-utilities.js";
 import { TestbenchError } from "../errors/testbench-error.js";
 
@@ -79,7 +80,8 @@ export class InteractiveController {
   private readonly session = new BrowserSession();
   private appium?: { process: ManagedProcess; port: number };
   private target?: TargetConfig;
-  private video?: { recorder: VideoRecorder; path: string };
+  private video?: { id: string; recorder: VideoRecorder; path: string; scope: "screen" };
+  private lastRecording?: RecordingArtifact & { id: string; requestedScope: "screen"; actualScope: "screen" };
   private readonly diagnosticEvents: DiagnosticEvent[] = [];
   private readonly requestTimestamps = new Map<string, number>();
   private readonly webSocketUrls = new Map<string, string>();
@@ -122,8 +124,7 @@ export class InteractiveController {
         browserStarted = true;
         const permissions = await this.preparePermissions(target, browser, options.permissions ?? []);
         if (options.videoPath) {
-          const recorder = await VideoRecorder.start(target, dirname(options.videoPath), browser.capabilities);
-          this.video = { recorder, path: options.videoPath };
+          await this.startRecording({ outputPath: options.videoPath, scope: "screen" });
         }
         if (options.url) {
           if (initialDeeplink) {
@@ -370,6 +371,55 @@ export class InteractiveController {
         return { text: await browser.clipboardRead() };
     }
     return { completed: action.action };
+  }
+
+  async startRecording(options: {
+    outputPath: string;
+    scope?: "screen" | "viewport";
+  }): Promise<{ id: string; startedAt: string; requestedScope: "screen"; actualScope: "screen" }> {
+    if (this.video)
+      throw new TestbenchError("RECORDING_ALREADY_ACTIVE", "A recording is already active for this session.", {
+        operation: "recording.start",
+        status: 409,
+        details: { recordingId: this.video.id },
+      });
+    if (!this.target) throw new Error("No interactive target is active.");
+    if (options.scope === "viewport")
+      throw new TestbenchError("RECORDING_UNSUPPORTED", "Viewport recording geometry is not available yet.", {
+        operation: "recording.start",
+        status: 409,
+      });
+    const id = randomUUID();
+    const recorder = await VideoRecorder.start(this.target, options.outputPath, this.session.active.capabilities);
+    this.video = { id, recorder, path: options.outputPath, scope: "screen" };
+    this.lastRecording = undefined;
+    return { id, startedAt: new Date().toISOString(), requestedScope: "screen", actualScope: "screen" };
+  }
+
+  async stopRecording(signal?: AbortSignal): Promise<
+    RecordingArtifact & {
+      id: string;
+      requestedScope: "screen";
+      actualScope: "screen";
+    }
+  > {
+    if (!this.video) {
+      if (this.lastRecording) return this.lastRecording;
+      throw new TestbenchError("RECORDING_NOT_ACTIVE", "This session has no active recording.", {
+        operation: "recording.stop",
+        status: 409,
+      });
+    }
+    const video = this.video;
+    const artifact = await video.recorder.stop(signal);
+    this.video = undefined;
+    this.lastRecording = {
+      ...artifact,
+      id: video.id,
+      requestedScope: video.scope,
+      actualScope: video.scope,
+    };
+    return this.lastRecording;
   }
 
   async screenshot(path?: string, fullPage = false): Promise<{ path: string; base64: string }> {
@@ -655,6 +705,14 @@ export class InteractiveController {
   async close(): Promise<{ videoPath?: string }> {
     const target = this.target;
     const failures: unknown[] = [];
+    let videoPath: string | undefined;
+    if (this.video) {
+      try {
+        videoPath = (await this.stopRecording()).path;
+      } catch (error) {
+        failures.push(error);
+      }
+    } else videoPath = this.lastRecording?.path;
     await this.resetOriginPermissions().catch((error) => failures.push(error));
     const browserClose = this.session.close();
     let browserCloseTimedOut = false;
@@ -662,16 +720,6 @@ export class InteractiveController {
       if (error instanceof CleanupTimeoutError) browserCloseTimedOut = true;
       else failures.push(error);
     });
-    let videoPath: string | undefined;
-    if (this.video) {
-      try {
-        const recorded = await this.video.recorder.stop();
-        if (recorded !== this.video.path) await rename(recorded, this.video.path);
-        videoPath = this.video.path;
-      } catch (error) {
-        failures.push(error);
-      }
-    }
     await this.appium?.process.stop().catch((error) => failures.push(error));
     await this.androidPermissions?.restore().catch((error) => failures.push(error));
     if (browserCloseTimedOut) {
@@ -687,6 +735,7 @@ export class InteractiveController {
 
   private clearState(): void {
     this.video = undefined;
+    this.lastRecording = undefined;
     this.appium = undefined;
     this.target = undefined;
     this.diagnosticEvents.length = 0;

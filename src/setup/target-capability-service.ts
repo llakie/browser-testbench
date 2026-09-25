@@ -40,7 +40,7 @@ export class TargetCapabilityService {
       recording: {
         screen: mobile,
         viewport: false,
-        explicitLifecycle: false,
+        explicitLifecycle: mobile,
         pauseResume: false,
         geometry: false,
         marks: true,

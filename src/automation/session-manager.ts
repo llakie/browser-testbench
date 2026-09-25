@@ -6,6 +6,7 @@ import { TargetLockManager } from "./target-lock-manager.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { TestbenchError } from "../errors/testbench-error.js";
 import { AndroidMediaUtilities, type CameraImageResource } from "./android-media-utilities.js";
+import type { RecordingArtifact } from "./video-recorder.js";
 
 export interface ManagedSession {
   id: string;
@@ -21,10 +22,11 @@ export interface ManagedSession {
   monotonicStartedAt: number;
   markSequence: number;
   marks: SessionMark[];
+  recording?: { id: string; startedSessionTimeMs: number };
 }
 export type PublicManagedSession = Omit<
   ManagedSession,
-  "controller" | "release" | "ownerId" | "lease" | "monotonicStartedAt" | "markSequence" | "marks"
+  "controller" | "release" | "ownerId" | "lease" | "monotonicStartedAt" | "markSequence" | "marks" | "recording"
 > & { sessionTimeMs: number };
 
 export interface SessionMark {
@@ -189,9 +191,63 @@ export class SessionManager {
       sequence: ++session.markSequence,
       sessionTimeMs: this.sessionTime(session),
       wallTime: new Date().toISOString(),
+      ...(session.recording
+        ? { recordingTimeMs: Math.max(0, this.sessionTime(session) - session.recording.startedSessionTimeMs) }
+        : {}),
     };
     session.marks.push(mark);
     return mark;
+  }
+
+  async startRecording(
+    id: string,
+    options: { outputPath: string; scope: "screen" | "viewport" },
+    ownerId?: string,
+  ): Promise<{
+    id: string;
+    startedAt: string;
+    sessionTimeMs: number;
+    requestedScope: "screen";
+    actualScope: "screen";
+  }> {
+    const session = this.managed(id, ownerId);
+    this.refreshLease(session);
+    const result = await session.controller.startRecording(options);
+    const sessionTimeMs = this.sessionTime(session);
+    session.recording = { id: result.id, startedSessionTimeMs: sessionTimeMs };
+    return { ...result, sessionTimeMs };
+  }
+
+  async stopRecording(
+    id: string,
+    ownerId?: string,
+    signal?: AbortSignal,
+  ): Promise<
+    RecordingArtifact & {
+      id: string;
+      requestedScope: "screen";
+      actualScope: "screen";
+      startedSessionTimeMs?: number;
+      endedSessionTimeMs: number;
+      marks: SessionMark[];
+    }
+  > {
+    const session = this.managed(id, ownerId);
+    this.refreshLease(session);
+    const active = session.recording;
+    const result = await session.controller.stopRecording(signal);
+    const endedSessionTimeMs = this.sessionTime(session);
+    session.recording = undefined;
+    return {
+      ...result,
+      ...(active ? { startedSessionTimeMs: active.startedSessionTimeMs } : {}),
+      endedSessionTimeMs,
+      marks: active
+        ? session.marks.filter(
+            (mark) => mark.sessionTimeMs >= active.startedSessionTimeMs && mark.sessionTimeMs <= endedSessionTimeMs,
+          )
+        : [],
+    };
   }
 
   static isTerminatedSessionError(error: unknown): boolean {

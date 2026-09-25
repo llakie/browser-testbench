@@ -5,6 +5,7 @@ import { IosPhysicalSafariNavigator } from "../../src/automation/ios-physical-sa
 import { ServiceManager } from "../../src/infrastructure/process-manager.js";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TestbenchDefaults } from "../../src/config/defaults.js";
+import { VideoRecorder, type RecordingArtifact } from "../../src/automation/video-recorder.js";
 
 describe("InteractiveController", () => {
   afterEach(() => {
@@ -212,7 +213,70 @@ describe("InteractiveController", () => {
     await expect(closing).resolves.toEqual({ videoPath: undefined });
     expect(stopAppium).toHaveBeenCalledOnce();
   });
+
+  it("starts and finalizes an explicit recording idempotently", async () => {
+    const controller = new InteractiveController();
+    const artifact = recordingArtifact();
+    const stop = vi.fn().mockResolvedValue(artifact);
+    vi.spyOn(VideoRecorder, "start").mockResolvedValue({ stop } as never);
+    Object.assign(controller, {
+      target: { name: "chrome-android", deviceKind: "emulator", udid: "emulator-5554" },
+      session: { active: { capabilities: {} } },
+    });
+
+    const started = await controller.startRecording({ outputPath: "video.mp4", scope: "screen" });
+    await expect(controller.startRecording({ outputPath: "other.mp4" })).rejects.toMatchObject({
+      code: "RECORDING_ALREADY_ACTIVE",
+    });
+    const first = await controller.stopRecording();
+    const second = await controller.stopRecording();
+
+    expect(started).toMatchObject({ requestedScope: "screen", actualScope: "screen" });
+    expect(first).toMatchObject({ ...artifact, id: started.id });
+    expect(second).toEqual(first);
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
+  it("stops an active recorder before closing the browser", async () => {
+    const order: string[] = [];
+    const controller = new InteractiveController();
+    vi.spyOn(VideoRecorder, "start").mockResolvedValue({
+      stop: vi.fn(async () => {
+        order.push("recording");
+        return recordingArtifact();
+      }),
+    } as never);
+    Object.assign(controller, {
+      target: { name: "chrome-android", deviceKind: "emulator", udid: "emulator-5554" },
+      session: {
+        active: { capabilities: {} },
+        close: vi.fn(async () => order.push("browser")),
+      },
+    });
+    await controller.startRecording({ outputPath: "video.mp4" });
+
+    await controller.close();
+
+    expect(order).toEqual(["recording", "browser"]);
+  });
 });
+
+function recordingArtifact(): RecordingArtifact {
+  return {
+    path: "video.mp4",
+    size: 100,
+    sha256: "0".repeat(64),
+    mimeType: "video/mp4",
+    container: "mov",
+    codec: "h264",
+    width: 1080,
+    height: 1920,
+    durationMs: 1_000,
+    timeBase: "1/90000",
+    averageFrameRate: 30,
+    frameRateMode: "constant",
+  };
+}
 
 function performanceEntry(method: string, params: Record<string, unknown>): { message: string; timestamp: number } {
   return { message: JSON.stringify({ message: { method, params } }), timestamp: 1_750_000_000_000 };
