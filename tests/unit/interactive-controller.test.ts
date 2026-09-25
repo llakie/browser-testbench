@@ -107,6 +107,18 @@ describe("InteractiveController", () => {
     );
   });
 
+  it("keeps the legacy mobile screenshot path independent of media tooling", async () => {
+    const takeScreenshot = vi.fn().mockResolvedValue("webdriver-screenshot");
+    const controller = new InteractiveController();
+    Object.assign(controller, {
+      target: { name: "chrome-android" },
+      session: { active: { takeScreenshot } },
+    });
+
+    await expect(controller.captureScreenshot()).resolves.toBe("webdriver-screenshot");
+    expect(takeScreenshot).toHaveBeenCalledOnce();
+  });
+
   it("returns structured viewport screenshot metadata on desktop", async () => {
     const png = Buffer.alloc(24);
     png.set(Buffer.from([0x89, 0x50, 0x4e, 0x47]), 0);

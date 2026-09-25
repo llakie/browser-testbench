@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { TargetRegistry } from "../config/target-registry.js";
 import type { DoctorCheck, TargetName } from "../config/types.js";
 import { TestbenchPaths } from "../infrastructure/paths.js";
+import { MediaTooling } from "../infrastructure/media-tooling.js";
 import { AndroidDeviceService } from "./android-device-service.js";
 import { IosDeviceService } from "./ios-device-service.js";
 import { VerificationStore } from "./verification-store.js";
@@ -12,6 +13,9 @@ export class DoctorService {
     const checks: DoctorCheck[] = [];
     checks.push(await this.nodeCheck());
     const targets = requestedTargets ?? TargetRegistry.defaultTargets();
+    if (targets.some((target) => target === "safari-ios" || target === "chrome-android")) {
+      checks.push(this.mediaToolingCheck());
+    }
     for (const target of targets) checks.push(await this.targetCheck(target));
     return checks;
   }
@@ -35,6 +39,27 @@ export class DoctorService {
   static isNodeSupported(version = process.versions.node): boolean {
     const [major = 0, minor = 0] = version.split(".").map(Number);
     return (major === 22 && minor >= 12) || major >= 24;
+  }
+
+  private static mediaToolingCheck(): DoctorCheck {
+    const missing = MediaTooling.missing();
+    if (missing.length === 0) {
+      return {
+        id: "media-tooling",
+        label: { key: "environment.mediaToolingLabel" },
+        status: "ready",
+        detail: { key: "environment.mediaToolingReady" },
+      };
+    }
+    const command = MediaTooling.installationCommand();
+    return {
+      id: "media-tooling",
+      label: { key: "environment.mediaToolingLabel" },
+      status: "action",
+      detail: { key: "environment.mediaToolingMissing", parameters: { tools: missing.join(", ") } },
+      action: { key: "environment.mediaToolingAction" },
+      ...(command ? { commands: [command] } : {}),
+    };
   }
 
   private static async targetCheck(name: TargetName): Promise<DoctorCheck> {

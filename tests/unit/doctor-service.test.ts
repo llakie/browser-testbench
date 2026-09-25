@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DoctorService } from "../../src/setup/doctor-service.js";
 import { IosDeviceDiscovery } from "../../src/setup/ios-device-discovery.js";
+import { MediaTooling } from "../../src/infrastructure/media-tooling.js";
+import { AndroidDeviceService } from "../../src/setup/android-device-service.js";
 
 describe("DoctorService device discovery", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it.each([
     ["22.11.0", false],
     ["22.12.0", true],
@@ -34,5 +38,34 @@ describe("DoctorService device discovery", () => {
         udid: "MINI-ID",
       },
     });
+  });
+
+  it("adds media tooling to guided setup for mobile targets", async () => {
+    vi.spyOn(MediaTooling, "missing").mockReturnValue(["ffmpeg", "ffprobe"]);
+    vi.spyOn(MediaTooling, "installationCommand").mockReturnValue("install ffmpeg");
+    vi.spyOn(AndroidDeviceService, "inspect").mockResolvedValue({
+      id: "chrome-android",
+      label: "Chrome on Android",
+      status: "ready",
+      detail: "ready",
+    });
+
+    await expect(DoctorService.inspect(["chrome-android"])).resolves.toContainEqual({
+      id: "media-tooling",
+      label: { key: "environment.mediaToolingLabel" },
+      status: "action",
+      detail: { key: "environment.mediaToolingMissing", parameters: { tools: "ffmpeg, ffprobe" } },
+      action: { key: "environment.mediaToolingAction" },
+      commands: ["install ffmpeg"],
+    });
+  });
+
+  it("does not require media tooling for desktop-only targets", async () => {
+    vi.spyOn(MediaTooling, "missing");
+
+    const checks = await DoctorService.inspect([]);
+
+    expect(checks.map((check) => check.id)).toEqual(["node"]);
+    expect(MediaTooling.missing).not.toHaveBeenCalled();
   });
 });
