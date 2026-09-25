@@ -35,6 +35,7 @@ export class TestbenchDefaults {
   static readonly MOBILE_SESSION_REQUEST_TIMEOUT_MS = 7 * 60_000;
   static readonly SETUP_REQUEST_TIMEOUT_MS = 11 * 60_000;
   static readonly ASSET_UPLOAD_REQUEST_TIMEOUT_MS = 5 * 60_000;
+  static readonly RECORDING_FINALIZE_REQUEST_TIMEOUT_MS = 2 * 60_000;
   static readonly REMOTE_HEARTBEAT_INTERVAL_MS = 30_000;
   static readonly REMOTE_LEASE_TIMEOUT_MS = 90_000;
   static readonly SESSION_HEARTBEAT_INTERVAL_MS = 30_000;

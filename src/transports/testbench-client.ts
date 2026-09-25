@@ -29,6 +29,7 @@ import { ErrorResponse, type ErrorResponsePayload } from "../i18n/error-response
 import { TestbenchError } from "../errors/testbench-error.js";
 import type { AssetReference } from "../automation/session-asset-manager.js";
 import type { SessionMark } from "../automation/session-manager.js";
+import type { RecordingArtifact } from "../automation/video-recorder.js";
 import {
   TargetCapabilityService,
   type CapabilityRequirement,
@@ -66,6 +67,28 @@ export interface AssetUploadOptions {
 }
 
 export type AssetSource = string | Buffer | Uint8Array;
+
+export interface RecordingStartOptions {
+  outputPath: string;
+  scope?: "screen" | "viewport";
+}
+
+export interface RecordingStartResult {
+  id: string;
+  startedAt: string;
+  sessionTimeMs: number;
+  requestedScope: "screen" | "viewport";
+  actualScope: "screen" | "viewport";
+}
+
+export interface RecordingResult extends RecordingArtifact {
+  id: string;
+  requestedScope: "screen" | "viewport";
+  actualScope: "screen" | "viewport";
+  startedSessionTimeMs?: number;
+  endedSessionTimeMs: number;
+  marks: SessionMark[];
+}
 
 export interface WaitOptions {
   timeoutMs?: number;
@@ -414,6 +437,7 @@ export class RemoteSession {
   readonly runtime: Record<string, unknown>;
   readonly leaseTimeoutMs: number;
   readonly assets: RemoteAssetCollection;
+  readonly recording: RemoteRecording;
   private heartbeat?: ReturnType<typeof setInterval>;
   private closeResult?: Promise<{ closed: true; videoPath?: string }>;
 
@@ -426,6 +450,7 @@ export class RemoteSession {
     this.runtime = started.runtime;
     this.leaseTimeoutMs = started.leaseTimeoutMs ?? TestbenchDefaults.SESSION_LEASE_TIMEOUT_MS;
     this.assets = new RemoteAssetCollection(testbench, this.id);
+    this.recording = new RemoteRecording(testbench, this.id);
     this.heartbeat = setInterval(
       () => void this.renewLease(),
       Math.min(TestbenchDefaults.SESSION_HEARTBEAT_INTERVAL_MS, Math.max(1_000, Math.floor(this.leaseTimeoutMs / 3))),
@@ -938,5 +963,28 @@ export class RemoteSession {
         this.heartbeat = undefined;
       }
     }
+  }
+}
+
+export class RemoteRecording {
+  constructor(
+    private readonly testbench: RemoteTestbench,
+    private readonly sessionId: string,
+  ) {}
+
+  start(options: RecordingStartOptions): Promise<RecordingStartResult> {
+    return this.testbench.request(`/v1/sessions/${this.sessionId}/recording/start`, {
+      method: "POST",
+      body: JSON.stringify(options),
+    });
+  }
+
+  stop(options: { signal?: AbortSignal } = {}): Promise<RecordingResult> {
+    return this.testbench.request(`/v1/sessions/${this.sessionId}/recording/stop`, {
+      method: "POST",
+      body: "{}",
+      signal: options.signal,
+      timeoutMs: TestbenchDefaults.RECORDING_FINALIZE_REQUEST_TIMEOUT_MS,
+    });
   }
 }

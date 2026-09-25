@@ -241,6 +241,10 @@ export class InputSchemas {
     name: z.string().trim().min(1),
     data: z.record(z.string(), z.unknown()).optional(),
   });
+  static readonly recordingStart = z.strictObject({
+    outputPath: z.string().min(1),
+    scope: z.enum(["screen", "viewport"]).default("screen"),
+  });
   static readonly wait = z.discriminatedUnion("type", [
     z.strictObject({
       type: z.literal("element"),

@@ -190,6 +190,31 @@ describe("RemoteTestbench.availableTargets", () => {
     expect(request).toHaveBeenLastCalledWith("/v1/sessions/session", { method: "DELETE" });
   });
 
+  it("exposes explicit recording lifecycle calls", async () => {
+    const testbench = new RemoteTestbench();
+    const request = vi.spyOn(testbench, "request").mockResolvedValue({
+      id: "session",
+      target: "chrome-android-device",
+      createdAt: new Date().toISOString(),
+      runtime: {},
+    });
+    const session = await testbench.open({ target: "chrome-android-device" });
+    request.mockClear();
+
+    await session.recording.start({ outputPath: "./export/raw.mp4", scope: "screen" });
+    await session.recording.stop();
+
+    expect(request).toHaveBeenNthCalledWith(1, "/v1/sessions/session/recording/start", {
+      method: "POST",
+      body: JSON.stringify({ outputPath: "./export/raw.mp4", scope: "screen" }),
+    });
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      "/v1/sessions/session/recording/stop",
+      expect.objectContaining({ method: "POST", timeoutMs: 120_000 }),
+    );
+  });
+
   it("aborts requests after the configured client timeout", async () => {
     vi.stubGlobal(
       "fetch",

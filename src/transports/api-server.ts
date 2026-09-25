@@ -441,6 +441,26 @@ export class ApiServer {
       const input = InputSchemas.mark.parse(request.body);
       response.status(201).json(this.sessions.mark(request.params.id, input.name, input.data, this.ownerId(request)));
     });
+    this.app.post("/v1/sessions/:id/recording/start", async (request, response) => {
+      response
+        .status(201)
+        .json(
+          await this.sessions.startRecording(
+            request.params.id,
+            InputSchemas.recordingStart.parse(request.body),
+            this.ownerId(request),
+          ),
+        );
+    });
+    this.app.post("/v1/sessions/:id/recording/stop", async (request, response) => {
+      response.json(
+        await this.sessions.stopRecording(
+          request.params.id,
+          this.ownerId(request),
+          RequestAbort.signal(request, response),
+        ),
+      );
+    });
     this.app.post("/v1/sessions", async (request, response) => {
       const raw = { ...(request.body as Record<string, unknown>) };
       const transferArtifacts = raw.transferArtifacts === true;
