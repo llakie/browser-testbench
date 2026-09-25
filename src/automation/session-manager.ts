@@ -13,7 +13,7 @@ export interface ManagedSession {
   ownerId: string;
   controller: InteractiveController;
   runtime: Record<string, unknown>;
-  release: () => void;
+  release: () => Promise<void>;
   leaseTimeoutMs: number;
   leaseExpiresAt: string;
   lease?: NodeJS.Timeout;
@@ -33,8 +33,13 @@ export class SessionManager {
     const controller = new InteractiveController();
     const { target, options } = await TargetCatalogService.sessionOptions(input);
     const release = target.serial
-      ? await this.locks.acquire(target.id, input.lockTimeoutMs ?? TestbenchDefaults.TARGET_LOCK_TIMEOUT_MS, ownerId)
-      : () => undefined;
+      ? await this.locks.acquire(
+          target.id,
+          input.lockTimeoutMs ?? TestbenchDefaults.TARGET_LOCK_TIMEOUT_MS,
+          ownerId,
+          id,
+        )
+      : async () => undefined;
     try {
       signal?.throwIfAborted();
       const runtime = await controller.start(options);
@@ -61,7 +66,7 @@ export class SessionManager {
           cause: error,
         });
       } finally {
-        release();
+        await release();
       }
       throw error;
     }
@@ -184,7 +189,7 @@ export class SessionManager {
     try {
       return await session.controller.close();
     } finally {
-      session.release();
+      await session.release();
     }
   }
 
