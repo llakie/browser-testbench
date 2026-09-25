@@ -100,6 +100,7 @@ export class InteractiveController {
       initialUrl: TestbenchDefaults.IOS_SAFARI_BOOTSTRAP_URL,
       downloadDir: options.downloadDir,
       capabilities: options.capabilities,
+      localOrigins: options.localOrigins,
     };
     const initialDeeplink = Boolean(options.url && IosPhysicalSafariNavigator.supportsInitialDeeplink(target));
     if (!initialDeeplink) target.initialUrl = undefined;
@@ -133,6 +134,15 @@ export class InteractiveController {
           sessionId: browser.sessionId,
           capabilities: browser.capabilities,
           url: options.url,
+          ...(target.name === "chrome-android" && options.url
+            ? {
+                localOrigin: {
+                  mode: target.localOrigins ?? "reverse",
+                  requested: new URL(options.url).origin,
+                  actual: new URL(await this.session.active.getUrl()).origin,
+                },
+              }
+            : {}),
         };
       } catch (error) {
         const appiumOutput = browserStarted ? "" : await this.iosStartupDiagnostic(target, error);

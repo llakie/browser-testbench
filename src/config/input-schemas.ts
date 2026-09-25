@@ -21,6 +21,7 @@ export class InputSchemas {
     lockTimeoutMs: z.number().nonnegative().optional(),
     leaseTimeoutMs: z.number().positive().finite().optional(),
     require: z.record(z.string(), z.unknown()).optional(),
+    localOrigins: z.enum(["reverse", "emulator-host"]).optional(),
   });
 
   static readonly verification = z.strictObject({

@@ -715,7 +715,10 @@ export class BrowserSession {
   static urlForTarget(url: string, target: TargetConfig): string {
     if (target.name !== "chrome-android" || target.deviceKind === "physical") return url;
     const parsed = new URL(url);
-    if (parsed.hostname === "localhost" || parsed.hostname === TestbenchDefaults.LOOPBACK_HOST) {
+    if (
+      target.localOrigins === "emulator-host" &&
+      (parsed.hostname === "localhost" || parsed.hostname === TestbenchDefaults.LOOPBACK_HOST)
+    ) {
       parsed.hostname = TestbenchDefaults.ANDROID_EMULATOR_LOOPBACK_HOST;
     }
     return parsed.toString();
