@@ -12,6 +12,7 @@ import { SetupService } from "../../src/setup/setup-service.js";
 import { ApiServer } from "../../src/transports/api-server.js";
 import { ClientVersion } from "../../src/config/client-version.js";
 import { UiRenderer } from "../../src/ui/ui-renderer.js";
+import { RemoteTestbench } from "../../src/transports/testbench-client.js";
 
 describe("ApiServer", () => {
   let server: ApiServer | undefined;
@@ -344,6 +345,18 @@ describe("ApiServer", () => {
         suggestion: "session.assets.upload",
       },
     });
+  });
+
+  it("accepts binary assets larger than the JSON request limit", async () => {
+    server = new ApiServer({ host: "127.0.0.1", port: 0 });
+    const address = await server.start();
+    const client = new RemoteTestbench({ server: `http://${address.host}:${address.port}` });
+    const bytes = Buffer.alloc(2 * 1024 * 1024, 9);
+
+    const asset = await client.assets.upload(bytes, { name: "font.ttf", contentType: "font/ttf" });
+
+    expect(asset).toMatchObject({ name: "font.ttf", size: bytes.length, contentType: "font/ttf" });
+    expect(asset.sha256).toHaveLength(64);
   });
 
   it("requires the exact client version for API requests but keeps diagnostics reachable", async () => {

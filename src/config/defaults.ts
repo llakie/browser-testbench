@@ -1,5 +1,7 @@
 export class TestbenchDefaults {
   static readonly REQUEST_BODY_LIMIT_BYTES = 1024 * 1024;
+  static readonly ASSET_LIMIT_BYTES = 50 * 1024 * 1024;
+  static readonly SESSION_ASSET_TOTAL_LIMIT_BYTES = 100 * 1024 * 1024;
   static readonly LOOPBACK_HOST = "127.0.0.1";
   static readonly ANDROID_EMULATOR_LOOPBACK_HOST = "10.0.2.2";
   static readonly CHROME_DEVTOOLS_FRONTEND_ORIGIN = "https://chrome-devtools-frontend.appspot.com";
@@ -32,6 +34,7 @@ export class TestbenchDefaults {
   static readonly REQUEST_TIMEOUT_GRACE_MS = 5_000;
   static readonly MOBILE_SESSION_REQUEST_TIMEOUT_MS = 7 * 60_000;
   static readonly SETUP_REQUEST_TIMEOUT_MS = 11 * 60_000;
+  static readonly ASSET_UPLOAD_REQUEST_TIMEOUT_MS = 5 * 60_000;
   static readonly REMOTE_HEARTBEAT_INTERVAL_MS = 30_000;
   static readonly REMOTE_LEASE_TIMEOUT_MS = 90_000;
   static readonly SESSION_HEARTBEAT_INTERVAL_MS = 30_000;
