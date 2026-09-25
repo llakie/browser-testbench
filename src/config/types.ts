@@ -22,6 +22,7 @@ export interface TargetConfig {
   initialUrl?: string;
   downloadDir?: string;
   capabilities?: Record<string, unknown>;
+  localOrigins?: "reverse" | "emulator-host";
 }
 
 export interface DoctorCheck {

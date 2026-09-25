@@ -2,6 +2,7 @@ import type { TargetConfig } from "../config/types.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
+import { TestbenchError } from "../errors/testbench-error.js";
 
 const ADB_TIMEOUT_MS = 8_000;
 
@@ -11,24 +12,35 @@ export class AndroidUsbNetwork {
   constructor(private readonly target: TargetConfig) {}
 
   async prepare(url: string): Promise<string> {
-    if (this.target.name !== "chrome-android" || this.target.deviceKind !== "physical") return url;
+    if (this.target.name !== "chrome-android") return url;
     const parsed = new URL(url);
     if (parsed.hostname !== "localhost" && parsed.hostname !== TestbenchDefaults.LOOPBACK_HOST)
       return parsed.toString();
-    if (!this.target.udid) throw new Error("The physical Android target has no ADB device ID.");
+    if (this.target.localOrigins === "emulator-host" && this.target.deviceKind !== "physical") {
+      parsed.hostname = TestbenchDefaults.ANDROID_EMULATOR_LOOPBACK_HOST;
+      return parsed.toString();
+    }
+    if (!this.target.udid) throw this.unavailable("The Android target has no ADB device ID.");
 
     const port = Number(parsed.port || (parsed.protocol === "https:" ? 443 : 80));
     if (!this.forwardedPorts.has(port)) {
       const adb = await this.adb();
       const endpoint = `tcp:${port}`;
+      const mappings = await CommandRunner.run(adb, ["-s", this.target.udid, "reverse", "--list"], {
+        timeoutMs: ADB_TIMEOUT_MS,
+      });
+      if (mappings.code !== 0) throw this.unavailable((mappings.stderr || mappings.stdout).trim());
+      const existing = this.mapping(mappings.stdout, endpoint);
+      if (existing && existing !== endpoint)
+        throw this.unavailable(`Device port ${endpoint} is already mapped to ${existing}.`);
+      if (existing === endpoint) {
+        parsed.hostname = TestbenchDefaults.LOOPBACK_HOST;
+        return parsed.toString();
+      }
       const result = await CommandRunner.run(adb, ["-s", this.target.udid, "reverse", endpoint, endpoint], {
         timeoutMs: ADB_TIMEOUT_MS,
       });
-      if (result.code !== 0) {
-        throw new Error(
-          `Could not forward localhost:${port} to ${this.target.deviceName ?? this.target.udid}: ${(result.stderr || result.stdout).trim()}`,
-        );
-      }
+      if (result.code !== 0) throw this.unavailable((result.stderr || result.stdout).trim());
       this.forwardedPorts.add(port);
     }
     parsed.hostname = TestbenchDefaults.LOOPBACK_HOST;
@@ -57,7 +69,29 @@ export class AndroidUsbNetwork {
 
   private async adb(): Promise<string> {
     const sdkRoot = await AndroidSdk.root();
-    if (!sdkRoot) throw new Error("Android SDK not found for USB port forwarding.");
+    if (!sdkRoot) throw this.unavailable("Android SDK not found for port forwarding.");
     return AndroidSdk.adb(sdkRoot);
+  }
+
+  private mapping(output: string, endpoint: string): string | undefined {
+    for (const line of output.split(/\r?\n/u)) {
+      const columns = line.trim().split(/\s+/u);
+      const deviceEndpoint = columns.at(-2);
+      const hostEndpoint = columns.at(-1);
+      if (deviceEndpoint === endpoint) return hostEndpoint;
+    }
+    return undefined;
+  }
+
+  private unavailable(reason: string): TestbenchError {
+    return new TestbenchError("LOCAL_ORIGIN_UNAVAILABLE", `Could not preserve the Android loopback origin: ${reason}`, {
+      operation: "localOrigin.reverse",
+      status: 409,
+      details: {
+        platform: "android",
+        serial: this.target.udid,
+        mode: this.target.localOrigins ?? "reverse",
+      },
+    });
   }
 }

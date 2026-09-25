@@ -88,12 +88,13 @@ describe("TargetRegistry", () => {
 
   it("maps host-local URLs for Android Emulator networking", () => {
     expect(BrowserSession.urlForTarget("http://localhost:3000/path", { name: "chrome-android" })).toBe(
-      "http://10.0.2.2:3000/path",
+      "http://localhost:3000/path",
     );
     expect(BrowserSession.urlForTarget("https://example.com", { name: "chrome-android" })).toBe("https://example.com/");
     expect(
       BrowserSession.urlForTarget("http://localhost:3000/path", {
         name: "chrome-android",
+        localOrigins: "emulator-host",
         deviceKind: "physical",
         udid: "R5CT1234",
       }),
