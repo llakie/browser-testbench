@@ -1,9 +1,22 @@
-import { describe, expect, it } from "vitest";
-import { TargetLockManager } from "../../src/automation/target-lock-manager.js";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PersistentTargetLock, TargetLockManager } from "../../src/automation/target-lock-manager.js";
 
 describe("TargetLockManager", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "browser-testbench-locks-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
   it("serializes the same target and allows different targets concurrently", async () => {
-    const locks = new TargetLockManager();
+    const locks = manager(root);
     const releaseFirst = await locks.acquire("safari-ios-iphone-17-pro-26-5", 1_000);
     let secondAcquired = false;
     const second = locks.acquire("safari-ios-iphone-17-pro-26-5", 1_000).then((release) => {
@@ -13,17 +26,17 @@ describe("TargetLockManager", () => {
 
     const releaseOther = await locks.acquire("chrome-android-pixel-9-api-36", 1_000);
     expect(secondAcquired).toBe(false);
-    releaseOther();
-    releaseFirst();
+    await releaseOther();
+    await releaseFirst();
 
     const releaseSecond = await second;
     expect(secondAcquired).toBe(true);
-    releaseSecond();
-    releaseSecond();
+    await releaseSecond();
+    await releaseSecond();
   });
 
   it("times out and cancels queued requests belonging to a disconnected client", async () => {
-    const locks = new TargetLockManager();
+    const locks = manager(root);
     const release = await locks.acquire("device", 1_000, "first");
     const timedOut = locks.acquire("device", 0, "fail-fast");
     const disconnected = locks.acquire("device", 1_000, "second");
@@ -31,7 +44,39 @@ describe("TargetLockManager", () => {
     await expect(timedOut).rejects.toThrow("busy");
     locks.cancelOwner("second");
     await expect(disconnected).rejects.toThrow("disconnected");
-    release();
+    await release();
     expect(locks.isLocked("device")).toBe(false);
   });
+
+  it("keeps a live process lock across managers", async () => {
+    const first = manager(root);
+    const release = await first.acquire("device", 100, "owner-a", "session-a");
+    const second = manager(root);
+
+    await expect(second.acquire("device", 0, "owner-b", "session-b")).rejects.toMatchObject({
+      code: "TARGET_BUSY",
+      details: { target: "device", holder: { ownerId: "owner-a", sessionId: "session-a", pid: process.pid } },
+    });
+
+    await release();
+  });
+
+  it("removes a persisted lock whose process no longer exists", async () => {
+    const first = manager(root);
+    await first.acquire("device", 100, "owner-a", "session-a");
+    const [directory] = await readdir(root);
+    const metadataPath = join(root, directory!, "owner.json");
+    const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as Record<string, unknown>;
+    await writeFile(metadataPath, `${JSON.stringify({ ...metadata, pid: 2_147_483_647 })}\n`);
+
+    const second = manager(root);
+    const release = await second.acquire("device", 100, "owner-b", "session-b");
+
+    await expect(readFile(metadataPath, "utf8")).resolves.toContain('"sessionId":"session-b"');
+    await release();
+  });
 });
+
+function manager(root: string): TargetLockManager {
+  return new TargetLockManager(new PersistentTargetLock(root));
+}
