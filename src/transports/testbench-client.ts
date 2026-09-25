@@ -1,5 +1,8 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { basename, dirname } from "node:path";
+import { Readable } from "node:stream";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import {
@@ -24,6 +27,7 @@ import type { SetupAction } from "../setup/setup-types.js";
 import { ClientVersion } from "../config/client-version.js";
 import { ErrorResponse, type ErrorResponsePayload } from "../i18n/error-response.js";
 import { TestbenchError } from "../errors/testbench-error.js";
+import type { AssetReference } from "../automation/session-asset-manager.js";
 
 export { TestbenchError } from "../errors/testbench-error.js";
 
@@ -46,7 +50,16 @@ export interface RemoteTestbenchOptions {
 
 export interface TestbenchRequestInit extends RequestInit {
   timeoutMs?: number;
+  duplex?: "half";
 }
+
+export interface AssetUploadOptions {
+  name?: string;
+  contentType?: string;
+  signal?: AbortSignal;
+}
+
+export type AssetSource = string | Buffer | Uint8Array;
 
 export interface WaitOptions {
   timeoutMs?: number;
@@ -99,12 +112,14 @@ interface StartedSession {
 
 export class RemoteTestbench {
   private readonly server: string;
+  readonly assets: RemoteAssetCollection;
 
   constructor(private readonly options: RemoteTestbenchOptions = {}) {
     this.server = (options.server ?? process.env.BROWSER_TESTBENCH_URL ?? TestbenchDefaults.SERVER_URL).replace(
       /\/$/,
       "",
     );
+    this.assets = new RemoteAssetCollection(this);
   }
 
   async capabilities(): Promise<TestbenchCapabilities> {
@@ -202,6 +217,15 @@ export class RemoteTestbench {
     return this.request(`/v1/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
+  uploadAsset(source: AssetSource, options: AssetUploadOptions = {}, sessionId?: string): Promise<AssetReference> {
+    return RemoteAssetCollection.upload(
+      this,
+      sessionId ? `/v1/sessions/${sessionId}/assets` : "/v1/assets",
+      source,
+      options,
+    );
+  }
+
   verify(target: string, options: { headless?: boolean } = {}): Promise<VerificationResult> {
     return this.request<VerificationResult>("/v1/verify", {
       method: "POST",
@@ -283,11 +307,75 @@ export class RemoteTestbench {
   }
 }
 
+export class RemoteAssetCollection {
+  constructor(
+    private readonly testbench: RemoteTestbench,
+    private readonly sessionId?: string,
+  ) {}
+
+  upload(source: AssetSource, options: AssetUploadOptions = {}): Promise<AssetReference> {
+    return this.testbench.uploadAsset(source, options, this.sessionId);
+  }
+
+  static async upload(
+    testbench: RemoteTestbench,
+    path: string,
+    source: AssetSource,
+    options: AssetUploadOptions,
+  ): Promise<AssetReference> {
+    const prepared = await this.prepare(source, options);
+    return testbench.request<AssetReference>(path, {
+      method: "POST",
+      body: prepared.body,
+      duplex: "half",
+      signal: options.signal,
+      timeoutMs: Math.max(
+        TestbenchDefaults.REMOTE_REQUEST_TIMEOUT_MS,
+        TestbenchDefaults.ASSET_UPLOAD_REQUEST_TIMEOUT_MS,
+      ),
+      headers: {
+        "content-type": "application/octet-stream",
+        "content-length": String(prepared.size),
+        "x-browser-testbench-asset-name": encodeURIComponent(prepared.name),
+        "x-browser-testbench-asset-size": String(prepared.size),
+        "x-browser-testbench-asset-sha256": prepared.sha256,
+        "x-browser-testbench-asset-content-type": options.contentType ?? "application/octet-stream",
+      },
+    });
+  }
+
+  private static async prepare(
+    source: AssetSource,
+    options: AssetUploadOptions,
+  ): Promise<{ body: BodyInit; name: string; size: number; sha256: string }> {
+    if (typeof source !== "string") {
+      const buffer = Buffer.from(source);
+      return {
+        body: buffer,
+        name: options.name ?? "asset.bin",
+        size: buffer.length,
+        sha256: createHash("sha256").update(buffer).digest("hex"),
+      };
+    }
+    const information = await stat(source);
+    if (!information.isFile()) throw new Error(`Asset source is not a file: ${source}`);
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(source)) hash.update(chunk as Buffer);
+    return {
+      body: Readable.toWeb(createReadStream(source)) as BodyInit,
+      name: options.name ?? basename(source),
+      size: information.size,
+      sha256: hash.digest("hex"),
+    };
+  }
+}
+
 export class RemoteSession {
   readonly id: string;
   readonly target: StartSessionInput["target"];
   readonly runtime: Record<string, unknown>;
   readonly leaseTimeoutMs: number;
+  readonly assets: RemoteAssetCollection;
   private heartbeat?: ReturnType<typeof setInterval>;
   private closeResult?: Promise<{ closed: true; videoPath?: string }>;
 
@@ -299,6 +387,7 @@ export class RemoteSession {
     this.target = started.target;
     this.runtime = started.runtime;
     this.leaseTimeoutMs = started.leaseTimeoutMs ?? TestbenchDefaults.SESSION_LEASE_TIMEOUT_MS;
+    this.assets = new RemoteAssetCollection(testbench, this.id);
     this.heartbeat = setInterval(
       () => void this.renewLease(),
       Math.min(TestbenchDefaults.SESSION_HEARTBEAT_INTERVAL_MS, Math.max(1_000, Math.floor(this.leaseTimeoutMs / 3))),

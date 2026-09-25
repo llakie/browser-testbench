@@ -44,6 +44,8 @@ import { RequestAbort } from "./request-abort.js";
 import { ErrorResponse } from "../i18n/error-response.js";
 import { TestbenchError } from "../errors/testbench-error.js";
 import { NetworkUrl } from "../infrastructure/network-url.js";
+import { SessionAssetManager } from "../automation/session-asset-manager.js";
+import type { AssetReference } from "../automation/session-asset-manager.js";
 
 const english = new Translator("en");
 
@@ -89,6 +91,7 @@ export class ApiServer {
   private readonly connections: RemoteConnectionService;
   private readonly clientLeases = new Map<string, NodeJS.Timeout>();
   private readonly artifactHost = new RemoteArtifactHost();
+  private readonly sessionAssets = new SessionAssetManager();
   private readonly remoteApi: RemoteApiController;
 
   constructor(
@@ -335,6 +338,7 @@ export class ApiServer {
       this.connections.disconnect(),
       this.sessions.closeAll(),
       this.artifactHost.cleanup(),
+      this.sessionAssets.cleanup(),
     ]);
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
     const failure = cleanup.find((result): result is PromiseRejectedResult => result.status === "rejected");
@@ -423,6 +427,13 @@ export class ApiServer {
       response.json(result);
     });
     this.app.get("/v1/sessions", (request, response) => response.json(this.sessions.list(this.ownerId(request))));
+    this.app.post("/v1/assets", async (request, response) => {
+      response.status(201).json(await this.receiveAsset(request, response));
+    });
+    this.app.post("/v1/sessions/:id/assets", async (request, response) => {
+      this.sessions.touch(request.params.id, this.ownerId(request));
+      response.status(201).json(await this.receiveAsset(request, response, request.params.id));
+    });
     this.app.post("/v1/sessions/:id/lease", (request, response) =>
       response.json(this.sessions.touch(request.params.id, this.ownerId(request))),
     );
@@ -458,8 +469,10 @@ export class ApiServer {
         result = await this.sessions.close(request.params.id, this.ownerId(request));
       } catch (error) {
         await this.artifactHost.discardSession(request.params.id);
+        await this.sessionAssets.cleanupSession(request.params.id);
         throw error;
       }
+      await this.sessionAssets.cleanupSession(request.params.id);
       const artifact = await this.artifactHost.completeSession(request.params.id, result);
       this.notifyWorkbenchChanged("session");
       if ("path" in artifact) {
@@ -590,6 +603,27 @@ export class ApiServer {
   private notifyEnvironmentChanged(source: "android" | "ios"): void {
     TargetCatalogService.invalidate();
     this.events.publish({ type: "environment.changed", source, occurredAt: new Date().toISOString() });
+  }
+
+  private async receiveAsset(request: Request, response: Response, sessionId?: string): Promise<AssetReference> {
+    if (!request.is("application/octet-stream")) {
+      throw new TestbenchError("ASSET_CONTENT_TYPE_UNSUPPORTED", "Asset uploads require application/octet-stream.", {
+        operation: "asset.upload",
+        status: 415,
+      });
+    }
+    const encodedName = request.header("x-browser-testbench-asset-name") ?? "";
+    const name = decodeURIComponent(encodedName);
+    const size = Number(request.header("x-browser-testbench-asset-size"));
+    const sha256 = request.header("x-browser-testbench-asset-sha256") ?? "";
+    const contentType = request.header("x-browser-testbench-asset-content-type") ?? "application/octet-stream";
+    return this.sessionAssets.upload(
+      this.ownerId(request),
+      sessionId,
+      request,
+      { name, size, sha256, contentType },
+      RequestAbort.signal(request, response),
+    );
   }
 
   private notifyConnectionChanged(): void {
