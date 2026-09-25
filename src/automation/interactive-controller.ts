@@ -828,10 +828,10 @@ export class InteractiveController {
     }
   }
 
-  private async appiumCommand(path: string, body: Record<string, unknown>): Promise<void> {
+  private async appiumCommand<T = void>(path: string, body: Record<string, unknown>): Promise<T> {
     if (!this.appium) throw new Error("This command requires an active mobile session.");
     try {
-      await new AppiumSessionClient(this.appium.port, this.session.active.sessionId).request(
+      return await new AppiumSessionClient(this.appium.port, this.session.active.sessionId).request<T>(
         path,
         "POST",
         body,
@@ -876,6 +876,7 @@ export class InteractiveController {
       }
     } else videoPath = this.lastRecording?.path;
     await this.resetOriginPermissions().catch((error) => failures.push(error));
+    await this.androidPermissions?.restore().catch((error) => failures.push(error));
     const browserClose = (this.pendingBrowserClose ??= this.session.close());
     let browserCloseTimedOut = false;
     await this.withCleanupTimeout("browser session", browserClose).catch((error) => {
@@ -884,7 +885,6 @@ export class InteractiveController {
     });
     if (!browserCloseTimedOut) this.pendingBrowserClose = undefined;
     await this.appium?.process.stop().catch((error) => failures.push(error));
-    await this.androidPermissions?.restore().catch((error) => failures.push(error));
     if (browserCloseTimedOut) {
       await this.withCleanupTimeout("browser session after stopping Appium", browserClose)
         .then(() => (this.pendingBrowserClose = undefined))
@@ -927,7 +927,7 @@ export class InteractiveController {
     }
     for (const permission of requested) {
       try {
-        await browser.permission(permission.name, "granted", permission.origin);
+        await this.setOriginPermission(target, browser, permission, "granted");
       } catch (error) {
         throw new TestbenchError("PERMISSION_DENIED", `Could not grant ${permission.name} for ${permission.origin}.`, {
           operation: "permission.origin",
@@ -945,7 +945,7 @@ export class InteractiveController {
     if (!this.originPermissions.length) return;
     const browser = this.session.active;
     const results = await Promise.allSettled(
-      this.originPermissions.map((permission) => browser.permission(permission.name, "prompt", permission.origin)),
+      this.originPermissions.map((permission) => this.setOriginPermission(this.target!, browser, permission, "prompt")),
     );
     const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
     if (failures.length)
@@ -953,6 +953,22 @@ export class InteractiveController {
         failures.map((failure) => failure.reason),
         "Could not reset origin permissions.",
       );
+  }
+
+  private async setOriginPermission(
+    target: TargetConfig,
+    browser: BrowserSession["active"],
+    permission: { name: string; origin: string },
+    setting: "granted" | "denied" | "prompt",
+  ): Promise<void> {
+    if (target.name !== "chrome-android") {
+      await browser.permission(permission.name, setting, permission.origin);
+      return;
+    }
+    await this.appiumCommand("goog/cdp/execute", {
+      cmd: "Browser.setPermission",
+      params: { permission: { name: permission.name }, setting, origin: permission.origin },
+    });
   }
 
   private async iosStartupDiagnostic(target: TargetConfig, error: unknown): Promise<string> {
