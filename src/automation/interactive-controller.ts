@@ -113,7 +113,7 @@ export class InteractiveController {
       try {
         if (TargetRegistry.definitions[options.target].kind === "mobile")
           this.appium = await ServiceManager.startAppium();
-        const browser = await this.session.start(target, { appiumPort: this.appium?.port });
+        const browser = await this.session.start(target, { appiumPort: this.appium?.port, targetId: options.targetId });
         browserStarted = true;
         if (options.videoPath) {
           const recorder = await VideoRecorder.start(target, dirname(options.videoPath), browser.capabilities);

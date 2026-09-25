@@ -4,36 +4,99 @@ import { TestbenchDefaults } from "../config/defaults.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import type { TargetConfig } from "../config/types.js";
 import { AndroidUsbNetwork } from "./android-usb-network.js";
+import { TestbenchError } from "../errors/testbench-error.js";
+
+export class FreshElementAction {
+  static async run<T>(
+    driver: WebDriver,
+    target: string,
+    selector: string,
+    action: string,
+    execute: (element: WebElement) => Promise<T>,
+  ): Promise<T> {
+    let originalError: Error | undefined;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      let element: WebElement;
+      try {
+        element = await driver.findElement(By.css(selector));
+      } catch (error) {
+        if (!originalError) throw error;
+        throw this.failure(target, selector, action, attempt, originalError, error);
+      }
+      try {
+        return await execute(element);
+      } catch (error) {
+        if (attempt === 1 && this.isStale(error)) {
+          originalError = error instanceof Error ? error : new Error(String(error));
+          continue;
+        }
+        if (originalError && this.isStale(error))
+          throw this.failure(target, selector, action, attempt, originalError, error);
+        throw error;
+      }
+    }
+    throw new Error("Element action retry ended unexpectedly.");
+  }
+
+  static isStale(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    return /stale element reference|element does not exist in cache|element is no longer attached/iu.test(
+      `${error.name} ${error.message}`,
+    );
+  }
+
+  private static failure(
+    target: string,
+    selector: string,
+    action: string,
+    attempt: number,
+    originalError: Error,
+    error: unknown,
+  ): TestbenchError {
+    return new TestbenchError("STALE_ELEMENT", `Element '${selector}' became stale during ${action}.`, {
+      operation: `element.${action}`,
+      status: 409,
+      cause: error,
+      details: {
+        selector,
+        action,
+        target,
+        attempt,
+        originalDriverMessage: originalError.message,
+      },
+    });
+  }
+}
 
 export class BrowserElement {
   constructor(
     private readonly driver: WebDriver,
     private readonly selector: string,
+    private readonly target: string,
   ) {}
 
-  private element(): Promise<WebElement> {
-    return this.driver.findElement(By.css(this.selector));
+  private run<T>(action: string, execute: (element: WebElement) => Promise<T>): Promise<T> {
+    return FreshElementAction.run(this.driver, this.target, this.selector, action, execute);
   }
 
   async click(): Promise<void> {
-    await (await this.element()).click();
+    await this.run("click", (element) => element.click());
   }
 
   async clearValue(): Promise<void> {
-    await (await this.element()).clear();
+    await this.run("clear", (element) => element.clear());
   }
 
   async setValue(value: string): Promise<void> {
-    await (await this.element()).sendKeys(value);
+    await this.run("type", (element) => element.sendKeys(value));
   }
 
   async getText(): Promise<string> {
-    return (await this.element()).getText();
+    return this.run("getText", (element) => element.getText());
   }
 
   async state(): Promise<Record<string, unknown>> {
-    const element = await this.element();
-    return {
+    return this.run("state", async (element) => ({
       tag: await element.getTagName(),
       text: await element.getText(),
       value: await element.getAttribute("value"),
@@ -46,17 +109,21 @@ export class BrowserElement {
         element,
       ),
       focused: await this.driver.executeScript("return document.activeElement === arguments[0]", element),
-    };
+    }));
   }
 
   async setChecked(checked: boolean): Promise<void> {
-    const element = await this.element();
-    if ((await element.isSelected()) !== checked) await element.click();
+    await this.run(checked ? "check" : "uncheck", async (element) => {
+      if ((await element.isSelected()) !== checked) await element.click();
+    });
   }
 
   async select(values: string[], by: "value" | "text" | "index"): Promise<void> {
-    await this.driver.executeScript(
-      `
+    await this.run(
+      "select",
+      (element) =>
+        this.driver.executeScript(
+          `
         const select = arguments[0];
         const values = arguments[1];
         const by = arguments[2];
@@ -67,40 +134,52 @@ export class BrowserElement {
         select.dispatchEvent(new Event("input", { bubbles: true }));
         select.dispatchEvent(new Event("change", { bubbles: true }));
       `,
-      await this.element(),
-      values,
-      by,
+          element,
+          values,
+          by,
+        ) as Promise<unknown>,
     );
   }
 
   async upload(paths: string[]): Promise<void> {
-    await (await this.element()).sendKeys(paths.join("\n"));
+    await this.run("upload", (element) => element.sendKeys(paths.join("\n")));
   }
 
   async focus(): Promise<void> {
-    await this.driver.executeScript("arguments[0].focus()", await this.element());
+    await this.run(
+      "focus",
+      (element) => this.driver.executeScript("arguments[0].focus()", element) as Promise<unknown>,
+    );
   }
 
   async blur(): Promise<void> {
-    await this.driver.executeScript("arguments[0].blur()", await this.element());
+    await this.run("blur", (element) => this.driver.executeScript("arguments[0].blur()", element) as Promise<unknown>);
   }
 
   async scrollIntoView(): Promise<void> {
-    await this.driver.executeScript(
-      'arguments[0].scrollIntoView({block:"center",inline:"center"})',
-      await this.element(),
+    await this.run(
+      "scrollIntoView",
+      (element) =>
+        this.driver.executeScript(
+          'arguments[0].scrollIntoView({block:"center",inline:"center"})',
+          element,
+        ) as Promise<unknown>,
     );
   }
 
   async submit(): Promise<void> {
-    await this.driver.executeScript(
-      "const form = arguments[0].form ?? arguments[0].closest('form'); if (!form) throw new Error('Element is not associated with a form.'); form.requestSubmit ? form.requestSubmit() : form.submit();",
-      await this.element(),
+    await this.run(
+      "submit",
+      (element) =>
+        this.driver.executeScript(
+          "const form = arguments[0].form ?? arguments[0].closest('form'); if (!form) throw new Error('Element is not associated with a form.'); form.requestSubmit ? form.requestSubmit() : form.submit();",
+          element,
+        ) as Promise<unknown>,
     );
   }
 
   async screenshot(): Promise<string> {
-    return (await this.element()).takeScreenshot();
+    return this.run("screenshot", (element) => element.takeScreenshot());
   }
 
   async waitForDisplayed(options: { timeout?: number } = {}): Promise<void> {
@@ -114,7 +193,7 @@ export class BrowserElement {
   async waitForClickable(options: { timeout?: number } = {}): Promise<void> {
     const timeout = options.timeout ?? TestbenchDefaults.WAIT_TIMEOUT_MS;
     await this.driver.wait(async () => {
-      const element = await this.element().catch(() => undefined);
+      const element = await this.driver.findElement(By.css(this.selector)).catch(() => undefined);
       return Boolean(element && (await element.isDisplayed()) && (await element.isEnabled()));
     }, timeout);
   }
@@ -125,9 +204,14 @@ export class BrowserHandle {
     private readonly driver: WebDriver,
     readonly sessionId: string,
     readonly capabilities: Record<string, unknown>,
+    private readonly target: string,
   ) {}
 
-  static async create(capabilities: Record<string, unknown>, serverUrl?: string): Promise<BrowserHandle> {
+  static async create(
+    capabilities: Record<string, unknown>,
+    serverUrl?: string,
+    target = "unknown",
+  ): Promise<BrowserHandle> {
     let builder = new Builder().withCapabilities(capabilities);
     if (serverUrl) builder = builder.usingServer(serverUrl);
     const driver = await builder.build();
@@ -136,7 +220,7 @@ export class BrowserHandle {
     const runtime = Object.fromEntries(
       [...returnedCapabilities.keys()].map((key) => [key, returnedCapabilities.get(key)]),
     );
-    return new BrowserHandle(driver, session.getId(), runtime);
+    return new BrowserHandle(driver, session.getId(), runtime, target);
   }
 
   async url(value: string): Promise<void> {
@@ -185,7 +269,7 @@ export class BrowserHandle {
   }
 
   $(selector: string): BrowserElement {
-    return new BrowserElement(this.driver, selector);
+    return new BrowserElement(this.driver, selector, this.target);
   }
 
   private async findOptionalElement(selector: string): Promise<WebElement | undefined> {
@@ -202,7 +286,10 @@ export class BrowserHandle {
 
   async press(keys: string[], selector?: string): Promise<void> {
     const values = keys.map((key) => KeyboardKeys.resolve(key));
-    if (selector) await (await this.driver.findElement(By.css(selector))).sendKeys(...values);
+    if (selector)
+      await FreshElementAction.run(this.driver, this.target, selector, "press", (element) =>
+        element.sendKeys(...values),
+      );
     else
       await this.driver
         .actions({ async: true })
@@ -211,17 +298,20 @@ export class BrowserHandle {
   }
 
   async mouse(action: "hover" | "doubleClick" | "rightClick", selector: string): Promise<void> {
-    const element = await this.driver.findElement(By.css(selector));
-    const actions = this.driver.actions({ async: true });
-    if (action === "hover") await actions.move({ origin: element }).perform();
-    if (action === "doubleClick") await actions.doubleClick(element).perform();
-    if (action === "rightClick") await actions.contextClick(element).perform();
+    await FreshElementAction.run(this.driver, this.target, selector, action, async (element) => {
+      const actions = this.driver.actions({ async: true });
+      if (action === "hover") await actions.move({ origin: element }).perform();
+      if (action === "doubleClick") await actions.doubleClick(element).perform();
+      if (action === "rightClick") await actions.contextClick(element).perform();
+    });
   }
 
   async drag(source: string, target: string): Promise<void> {
-    const from = await this.driver.findElement(By.css(source));
-    const to = await this.driver.findElement(By.css(target));
-    await this.driver.actions({ async: true }).dragAndDrop(from, to).perform();
+    await FreshElementAction.run(this.driver, this.target, source, "drag", (from) =>
+      FreshElementAction.run(this.driver, this.target, target, "drag", (to) =>
+        this.driver.actions({ async: true }).dragAndDrop(from, to).perform(),
+      ),
+    );
   }
 
   async scroll(x: number, y: number): Promise<void> {
@@ -521,7 +611,7 @@ export class BrowserSession {
 
   async start(
     target: TargetConfig,
-    options: { appiumPort?: number; logLevel?: "silent" | "error" | "warn" | "info" } = {},
+    options: { appiumPort?: number; logLevel?: "silent" | "error" | "warn" | "info"; targetId?: string } = {},
   ): Promise<BrowserHandle> {
     if (this.browser) await this.close();
     const isMobile = TargetRegistry.definitions[target.name].kind === "mobile";
@@ -529,7 +619,11 @@ export class BrowserSession {
     this.target = target;
     this.androidUsbNetwork = new AndroidUsbNetwork(target);
     try {
-      this.browser = await BrowserHandle.create(TargetRegistry.capabilities(target), serverUrl);
+      this.browser = await BrowserHandle.create(
+        TargetRegistry.capabilities(target),
+        serverUrl,
+        options.targetId ?? target.name,
+      );
       return this.browser;
     } catch (error) {
       this.target = undefined;
