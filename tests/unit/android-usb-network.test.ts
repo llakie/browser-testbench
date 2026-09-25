@@ -88,6 +88,28 @@ describe("AndroidUsbNetwork", () => {
     await network.close();
   });
 
+  it("discovers the runtime serial for an emulator target configured by AVD", async () => {
+    vi.spyOn(AndroidSdk, "root").mockResolvedValue("/android/sdk");
+    const run = vi
+      .spyOn(CommandRunner, "run")
+      .mockResolvedValueOnce({ code: 0, stdout: "emulator-5554\tdevice\n", stderr: "" })
+      .mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    const network = new AndroidUsbNetwork({
+      name: "chrome-android",
+      deviceKind: "emulator",
+      avd: "Browser_Testbench_API_36",
+    });
+
+    await network.prepare("http://127.0.0.1:4301/app");
+    await network.close();
+
+    expect(run).toHaveBeenCalledWith(
+      "/android/sdk/platform-tools/adb",
+      ["-s", "emulator-5554", "reverse", "tcp:4301", "tcp:4301"],
+      expect.any(Object),
+    );
+  });
+
   it("does not overwrite or remove a pre-existing reverse mapping", async () => {
     vi.spyOn(AndroidSdk, "root").mockResolvedValue("/android/sdk");
     const run = vi

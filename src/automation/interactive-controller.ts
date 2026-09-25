@@ -28,6 +28,7 @@ import { ImageDimensions, RecordingGeometry, type GeometrySample } from "./recor
 import { VideoUtilities } from "./video-utilities.js";
 import { ScreenshotUtilities, type ScreenshotResult, type ScreenshotScope } from "./screenshot-utilities.js";
 import { AbortableOperation } from "./abortable-operation.js";
+import { AndroidDeviceUtilities } from "./android-device-utilities.js";
 
 export interface PageInspection {
   url: string;
@@ -143,6 +144,9 @@ export class InteractiveController {
           this.appium = await ServiceManager.startAppium();
         const browser = await this.session.start(target, { appiumPort: this.appium?.port, targetId: options.targetId });
         browserStarted = true;
+        if (target.name === "chrome-android") {
+          target.udid ??= AndroidDeviceUtilities.configuredSerial(target, browser.capabilities);
+        }
         const permissions = await this.preparePermissions(target, browser, options.permissions ?? []);
         this.permissionMetadata = permissions;
         if (options.videoPath) {

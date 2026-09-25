@@ -9,6 +9,7 @@ import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { ProcessTerminator } from "../infrastructure/process-terminator.js";
 import { MediaTooling } from "../infrastructure/media-tooling.js";
+import { AndroidDeviceUtilities } from "./android-device-utilities.js";
 
 const ADB_COMMAND_TIMEOUT_MS = 5_000;
 const RECORDER_STOP_TIMEOUT_MS = 10_000;
@@ -156,14 +157,7 @@ export class VideoRecorder {
     target: TargetConfig,
     capabilities: Record<string, unknown>,
   ): Promise<string> {
-    const configured =
-      target.udid ?? target.capabilities?.["appium:udid"] ?? capabilities.deviceUDID ?? capabilities.udid;
-    if (typeof configured === "string" && configured) return configured;
-    const devices = await CommandRunner.run(adb, ["devices"], { timeoutMs: ADB_COMMAND_TIMEOUT_MS });
-    const serial = devices.stdout
-      .split(/\r?\n/u)
-      .map((line) => line.match(/^(\S+)\s+device(?:\s|$)/u)?.[1])
-      .find(Boolean);
+    const serial = await AndroidDeviceUtilities.serial(adb, target, capabilities);
     if (!serial) throw new Error("No connected Android device was found for video recording.");
     return serial;
   }

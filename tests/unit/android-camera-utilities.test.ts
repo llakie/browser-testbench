@@ -51,4 +51,23 @@ describe("AndroidCameraUtilities", () => {
       expect.anything(),
     );
   });
+
+  it("uses the runtime serial for an emulator target configured by AVD", async () => {
+    vi.spyOn(AndroidSdk, "root").mockResolvedValue("/android/sdk");
+    const run = vi
+      .spyOn(CommandRunner, "run")
+      .mockResolvedValueOnce({ code: 0, stdout: "android.permission.CAMERA: granted=true", stderr: "" });
+    const permissions = new AndroidCameraUtilities(
+      { name: "chrome-android", avd: "Browser_Testbench_API_36", deviceKind: "emulator" },
+      { deviceUDID: "emulator-5554", "appium:chromeOptions": { androidPackage: "com.android.chrome" } },
+    );
+
+    await permissions.grant(["camera"]);
+
+    expect(run).toHaveBeenCalledWith(
+      "/android/sdk/platform-tools/adb",
+      ["-s", "emulator-5554", "shell", "dumpsys", "package", "com.android.chrome"],
+      expect.anything(),
+    );
+  });
 });
