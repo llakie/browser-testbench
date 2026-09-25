@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-25
+
+### Added
+
+- Session-scoped streaming assets, declarative Android camera images and browser permissions, target capability checks,
+  structured screenshots, explicit recording start/stop, recording marks, geometry metadata, and diagnostic bundles.
+- Abort signals and options-object timeouts for waits and navigation while retaining positional wait timeouts.
+- Structured `TestbenchError` responses with stable error codes and serializable details.
+
+### Changed
+
+- Android loopback URLs use session-owned `adb reverse` mappings by default and remain on `localhost` or `127.0.0.1`.
+  The previous `10.0.2.2` behavior is available through `localOrigins: "emulator-host"`.
+- Sessions use renewable leases, serial targets use process-aware persistent locks, and failed cleanup quarantines a target
+  until cleanup succeeds.
+- Mobile recordings stop before browser teardown and can be exported at the exact browser viewport with constant frame
+  timing.
+- JSON requests are limited to 1 MiB. Larger binary inputs use the streaming asset API.
+
+### Fixed
+
+- Selector actions resolve elements immediately before use and retry once for stale-element driver failures.
+- Android permissions, AVD runtime serials, emulator camera asset paths, screenshots, viewport geometry, and short static
+  recordings now work through the public API used by Binderium.
+- Recording artifacts are finalized and transferred atomically with size and SHA-256 verification.
+
+### Migration
+
+- No intentional source-level breaking changes were introduced. Existing `videoPath`, positional waits, screenshot APIs,
+  and `appium:autoGrantPermissions` calls remain supported.
+- See [Migrating from Browser Testbench 0.4.x](docs/releases/0.5.0-migration.md) for observable behavior changes and the
+  upgrade checklist.
+
 ## [0.4.0] - 2026-09-23
 
 ### Added
@@ -206,6 +239,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Automated CI for macOS, Windows, and Linux and npm publishing through GitHub Actions.
 
 [Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.4.0...HEAD
+[0.5.0]: https://github.com/llakie/browser-testbench/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/llakie/browser-testbench/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/llakie/browser-testbench/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/llakie/browser-testbench/compare/v0.2.0...v0.3.0
