@@ -60,10 +60,16 @@ export class VideoRecorder {
     if (!MediaTooling.isAvailable()) throw this.unsupported(target, "FFmpeg and ffprobe are required for recording.");
     await mkdir(dirname(outputPath), { recursive: true });
     if (target.name === "safari-ios") {
-      const child = spawn("xcrun", ["simctl", "io", "booted", "recordVideo", "--codec=h264", outputPath], {
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      });
+      if (target.deviceKind === "physical")
+        throw this.unsupported(target, "Video recording is only available for iOS simulators.");
+      const child = spawn(
+        "xcrun",
+        ["simctl", "io", target.udid ?? "booted", "recordVideo", "--codec=h264", outputPath],
+        {
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true,
+        },
+      );
       await this.ensureStarted(child, "iOS video recorder");
       return new VideoRecorder(child, outputPath);
     }

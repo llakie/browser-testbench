@@ -319,6 +319,24 @@ describe("InteractiveController", () => {
     expect(crop).toHaveBeenCalledWith("video.mp4", recordingGeometry().viewportInVideo, undefined);
     expect(result).toMatchObject({ requestedScope: "viewport", actualScope: "viewport", height: 2063 });
   });
+
+  it("rejects a recording whose pixels do not match the measured screen", async () => {
+    const controller = new InteractiveController();
+    vi.spyOn(VideoRecorder, "start").mockResolvedValue({
+      stop: vi.fn().mockResolvedValue({ ...recordingArtifact(), width: 720 }),
+    } as never);
+    vi.spyOn(RecordingGeometry, "capture").mockResolvedValue(recordingGeometry());
+    Object.assign(controller, {
+      target: { name: "chrome-android", deviceKind: "emulator", udid: "emulator-5554" },
+      session: { active: { capabilities: {} } },
+    });
+    await controller.startRecording({ outputPath: "video.mp4" });
+
+    await expect(controller.stopRecording()).rejects.toMatchObject({
+      code: "RECORDING_GEOMETRY_CHANGED",
+      details: { recording: { width: 720, height: 2400 }, screenshot: { width: 1080, height: 2400 } },
+    });
+  });
 });
 
 function recordingArtifact(): RecordingArtifact {
@@ -330,7 +348,7 @@ function recordingArtifact(): RecordingArtifact {
     container: "mov",
     codec: "h264",
     width: 1080,
-    height: 1920,
+    height: 2400,
     durationMs: 1_000,
     timeBase: "1/90000",
     averageFrameRate: 30,

@@ -452,6 +452,20 @@ export class InteractiveController {
     if (!RecordingGeometry.equal(video.geometry[0]!, endingGeometry)) video.geometry.push(endingGeometry);
     const recordedDurationMs = Math.max(1, Math.round(performance.now() - video.startedAtMs));
     let artifact = await video.recorder.stop(signal);
+    const expectedVideo = video.geometry[0]!.video;
+    if (artifact.width !== expectedVideo.width || artifact.height !== expectedVideo.height)
+      throw new TestbenchError(
+        "RECORDING_GEOMETRY_CHANGED",
+        "Recording and screen geometry do not have the same bounds.",
+        {
+          operation: "recording.stop",
+          status: 409,
+          details: {
+            recording: { width: artifact.width, height: artifact.height },
+            screenshot: expectedVideo,
+          },
+        },
+      );
     const repairDuration = artifact.durationMs + 100 < recordedDurationMs ? recordedDurationMs : undefined;
     if (video.scope === "viewport") {
       if (video.geometry.length !== 1)

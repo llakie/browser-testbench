@@ -57,5 +57,10 @@ describe("RecordingGeometry", () => {
       viewportInVideo: { x: 0, y: 273, width: 1080, height: 2063 },
       insets: { top: 273, bottom: 64 },
     });
+    const nativeLookup = (fetch as ReturnType<typeof vi.fn>).mock.calls
+      .map((call) => JSON.parse(String(call[1]?.body ?? "{}")) as { value?: string })
+      .find((body) => body.value?.includes("compositor_view_holder"));
+    expect(nativeLookup?.value).toContain(":id/compositor_view_holder");
+    expect(nativeLookup?.value).not.toContain("com.android.chrome");
   });
 });

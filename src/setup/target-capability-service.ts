@@ -27,6 +27,7 @@ export class TargetCapabilityService {
     const chromium = android || target.browser === "chrome" || target.browser === "edge";
     const mobile = target.kind === "mobile";
     const mediaTooling = MediaTooling.isAvailable();
+    const recording = mobile && mediaTooling && !(target.browser === "safari-ios" && target.deviceKind === "physical");
     return {
       limits: {
         requestBytes: TestbenchDefaults.REQUEST_BODY_LIMIT_BYTES,
@@ -40,9 +41,9 @@ export class TargetCapabilityService {
       localOrigins: { reverse: android },
       mediaInjection: { cameraImage: android && target.deviceKind === "emulator" },
       recording: {
-        screen: mobile && mediaTooling,
-        viewport: mobile && mediaTooling,
-        explicitLifecycle: mobile && mediaTooling,
+        screen: recording,
+        viewport: recording,
+        explicitLifecycle: recording,
         pauseResume: false,
         geometry: mobile,
         marks: true,
