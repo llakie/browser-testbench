@@ -1064,6 +1064,7 @@ export class RemoteSession {
 export class RemoteRecording {
   private outputPath?: string;
   private stopResult?: Promise<RecordingResult>;
+  private pendingArtifact?: Omit<RecordingResult, "path"> & { artifactId: string; path?: string };
 
   constructor(
     private readonly testbench: RemoteTestbench,
@@ -1092,18 +1093,22 @@ export class RemoteRecording {
   }
 
   private async finalize(signal?: AbortSignal): Promise<RecordingResult> {
-    const result = await this.testbench.request<Omit<RecordingResult, "path"> & { artifactId?: string; path?: string }>(
-      `/v1/sessions/${this.sessionId}/recording/stop`,
-      {
-        method: "POST",
-        body: "{}",
-        signal,
-        timeoutMs: TestbenchDefaults.RECORDING_FINALIZE_REQUEST_TIMEOUT_MS,
-      },
-    );
+    const result =
+      this.pendingArtifact ??
+      (await this.testbench.request<Omit<RecordingResult, "path"> & { artifactId?: string; path?: string }>(
+        `/v1/sessions/${this.sessionId}/recording/stop`,
+        {
+          method: "POST",
+          body: "{}",
+          signal,
+          timeoutMs: TestbenchDefaults.RECORDING_FINALIZE_REQUEST_TIMEOUT_MS,
+        },
+      ));
     if (!result.artifactId) return result as RecordingResult;
     if (!this.outputPath) throw new Error("Recording output path is unavailable.");
+    this.pendingArtifact = { ...result, artifactId: result.artifactId };
     await this.testbench.downloadRecording(this.sessionId, result.artifactId, this.outputPath, result, signal);
+    this.pendingArtifact = undefined;
     const { artifactId: _artifactId, ...metadata } = result;
     return { ...metadata, path: this.outputPath };
   }

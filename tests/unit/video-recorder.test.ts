@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RecordingProbe } from "../../src/automation/video-recorder.js";
+import { RecordingProbe, VideoRecorder, type RecordingArtifact } from "../../src/automation/video-recorder.js";
 import { CommandRunner } from "../../src/infrastructure/command-runner.js";
 
 describe("RecordingProbe", () => {
@@ -54,5 +54,33 @@ describe("RecordingProbe", () => {
       averageFrameRate: 29.97,
       frameRateMode: "variable",
     });
+  });
+
+  it("keeps a safely finalized artifact retryable after caller abort", async () => {
+    const artifact = {
+      path: join(directory, "recording.mp4"),
+      size: 1,
+      sha256: "0".repeat(64),
+      mimeType: "video/mp4",
+      container: "mov",
+      codec: "h264",
+      width: 1080,
+      height: 1920,
+      durationMs: 1_000,
+      timeBase: "1/90000",
+      averageFrameRate: 30,
+      frameRateMode: "constant",
+    } satisfies RecordingArtifact;
+    const recorder = Object.create(VideoRecorder.prototype) as VideoRecorder;
+    const finalize = vi
+      .spyOn(recorder as unknown as { finalize: () => Promise<RecordingArtifact> }, "finalize")
+      .mockResolvedValue(artifact);
+    const controller = new AbortController();
+    const first = recorder.stop(controller.signal);
+    controller.abort();
+
+    await expect(first).rejects.toMatchObject({ code: "OPERATION_ABORTED", details: { partialArtifact: artifact } });
+    await expect(recorder.stop()).resolves.toEqual(artifact);
+    expect(finalize).toHaveBeenCalledOnce();
   });
 });

@@ -237,6 +237,47 @@ describe("RemoteTestbench.availableTargets", () => {
     );
   });
 
+  it("retries an interrupted artifact download without stopping the recorder twice", async () => {
+    const testbench = new RemoteTestbench();
+    const artifact = {
+      artifactId: "artifact",
+      id: "recording",
+      size: 10,
+      sha256: "0".repeat(64),
+      mimeType: "video/mp4" as const,
+      container: "mov",
+      codec: "h264",
+      width: 1080,
+      height: 1920,
+      durationMs: 1_000,
+      timeBase: "1/90000",
+      averageFrameRate: 30,
+      frameRateMode: "constant" as const,
+      requestedScope: "screen" as const,
+      actualScope: "screen" as const,
+      endedSessionTimeMs: 1_000,
+      marks: [],
+      geometry: { samples: [] },
+    };
+    const request = vi
+      .spyOn(testbench, "request")
+      .mockResolvedValueOnce({ id: "session", target: "chrome-android-device", runtime: {} })
+      .mockResolvedValueOnce({ id: "recording" })
+      .mockResolvedValueOnce(artifact);
+    const transfer = vi
+      .spyOn(testbench, "downloadRecording")
+      .mockRejectedValueOnce(new Error("transfer interrupted"))
+      .mockResolvedValueOnce(undefined);
+    const session = await testbench.open({ target: "chrome-android-device" });
+    await session.recording.start({ outputPath: "./export/raw.mp4" });
+
+    await expect(session.recording.stop()).rejects.toThrow("transfer interrupted");
+    await expect(session.recording.stop()).resolves.toMatchObject({ path: "./export/raw.mp4", id: "recording" });
+
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(transfer).toHaveBeenCalledTimes(2);
+  });
+
   it("requests structured screenshot scopes separately from the compatible screenshot API", async () => {
     const testbench = new RemoteTestbench();
     const request = vi.spyOn(testbench, "request").mockResolvedValue({

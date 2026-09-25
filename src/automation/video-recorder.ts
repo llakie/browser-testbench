@@ -84,22 +84,10 @@ export class VideoRecorder {
   }
 
   stop(signal?: AbortSignal): Promise<RecordingArtifact> {
-    this.stopResult ??= this.finalize(signal);
-    return this.stopResult;
-  }
-
-  private async finalize(signal?: AbortSignal): Promise<RecordingArtifact> {
-    try {
-      if (this.android) {
-        await CommandRunner.run(this.android.adb, ["-s", this.android.serial, "shell", "pkill", "-2", "screenrecord"], {
-          timeoutMs: ADB_COMMAND_TIMEOUT_MS,
-        });
-      } else {
-        await ProcessTerminator.stop(this.child, { gracefulSignal: "SIGINT", graceMs: RECORDER_STOP_TIMEOUT_MS });
-      }
-      if (this.android) await this.finalizeAndroid();
-      const artifact = await RecordingProbe.inspect(this.outputPath);
-      if (signal?.aborted)
+    this.stopResult ??= this.finalize();
+    if (!signal) return this.stopResult;
+    return this.stopResult.then((artifact) => {
+      if (signal.aborted)
         throw new TestbenchError(
           "OPERATION_ABORTED",
           "Recording finalization was aborted after safe recorder cleanup.",
@@ -110,6 +98,20 @@ export class VideoRecorder {
           },
         );
       return artifact;
+    });
+  }
+
+  private async finalize(): Promise<RecordingArtifact> {
+    try {
+      if (this.android) {
+        await CommandRunner.run(this.android.adb, ["-s", this.android.serial, "shell", "pkill", "-2", "screenrecord"], {
+          timeoutMs: ADB_COMMAND_TIMEOUT_MS,
+        });
+      } else {
+        await ProcessTerminator.stop(this.child, { gracefulSignal: "SIGINT", graceMs: RECORDER_STOP_TIMEOUT_MS });
+      }
+      if (this.android) await this.finalizeAndroid();
+      return await RecordingProbe.inspect(this.outputPath);
     } catch (error) {
       if (error instanceof TestbenchError) throw error;
       const partial = await stat(this.outputPath).catch(() => undefined);
