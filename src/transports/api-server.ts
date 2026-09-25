@@ -42,6 +42,7 @@ import { ClientVersion } from "../config/client-version.js";
 import { LocalizedError, Translator, type MessageDescriptor } from "../i18n/translator.js";
 import { RequestAbort } from "./request-abort.js";
 import { ErrorResponse } from "../i18n/error-response.js";
+import { TestbenchError } from "../errors/testbench-error.js";
 import { NetworkUrl } from "../infrastructure/network-url.js";
 
 const english = new Translator("en");
@@ -153,6 +154,29 @@ export class ApiServer {
         response.status(400).json({ error: "Invalid request", issues: error.issues });
         return;
       }
+      if (error instanceof TestbenchError) {
+        response.status(error.status).json(error.toPayload());
+        return;
+      }
+      if (ApiServer.isPayloadTooLarge(error)) {
+        const actualBytes = ApiServer.errorNumber(error, "length");
+        const limitBytes = ApiServer.errorNumber(error, "limit") ?? TestbenchDefaults.REQUEST_BODY_LIMIT_BYTES;
+        const structured = new TestbenchError(
+          "PAYLOAD_TOO_LARGE",
+          `Request payload exceeds the ${limitBytes}-byte JSON limit. Upload large binary data as a session asset.`,
+          {
+            operation: "request.parse",
+            status: 413,
+            details: {
+              ...(actualBytes === undefined ? {} : { actualBytes }),
+              limitBytes,
+              suggestion: "session.assets.upload",
+            },
+          },
+        );
+        response.status(structured.status).json(structured.toPayload());
+        return;
+      }
       if (error instanceof LocalizedError) {
         response.status(error.status).json({ message: error.descriptor });
         return;
@@ -188,6 +212,22 @@ export class ApiServer {
       response.status(500).json({ error: ErrorResponse.describe(error) });
     });
     this.server = createServer(this.app);
+  }
+
+  private static isPayloadTooLarge(error: unknown): boolean {
+    return (
+      typeof error === "object" &&
+      error !== null &&
+      (("type" in error && error.type === "entity.too.large") || ("status" in error && error.status === 413))
+    );
+  }
+
+  private static errorNumber(error: unknown, key: string): number | undefined {
+    const value =
+      typeof error === "object" && error !== null && key in error
+        ? (error as Record<string, unknown>)[key]
+        : undefined;
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
   }
 
   private registerPublicRoutes(): void {

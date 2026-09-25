@@ -23,6 +23,9 @@ import type { ConnectionStatus, PairingRequired, RemoteInstance, RemoteRole } fr
 import type { SetupAction } from "../setup/setup-types.js";
 import { ClientVersion } from "../config/client-version.js";
 import { ErrorResponse, type ErrorResponsePayload } from "../i18n/error-response.js";
+import { TestbenchError } from "../errors/testbench-error.js";
+
+export { TestbenchError } from "../errors/testbench-error.js";
 
 export type { SetupAction } from "../setup/setup-types.js";
 
@@ -248,8 +251,18 @@ export class RemoteTestbench {
       );
     }
     const payload = (await response.json().catch(() => ({}))) as T & ErrorResponsePayload;
-    if (!response.ok)
-      throw new Error(ErrorResponse.message(payload, `Browser Testbench responded with HTTP ${response.status}.`));
+    if (!response.ok) {
+      const message = ErrorResponse.message(payload, `Browser Testbench responded with HTTP ${response.status}.`);
+      if (payload.code && payload.operation) {
+        throw new TestbenchError(payload.code, message, {
+          operation: payload.operation,
+          sessionId: payload.sessionId,
+          details: payload.details,
+          status: response.status,
+        });
+      }
+      throw new Error(message);
+    }
     return payload;
   }
 }

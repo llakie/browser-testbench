@@ -2,8 +2,11 @@ import { Translator, type MessageDescriptor } from "./translator.js";
 
 export interface ErrorResponsePayload {
   error?: string;
-  message?: MessageDescriptor;
+  message?: MessageDescriptor | string;
   code?: string;
+  operation?: string;
+  sessionId?: string;
+  details?: Record<string, unknown>;
 }
 
 export class ErrorResponse {
@@ -20,6 +23,7 @@ export class ErrorResponse {
   }
 
   static message(payload: ErrorResponsePayload, fallback: string): string {
+    if (typeof payload.message === "string") return payload.message;
     return this.english.message(payload.message, payload.error ?? fallback);
   }
 

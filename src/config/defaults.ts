@@ -1,4 +1,5 @@
 export class TestbenchDefaults {
+  static readonly REQUEST_BODY_LIMIT_BYTES = 1024 * 1024;
   static readonly LOOPBACK_HOST = "127.0.0.1";
   static readonly ANDROID_EMULATOR_LOOPBACK_HOST = "10.0.2.2";
   static readonly CHROME_DEVTOOLS_FRONTEND_ORIGIN = "https://chrome-devtools-frontend.appspot.com";
