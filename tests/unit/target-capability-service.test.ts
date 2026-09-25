@@ -25,6 +25,6 @@ describe("TargetCapabilityService", () => {
         { recording: { viewport: true, pauseResume: true }, permissions: { native: ["camera", "notifications"] } },
         android,
       ),
-    ).toEqual(["recording.viewport", "recording.pauseResume", "permissions.native"]);
+    ).toEqual(["recording.pauseResume", "permissions.native"]);
   });
 });

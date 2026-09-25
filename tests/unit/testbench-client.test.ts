@@ -215,6 +215,25 @@ describe("RemoteTestbench.availableTargets", () => {
     );
   });
 
+  it("requests structured screenshot scopes separately from the compatible screenshot API", async () => {
+    const testbench = new RemoteTestbench();
+    const request = vi.spyOn(testbench, "request").mockResolvedValue({
+      id: "session",
+      target: "chrome",
+      createdAt: new Date().toISOString(),
+      runtime: {},
+    });
+    const session = await testbench.open({ target: "chrome" });
+    request.mockClear();
+
+    await session.captureScreenshot({ scope: "element", selector: "#price" });
+
+    expect(request).toHaveBeenCalledWith("/v1/sessions/session/screenshots", {
+      method: "POST",
+      body: JSON.stringify({ scope: "element", selector: "#price" }),
+    });
+  });
+
   it("aborts requests after the configured client timeout", async () => {
     vi.stubGlobal(
       "fetch",

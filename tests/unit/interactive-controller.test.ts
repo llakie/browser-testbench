@@ -5,7 +5,9 @@ import { IosPhysicalSafariNavigator } from "../../src/automation/ios-physical-sa
 import { ServiceManager } from "../../src/infrastructure/process-manager.js";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TestbenchDefaults } from "../../src/config/defaults.js";
-import { VideoRecorder, type RecordingArtifact } from "../../src/automation/video-recorder.js";
+import { RecordingProbe, VideoRecorder, type RecordingArtifact } from "../../src/automation/video-recorder.js";
+import { RecordingGeometry, type GeometrySample } from "../../src/automation/recording-geometry.js";
+import { VideoUtilities } from "../../src/automation/video-utilities.js";
 
 describe("InteractiveController", () => {
   afterEach(() => {
@@ -103,6 +105,29 @@ describe("InteractiveController", () => {
     await expect(controller.captureScreenshot(true)).rejects.toThrow(
       "Full-page screenshots are not supported by Chrome on Android",
     );
+  });
+
+  it("returns structured viewport screenshot metadata on desktop", async () => {
+    const png = Buffer.alloc(24);
+    png.set(Buffer.from([0x89, 0x50, 0x4e, 0x47]), 0);
+    png.writeUInt32BE(1280, 16);
+    png.writeUInt32BE(720, 20);
+    const controller = new InteractiveController();
+    Object.assign(controller, {
+      target: { name: "chrome" },
+      session: { active: { takeScreenshot: vi.fn().mockResolvedValue(png.toString("base64")) } },
+    });
+
+    await expect(controller.captureStructuredScreenshot("viewport")).resolves.toMatchObject({
+      scope: "viewport",
+      width: 1280,
+      height: 720,
+      screenBounds: null,
+      viewportBounds: { x: 0, y: 0, width: 1280, height: 720 },
+    });
+    await expect(controller.captureStructuredScreenshot("screen")).rejects.toMatchObject({
+      code: "SCREENSHOT_SCOPE_UNSUPPORTED",
+    });
   });
 
   it("collects WebSocket lifecycle, handshake, frame, and error diagnostics", async () => {
@@ -219,6 +244,7 @@ describe("InteractiveController", () => {
     const artifact = recordingArtifact();
     const stop = vi.fn().mockResolvedValue(artifact);
     vi.spyOn(VideoRecorder, "start").mockResolvedValue({ stop } as never);
+    vi.spyOn(RecordingGeometry, "capture").mockResolvedValue(recordingGeometry());
     Object.assign(controller, {
       target: { name: "chrome-android", deviceKind: "emulator", udid: "emulator-5554" },
       session: { active: { capabilities: {} } },
@@ -246,6 +272,7 @@ describe("InteractiveController", () => {
         return recordingArtifact();
       }),
     } as never);
+    vi.spyOn(RecordingGeometry, "capture").mockResolvedValue(recordingGeometry());
     Object.assign(controller, {
       target: { name: "chrome-android", deviceKind: "emulator", udid: "emulator-5554" },
       session: {
@@ -258,6 +285,26 @@ describe("InteractiveController", () => {
     await controller.close();
 
     expect(order).toEqual(["recording", "browser"]);
+  });
+
+  it("crops viewport recordings with stable native geometry", async () => {
+    const controller = new InteractiveController();
+    vi.spyOn(VideoRecorder, "start").mockResolvedValue({
+      stop: vi.fn().mockResolvedValue(recordingArtifact()),
+    } as never);
+    vi.spyOn(RecordingGeometry, "capture").mockResolvedValue(recordingGeometry());
+    const crop = vi.spyOn(VideoUtilities, "crop").mockResolvedValue(undefined);
+    vi.spyOn(RecordingProbe, "inspect").mockResolvedValue({ ...recordingArtifact(), width: 1080, height: 2063 });
+    Object.assign(controller, {
+      target: { name: "chrome-android", deviceKind: "emulator", udid: "emulator-5554" },
+      session: { active: { capabilities: {} } },
+    });
+
+    await controller.startRecording({ outputPath: "viewport.mp4", scope: "viewport" });
+    const result = await controller.stopRecording();
+
+    expect(crop).toHaveBeenCalledWith("video.mp4", recordingGeometry().viewportInVideo);
+    expect(result).toMatchObject({ requestedScope: "viewport", actualScope: "viewport", height: 2063 });
   });
 });
 
@@ -275,6 +322,33 @@ function recordingArtifact(): RecordingArtifact {
     timeBase: "1/90000",
     averageFrameRate: 30,
     frameRateMode: "constant",
+  };
+}
+
+function recordingGeometry(): GeometrySample {
+  return {
+    orientation: "portrait",
+    video: { width: 1080, height: 2400 },
+    viewportCss: { width: 393, height: 750 },
+    devicePixelRatio: 2.75,
+    viewportInVideo: {
+      x: 0,
+      y: 173,
+      width: 1080,
+      height: 2063,
+      coordinateSystem: "video-pixels",
+      edges: "left-top-inclusive-right-bottom-exclusive",
+    },
+    insets: {
+      top: 173,
+      right: 0,
+      bottom: 164,
+      left: 0,
+      system: null,
+      browser: null,
+      safeAreaCss: { top: 0, right: 0, bottom: 0, left: 0 },
+    },
+    screenshotMatchesVideoBounds: true,
   };
 }
 

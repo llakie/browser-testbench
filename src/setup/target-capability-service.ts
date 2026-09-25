@@ -39,13 +39,13 @@ export class TargetCapabilityService {
       mediaInjection: { cameraImage: android && target.deviceKind === "emulator" },
       recording: {
         screen: mobile,
-        viewport: false,
+        viewport: mobile,
         explicitLifecycle: mobile,
         pauseResume: false,
-        geometry: false,
+        geometry: mobile,
         marks: true,
       },
-      screenshots: { screen: false, viewport: true, fullPage: !android, element: true },
+      screenshots: { screen: mobile, viewport: true, fullPage: !mobile, element: true },
     };
   }
 
