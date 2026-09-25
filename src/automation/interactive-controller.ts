@@ -509,7 +509,7 @@ export class InteractiveController {
     }
     if (scope === "screen") {
       if (!mobile) throw this.screenshotUnsupported(scope);
-      const base64 = await browser.takeScreenshot();
+      const base64 = await RecordingGeometry.screenScreenshot(browser, this.appium?.port);
       const size = ImageDimensions.png(Buffer.from(base64, "base64"));
       const geometry = await RecordingGeometry.capture(browser, this.target, this.appium?.port);
       return ScreenshotUtilities.result(
@@ -543,7 +543,8 @@ export class InteractiveController {
       });
     }
     const geometry = await RecordingGeometry.capture(browser, this.target, this.appium?.port);
-    const base64 = await ScreenshotUtilities.crop(await browser.takeScreenshot(), geometry.viewportInVideo);
+    const screen = await RecordingGeometry.screenScreenshot(browser, this.appium?.port);
+    const base64 = await ScreenshotUtilities.crop(screen, geometry.viewportInVideo);
     return ScreenshotUtilities.result(base64, scope, geometry.viewportInVideo, {
       x: 0,
       y: 0,

@@ -26,8 +26,12 @@ describe("RecordingGeometry", () => {
     const values = [
       "WEBVIEW_chrome",
       null,
+      png.toString("base64"),
+      null,
+      "WEBVIEW_chrome",
+      null,
       { "element-6066-11e4-a52e-4f735466cecf": "webview" },
-      { x: 0, y: 173, width: 1080, height: 2063 },
+      { x: 0, y: 128, width: 1080, height: 2208 },
       null,
     ];
     vi.stubGlobal(
@@ -50,8 +54,8 @@ describe("RecordingGeometry", () => {
       video: { width: 1080, height: 2400 },
       viewportCss: { width: 393, height: 750 },
       devicePixelRatio: 2.75,
-      viewportInVideo: { x: 0, y: 173, width: 1080, height: 2063 },
-      insets: { top: 173, bottom: 164 },
+      viewportInVideo: { x: 0, y: 273, width: 1080, height: 2063 },
+      insets: { top: 273, bottom: 64 },
     });
   });
 });
