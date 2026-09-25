@@ -81,7 +81,7 @@ describe("AndroidUsbNetwork", () => {
     await expect(network.prepare("http://localhost:4301/app")).resolves.toBe("http://127.0.0.1:4301/app");
 
     expect(run).toHaveBeenCalledWith(
-      expect.stringMatching(/adb$/),
+      expect.stringMatching(/adb(?:\.exe)?$/u),
       ["-s", "emulator-5554", "reverse", "tcp:4301", "tcp:4301"],
       expect.any(Object),
     );
@@ -104,7 +104,7 @@ describe("AndroidUsbNetwork", () => {
     await network.close();
 
     expect(run).toHaveBeenCalledWith(
-      "/android/sdk/platform-tools/adb",
+      expect.stringMatching(/adb(?:\.exe)?$/u),
       ["-s", "emulator-5554", "reverse", "tcp:4301", "tcp:4301"],
       expect.any(Object),
     );

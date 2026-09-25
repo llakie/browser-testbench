@@ -65,7 +65,7 @@ describe("AndroidCameraUtilities", () => {
     await permissions.grant(["camera"]);
 
     expect(run).toHaveBeenCalledWith(
-      "/android/sdk/platform-tools/adb",
+      expect.stringMatching(/adb(?:\.exe)?$/u),
       ["-s", "emulator-5554", "shell", "dumpsys", "package", "com.android.chrome"],
       expect.anything(),
     );
