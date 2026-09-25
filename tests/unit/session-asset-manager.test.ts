@@ -71,4 +71,22 @@ describe("SessionAssetManager", () => {
       details: { limitBytes: TestbenchDefaults.ASSET_LIMIT_BYTES },
     });
   });
+
+  it("isolates default asset storage in unique temporary directories", async () => {
+    const first = new SessionAssetManager();
+    const second = new SessionAssetManager();
+    const bytes = Buffer.from("asset");
+    const metadata = {
+      name: "card.jpg",
+      contentType: "image/jpeg",
+      size: bytes.length,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    };
+
+    const firstReference = await first.upload("owner", undefined, Readable.from(bytes), metadata);
+    const secondReference = await second.upload("owner", undefined, Readable.from(bytes), metadata);
+
+    expect(first.resolve(firstReference, "owner")).not.toBe(second.resolve(secondReference, "owner"));
+    await Promise.all([first.cleanup(), second.cleanup()]);
+  });
 });
