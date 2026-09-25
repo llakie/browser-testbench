@@ -1,6 +1,7 @@
 import type { TestTarget } from "../config/types.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { TestbenchError } from "../errors/testbench-error.js";
+import { MediaTooling } from "../infrastructure/media-tooling.js";
 
 export interface FeatureCapabilities {
   limits: { requestBytes: number; assetBytes: number; sessionAssetBytes: number };
@@ -25,6 +26,7 @@ export class TargetCapabilityService {
     const android = target.browser === "chrome-android";
     const chromium = android || target.browser === "chrome" || target.browser === "edge";
     const mobile = target.kind === "mobile";
+    const mediaTooling = MediaTooling.isAvailable();
     return {
       limits: {
         requestBytes: TestbenchDefaults.REQUEST_BODY_LIMIT_BYTES,
@@ -38,14 +40,14 @@ export class TargetCapabilityService {
       localOrigins: { reverse: android },
       mediaInjection: { cameraImage: android && target.deviceKind === "emulator" },
       recording: {
-        screen: mobile,
-        viewport: mobile,
-        explicitLifecycle: mobile,
+        screen: mobile && mediaTooling,
+        viewport: mobile && mediaTooling,
+        explicitLifecycle: mobile && mediaTooling,
         pauseResume: false,
         geometry: mobile,
         marks: true,
       },
-      screenshots: { screen: mobile, viewport: true, fullPage: !mobile, element: true },
+      screenshots: { screen: mobile, viewport: !mobile || mediaTooling, fullPage: !mobile, element: true },
     };
   }
 
