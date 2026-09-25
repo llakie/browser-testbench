@@ -61,9 +61,9 @@ export class RecordingGeometry {
       probe.remove();
       return result;
     `);
-    const screenshot = Buffer.from(await browser.takeScreenshot(), "base64");
+    const screenshot = Buffer.from(await this.screenScreenshot(browser, appiumPort), "base64");
     const video = ImageDimensions.png(screenshot);
-    const rect = await this.nativeWebViewRect(browser, target, appiumPort).catch((error) => {
+    const rect = await this.nativeWebViewRect(browser, browserGeometry, target, appiumPort).catch((error) => {
       throw new TestbenchError("RECORDING_UNSUPPORTED", "Browser viewport bounds could not be determined safely.", {
         operation: "recording.geometry",
         status: 409,
@@ -102,8 +102,21 @@ export class RecordingGeometry {
     return JSON.stringify(left.viewportInVideo) === JSON.stringify(right.viewportInVideo);
   }
 
+  static async screenScreenshot(browser: BrowserHandle, appiumPort?: number): Promise<string> {
+    if (!appiumPort) return browser.takeScreenshot();
+    const client = new AppiumSessionClient(appiumPort, browser.sessionId);
+    const original = await client.request<string>("context");
+    try {
+      await client.request("context", "POST", { name: "NATIVE_APP" });
+      return await client.request<string>("screenshot");
+    } finally {
+      await client.request("context", "POST", { name: original });
+    }
+  }
+
   private static async nativeWebViewRect(
     browser: BrowserHandle,
+    browserGeometry: BrowserGeometry,
     target: TargetConfig,
     appiumPort?: number,
   ): Promise<{ x: number; y: number; width: number; height: number }> {
@@ -115,11 +128,20 @@ export class RecordingGeometry {
     const original = await client.request<string>("context");
     try {
       await client.request("context", "POST", { name: "NATIVE_APP" });
-      const value = target.name === "chrome-android" ? "//android.webkit.WebView" : "//XCUIElementTypeWebView";
+      const value =
+        target.name === "chrome-android"
+          ? "//*[@resource-id='com.android.chrome:id/compositor_view_holder']"
+          : "//XCUIElementTypeWebView";
       const element = await client.request<Record<string, string>>("element", "POST", { using: "xpath", value });
       const id = element["element-6066-11e4-a52e-4f735466cecf"] ?? element.ELEMENT;
       if (!id) throw new Error("Appium did not return a WebView element ID.");
-      return client.request(`element/${encodeURIComponent(id)}/rect`);
+      const rect = await client.request<{ x: number; y: number; width: number; height: number }>(
+        `element/${encodeURIComponent(id)}/rect`,
+      );
+      if (target.name !== "chrome-android") return rect;
+      const width = Math.min(rect.width, Math.round(browserGeometry.width * browserGeometry.dpr));
+      const height = Math.min(rect.height, Math.round(browserGeometry.height * browserGeometry.dpr));
+      return { x: rect.x, y: rect.y + rect.height - height, width, height };
     } finally {
       await client.request("context", "POST", { name: original });
     }
