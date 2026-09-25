@@ -405,6 +405,7 @@ describe("ApiServer", () => {
         geometry: { samples: [] },
       } as never;
     });
+    vi.spyOn(sessions, "close").mockResolvedValue({ videoPath: "/private/server/recording.mp4" });
     server = new ApiServer({ host: "127.0.0.1", port: 0 }, { sessions });
     const address = await server.start();
     const client = new RemoteTestbench({ server: `http://${address.host}:${address.port}` });
@@ -412,8 +413,18 @@ describe("ApiServer", () => {
 
     try {
       await session.recording.start({ outputPath });
+      const firstStop = await client.request<{ artifactId: string }>("/v1/sessions/session/recording/stop", {
+        method: "POST",
+        body: "{}",
+      });
+      const repeatedStop = await client.request<{ artifactId: string }>("/v1/sessions/session/recording/stop", {
+        method: "POST",
+        body: "{}",
+      });
       const result = await session.recording.stop();
+      const closed = await session.close();
 
+      expect(repeatedStop.artifactId).toBe(firstStop.artifactId);
       expect(result).toMatchObject({
         path: outputPath,
         size: bytes.length,
@@ -421,6 +432,8 @@ describe("ApiServer", () => {
       });
       await expect(readFile(outputPath)).resolves.toEqual(bytes);
       expect(serverPath).not.toBe(outputPath);
+      expect(closed).toEqual({ closed: true });
+      expect(sessions.stopRecording).toHaveBeenCalledOnce();
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
