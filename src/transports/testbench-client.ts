@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname } from "node:path";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { TargetRegistry } from "../config/target-registry.js";
 import {
@@ -264,6 +265,70 @@ export class RemoteTestbench {
       source,
       options,
     );
+  }
+
+  async downloadRecording(
+    sessionId: string,
+    artifactId: string,
+    outputPath: string,
+    expected: { size: number; sha256: string },
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const timeoutSignal = AbortSignal.timeout(TestbenchDefaults.RECORDING_FINALIZE_REQUEST_TIMEOUT_MS);
+    const combined = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+    const response = await fetch(`${this.server}/v1/sessions/${sessionId}/recording/artifacts/${artifactId}`, {
+      signal: combined,
+      headers: {
+        [ClientVersion.HEADER]: ClientVersion.CURRENT,
+        ...(this.options.token ? { authorization: `Bearer ${this.options.token}` } : {}),
+      },
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as ErrorResponsePayload;
+      const message = ErrorResponse.message(payload, `Browser Testbench responded with HTTP ${response.status}.`);
+      if (payload.code && payload.operation)
+        throw new TestbenchError(payload.code, message, {
+          operation: payload.operation,
+          sessionId: payload.sessionId,
+          details: payload.details,
+          status: response.status,
+        });
+      throw new Error(message);
+    }
+    if (!response.body) throw new Error("Recording artifact response has no body.");
+    const declaredSize = Number(response.headers.get("content-length"));
+    if (declaredSize !== expected.size) throw new Error("Recording artifact size does not match its metadata.");
+    await mkdir(dirname(outputPath), { recursive: true });
+    const temporary = `${outputPath}.${artifactId}.browser-testbench-part`;
+    const hash = createHash("sha256");
+    let received = 0;
+    const verifier = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        received += chunk.length;
+        hash.update(chunk);
+        callback(null, chunk);
+      },
+    });
+    try {
+      await pipeline(
+        Readable.from(response.body as unknown as AsyncIterable<Uint8Array>),
+        verifier,
+        createWriteStream(temporary),
+        { signal: combined },
+      );
+      if (received !== expected.size || hash.digest("hex") !== expected.sha256)
+        throw new Error("Recording artifact integrity verification failed.");
+      await rm(outputPath, { force: true });
+      await rename(temporary, outputPath);
+    } catch (error) {
+      await rm(temporary, { force: true });
+      if (signal?.aborted)
+        throw new TestbenchError("OPERATION_ABORTED", "Recording transfer was aborted.", {
+          operation: "recording.transfer",
+          status: 499,
+        });
+      throw error;
+    }
   }
 
   verify(target: string, options: { headless?: boolean } = {}): Promise<VerificationResult> {
@@ -985,24 +1050,49 @@ export class RemoteSession {
 }
 
 export class RemoteRecording {
+  private outputPath?: string;
+  private stopResult?: Promise<RecordingResult>;
+
   constructor(
     private readonly testbench: RemoteTestbench,
     private readonly sessionId: string,
   ) {}
 
-  start(options: RecordingStartOptions): Promise<RecordingStartResult> {
-    return this.testbench.request(`/v1/sessions/${this.sessionId}/recording/start`, {
-      method: "POST",
-      body: JSON.stringify(options),
-    });
+  async start(options: RecordingStartOptions): Promise<RecordingStartResult> {
+    const result = await this.testbench.request<RecordingStartResult>(
+      `/v1/sessions/${this.sessionId}/recording/start`,
+      {
+        method: "POST",
+        body: JSON.stringify(options),
+      },
+    );
+    this.outputPath = options.outputPath;
+    this.stopResult = undefined;
+    return result;
   }
 
   stop(options: { signal?: AbortSignal } = {}): Promise<RecordingResult> {
-    return this.testbench.request(`/v1/sessions/${this.sessionId}/recording/stop`, {
-      method: "POST",
-      body: "{}",
-      signal: options.signal,
-      timeoutMs: TestbenchDefaults.RECORDING_FINALIZE_REQUEST_TIMEOUT_MS,
+    this.stopResult ??= this.finalize(options.signal).catch((error) => {
+      this.stopResult = undefined;
+      throw error;
     });
+    return this.stopResult;
+  }
+
+  private async finalize(signal?: AbortSignal): Promise<RecordingResult> {
+    const result = await this.testbench.request<Omit<RecordingResult, "path"> & { artifactId?: string; path?: string }>(
+      `/v1/sessions/${this.sessionId}/recording/stop`,
+      {
+        method: "POST",
+        body: "{}",
+        signal,
+        timeoutMs: TestbenchDefaults.RECORDING_FINALIZE_REQUEST_TIMEOUT_MS,
+      },
+    );
+    if (!result.artifactId) return result as RecordingResult;
+    if (!this.outputPath) throw new Error("Recording output path is unavailable.");
+    await this.testbench.downloadRecording(this.sessionId, result.artifactId, this.outputPath, result, signal);
+    const { artifactId: _artifactId, ...metadata } = result;
+    return { ...metadata, path: this.outputPath };
   }
 }

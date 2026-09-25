@@ -1,8 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { createReadStream } from "node:fs";
 import type { AddressInfo } from "node:net";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { pipeline } from "node:stream/promises";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { ZodError } from "zod";
@@ -93,6 +95,16 @@ export class ApiServer {
   private readonly artifactHost = new RemoteArtifactHost();
   private readonly sessionAssets = new SessionAssetManager();
   private readonly remoteApi: RemoteApiController;
+  private readonly recordingDirectories = new Map<string, string>();
+  private readonly recordingArtifacts = new Map<
+    string,
+    {
+      ownerId: string;
+      sessionId: string;
+      directory: string;
+      result: Awaited<ReturnType<SessionManager["stopRecording"]>>;
+    }
+  >();
 
   constructor(
     private readonly options: ApiServerOptions,
@@ -339,6 +351,7 @@ export class ApiServer {
       this.sessions.closeAll(),
       this.artifactHost.cleanup(),
       this.sessionAssets.cleanup(),
+      this.cleanupRecordings(),
     ]);
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
     const failure = cleanup.find((result): result is PromiseRejectedResult => result.status === "rejected");
@@ -442,24 +455,50 @@ export class ApiServer {
       response.status(201).json(this.sessions.mark(request.params.id, input.name, input.data, this.ownerId(request)));
     });
     this.app.post("/v1/sessions/:id/recording/start", async (request, response) => {
-      response
-        .status(201)
-        .json(
-          await this.sessions.startRecording(
-            request.params.id,
-            InputSchemas.recordingStart.parse(request.body),
-            this.ownerId(request),
-          ),
+      const input = InputSchemas.recordingStart.parse(request.body);
+      const directory = await mkdtemp(join(tmpdir(), "browser-testbench-recording-"));
+      try {
+        const result = await this.sessions.startRecording(
+          request.params.id,
+          { ...input, outputPath: join(directory, basename(input.outputPath.replaceAll("\\", "/"))) },
+          this.ownerId(request),
         );
+        this.recordingDirectories.set(request.params.id, directory);
+        response.status(201).json(result);
+      } catch (error) {
+        await rm(directory, { recursive: true, force: true });
+        throw error;
+      }
     });
     this.app.post("/v1/sessions/:id/recording/stop", async (request, response) => {
-      response.json(
-        await this.sessions.stopRecording(
-          request.params.id,
-          this.ownerId(request),
-          RequestAbort.signal(request, response),
-        ),
+      const ownerId = this.ownerId(request);
+      const result = await this.sessions.stopRecording(
+        request.params.id,
+        ownerId,
+        RequestAbort.signal(request, response),
       );
+      const directory = this.recordingDirectories.get(request.params.id);
+      if (!directory) {
+        response.json(result);
+        return;
+      }
+      const artifactId = randomUUID();
+      this.recordingDirectories.delete(request.params.id);
+      this.recordingArtifacts.set(artifactId, { ownerId, sessionId: request.params.id, directory, result });
+      const { path: _serverPath, ...publicResult } = result;
+      response.json({ ...publicResult, artifactId });
+    });
+    this.app.get("/v1/sessions/:id/recording/artifacts/:artifactId", async (request, response) => {
+      const artifact = this.recordingArtifacts.get(request.params.artifactId);
+      if (!artifact || artifact.sessionId !== request.params.id || artifact.ownerId !== this.ownerId(request))
+        throw new SessionNotFoundError("Recording artifact was not found.");
+      await this.sendArtifact(response, {
+        path: artifact.result.path,
+        size: artifact.result.size,
+        name: basename(artifact.result.path),
+      });
+      this.recordingArtifacts.delete(request.params.artifactId);
+      await rm(artifact.directory, { recursive: true, force: true });
     });
     this.app.post("/v1/sessions", async (request, response) => {
       const raw = { ...(request.body as Record<string, unknown>) };
@@ -497,9 +536,11 @@ export class ApiServer {
       } catch (error) {
         await this.artifactHost.discardSession(request.params.id);
         await this.sessionAssets.cleanupSession(request.params.id);
+        await this.cleanupRecordingSession(request.params.id);
         throw error;
       }
       await this.sessionAssets.cleanupSession(request.params.id);
+      await this.cleanupRecordingSession(request.params.id);
       const artifact = await this.artifactHost.completeSession(request.params.id, result);
       this.notifyWorkbenchChanged("session");
       if ("path" in artifact) {
@@ -714,7 +755,10 @@ export class ApiServer {
       closeError = error;
     }
     const cleanup = await Promise.allSettled(
-      sessionIds.map((sessionId) => this.artifactHost.discardSession(sessionId)),
+      sessionIds.flatMap((sessionId) => [
+        this.artifactHost.discardSession(sessionId),
+        this.cleanupRecordingSession(sessionId),
+      ]),
     );
     if (closeError) throw closeError;
     const failure = cleanup.find((result): result is PromiseRejectedResult => result.status === "rejected");
@@ -731,5 +775,26 @@ export class ApiServer {
       "X-Browser-Testbench-Artifact-Name": encodeURIComponent(artifact.name),
     });
     await pipeline(createReadStream(artifact.path), response);
+  }
+
+  private async cleanupRecordingSession(sessionId: string): Promise<void> {
+    const directories = new Set<string>();
+    const active = this.recordingDirectories.get(sessionId);
+    if (active) directories.add(active);
+    this.recordingDirectories.delete(sessionId);
+    for (const [artifactId, artifact] of this.recordingArtifacts) {
+      if (artifact.sessionId !== sessionId) continue;
+      directories.add(artifact.directory);
+      this.recordingArtifacts.delete(artifactId);
+    }
+    await Promise.all([...directories].map((directory) => rm(directory, { recursive: true, force: true })));
+  }
+
+  private async cleanupRecordings(): Promise<void> {
+    const sessionIds = new Set([
+      ...this.recordingDirectories.keys(),
+      ...[...this.recordingArtifacts.values()].map((artifact) => artifact.sessionId),
+    ]);
+    await Promise.all([...sessionIds].map((sessionId) => this.cleanupRecordingSession(sessionId)));
   }
 }

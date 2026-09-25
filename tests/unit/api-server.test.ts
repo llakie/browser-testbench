@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { request as httpRequest } from "node:http";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { TargetRegistry } from "../../src/config/target-registry.js";
 import { TARGET_NAMES } from "../../src/config/types.js";
 import { TestbenchDefaults } from "../../src/config/defaults.js";
@@ -357,6 +361,69 @@ describe("ApiServer", () => {
 
     expect(asset).toMatchObject({ name: "font.ttf", size: bytes.length, contentType: "font/ttf" });
     expect(asset.sha256).toHaveLength(64);
+  });
+
+  it("transfers an explicitly stopped recording atomically to the client path", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "browser-testbench-recording-test-"));
+    const outputPath = join(directory, "export", "raw.mp4");
+    const bytes = Buffer.from("complete recording");
+    let serverPath = "";
+    const sessions = new SessionManager();
+    vi.spyOn(sessions, "start").mockResolvedValue({
+      id: "session",
+      target: "chrome-android-device",
+      createdAt: new Date().toISOString(),
+      runtime: {},
+      leaseTimeoutMs: 90_000,
+      leaseExpiresAt: new Date(Date.now() + 90_000).toISOString(),
+      sessionTimeMs: 0,
+    });
+    vi.spyOn(sessions, "startRecording").mockImplementation(async (_id, options) => {
+      serverPath = options.outputPath;
+      return { id: "recording", startedAt: new Date().toISOString(), sessionTimeMs: 1 } as never;
+    });
+    vi.spyOn(sessions, "stopRecording").mockImplementation(async () => {
+      await writeFile(serverPath, bytes);
+      return {
+        id: "recording",
+        path: serverPath,
+        size: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        mimeType: "video/mp4",
+        container: "mov",
+        codec: "h264",
+        width: 1080,
+        height: 1920,
+        durationMs: 1_000,
+        timeBase: "1/90000",
+        averageFrameRate: 30,
+        frameRateMode: "constant",
+        requestedScope: "screen",
+        actualScope: "screen",
+        endedSessionTimeMs: 1_001,
+        marks: [],
+        geometry: { samples: [] },
+      } as never;
+    });
+    server = new ApiServer({ host: "127.0.0.1", port: 0 }, { sessions });
+    const address = await server.start();
+    const client = new RemoteTestbench({ server: `http://${address.host}:${address.port}` });
+    const session = await client.open({ target: "chrome-android-device" });
+
+    try {
+      await session.recording.start({ outputPath });
+      const result = await session.recording.stop();
+
+      expect(result).toMatchObject({
+        path: outputPath,
+        size: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      });
+      await expect(readFile(outputPath)).resolves.toEqual(bytes);
+      expect(serverPath).not.toBe(outputPath);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("requires the exact client version for API requests but keeps diagnostics reachable", async () => {
