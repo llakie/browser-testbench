@@ -85,6 +85,39 @@ describe("RemoteTestbench.availableTargets", () => {
     );
   });
 
+  it("supports wait options without breaking positional timeouts", async () => {
+    const testbench = new RemoteTestbench();
+    const request = vi.spyOn(testbench, "request").mockResolvedValue({
+      id: "session",
+      target: "chrome",
+      createdAt: new Date().toISOString(),
+      runtime: {},
+    });
+    const session = await testbench.open({ target: "chrome" });
+    request.mockClear();
+    const controller = new AbortController();
+
+    await session.waitForElement("#result", { timeoutMs: 90_000, signal: controller.signal });
+
+    expect(request).toHaveBeenCalledWith(
+      "/v1/sessions/session/wait",
+      expect.objectContaining({ timeoutMs: 95_000, signal: controller.signal }),
+    );
+  });
+
+  it("rejects invalid wait timeouts before sending a request", async () => {
+    const testbench = new RemoteTestbench();
+    vi.spyOn(testbench, "request").mockResolvedValue({
+      id: "session",
+      target: "chrome",
+      createdAt: new Date().toISOString(),
+      runtime: {},
+    });
+    const session = await testbench.open({ target: "chrome" });
+
+    await expect(session.waitForElement("#result", { timeoutMs: Infinity })).rejects.toThrow("positive finite number");
+  });
+
   it("lists and closes recoverable sessions", async () => {
     const testbench = new RemoteTestbench();
     const request = vi
@@ -117,6 +150,27 @@ describe("RemoteTestbench.availableTargets", () => {
     await expect(testbench.targets()).rejects.toThrow("timed out after 20 ms");
   });
 
+  it("distinguishes caller aborts from transport timeouts", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), {
+              once: true,
+            }),
+          ),
+      ),
+    );
+    const controller = new AbortController();
+    const request = new RemoteTestbench({ requestTimeoutMs: 10_000 }).request("/v1/sessions/id/wait", {
+      signal: controller.signal,
+    });
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ code: "OPERATION_ABORTED", operation: "wait" });
+  });
+
   it("identifies every request with the exact package version", async () => {
     const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
       Promise.resolve(new Response("[]", { headers: { "content-type": "application/json" } })),
@@ -132,16 +186,17 @@ describe("RemoteTestbench.availableTargets", () => {
   it("preserves structured server errors for callers", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            code: "TARGET_BUSY",
-            message: "Target is busy.",
-            operation: "session.open",
-            details: { target: "chrome" },
-          }),
-          { status: 409, headers: { "content-type": "application/json" } },
-        ),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              code: "TARGET_BUSY",
+              message: "Target is busy.",
+              operation: "session.open",
+              details: { target: "chrome" },
+            }),
+            { status: 409, headers: { "content-type": "application/json" } },
+          ),
       ),
     );
 
