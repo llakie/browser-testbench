@@ -4,7 +4,10 @@ import { SessionManager } from "../../src/automation/session-manager.js";
 import { TargetCatalogService } from "../../src/setup/target-catalog-service.js";
 
 describe("SessionManager", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it.each([
     new Error("invalid session id"),
@@ -83,5 +86,46 @@ describe("SessionManager", () => {
     await expect(starting).rejects.toThrow();
     expect(close).toHaveBeenCalledOnce();
     expect(sessions.list()).toEqual([]);
+  });
+
+  it("closes abandoned sessions when their lease expires", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(TargetCatalogService, "sessionOptions").mockResolvedValue({
+      target: { id: "chrome", serial: false },
+      options: {},
+    } as never);
+    vi.spyOn(InteractiveController.prototype, "start").mockResolvedValue({});
+    const close = vi.spyOn(InteractiveController.prototype, "close").mockResolvedValue({});
+    const sessions = new SessionManager();
+    const session = await sessions.start({ target: "chrome", leaseTimeoutMs: 1_000 });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(sessions.list()).toEqual([]);
+    expect(() => sessions.get(session.id)).toThrowError(expect.objectContaining({ code: "SESSION_LEASE_EXPIRED" }));
+  });
+
+  it("renews a lease on activity and closes a session idempotently", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(TargetCatalogService, "sessionOptions").mockResolvedValue({
+      target: { id: "chrome", serial: false },
+      options: {},
+    } as never);
+    vi.spyOn(InteractiveController.prototype, "start").mockResolvedValue({});
+    const close = vi.spyOn(InteractiveController.prototype, "close").mockResolvedValue({ videoPath: "video.mp4" });
+    const sessions = new SessionManager();
+    const session = await sessions.start({ target: "chrome", leaseTimeoutMs: 1_000 });
+
+    await vi.advanceTimersByTimeAsync(900);
+    sessions.touch(session.id);
+    await vi.advanceTimersByTimeAsync(900);
+    expect(close).not.toHaveBeenCalled();
+
+    const first = sessions.close(session.id);
+    const second = sessions.close(session.id);
+    await expect(first).resolves.toEqual({ videoPath: "video.mp4" });
+    await expect(second).resolves.toEqual({ videoPath: "video.mp4" });
+    expect(close).toHaveBeenCalledOnce();
   });
 });

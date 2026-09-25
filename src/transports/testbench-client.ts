@@ -93,6 +93,8 @@ interface StartedSession {
   target: StartSessionInput["target"];
   createdAt: string;
   runtime: Record<string, unknown>;
+  leaseTimeoutMs?: number;
+  leaseExpiresAt?: string;
 }
 
 export class RemoteTestbench {
@@ -285,6 +287,9 @@ export class RemoteSession {
   readonly id: string;
   readonly target: StartSessionInput["target"];
   readonly runtime: Record<string, unknown>;
+  readonly leaseTimeoutMs: number;
+  private heartbeat?: ReturnType<typeof setInterval>;
+  private closeResult?: Promise<{ closed: true; videoPath?: string }>;
 
   constructor(
     private readonly testbench: RemoteTestbench,
@@ -293,6 +298,12 @@ export class RemoteSession {
     this.id = started.id;
     this.target = started.target;
     this.runtime = started.runtime;
+    this.leaseTimeoutMs = started.leaseTimeoutMs ?? TestbenchDefaults.SESSION_LEASE_TIMEOUT_MS;
+    this.heartbeat = setInterval(
+      () => void this.renewLease(),
+      Math.min(TestbenchDefaults.SESSION_HEARTBEAT_INTERVAL_MS, Math.max(1_000, Math.floor(this.leaseTimeoutMs / 3))),
+    );
+    this.heartbeat.unref();
   }
 
   navigate(url: string): Promise<PageInspection> {
@@ -746,7 +757,12 @@ export class RemoteSession {
   }
 
   close(): Promise<{ closed: true; videoPath?: string }> {
-    return this.testbench.closeSession(this.id);
+    if (!this.closeResult) {
+      clearInterval(this.heartbeat);
+      this.heartbeat = undefined;
+      this.closeResult = this.testbench.closeSession(this.id);
+    }
+    return this.closeResult;
   }
 
   private gesture(input: GestureRequest): Promise<GestureExecution> {
@@ -780,5 +796,16 @@ export class RemoteSession {
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
       throw new TypeError("timeoutMs must be a positive finite number.");
     return { ...options, timeoutMs };
+  }
+
+  private async renewLease(): Promise<void> {
+    try {
+      await this.testbench.request(`/v1/sessions/${this.id}/lease`, { method: "POST" });
+    } catch (error) {
+      if (error instanceof TestbenchError && error.code === "SESSION_LEASE_EXPIRED") {
+        clearInterval(this.heartbeat);
+        this.heartbeat = undefined;
+      }
+    }
   }
 }

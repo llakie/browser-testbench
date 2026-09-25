@@ -33,6 +33,8 @@ export class TestbenchDefaults {
   static readonly SETUP_REQUEST_TIMEOUT_MS = 11 * 60_000;
   static readonly REMOTE_HEARTBEAT_INTERVAL_MS = 30_000;
   static readonly REMOTE_LEASE_TIMEOUT_MS = 90_000;
+  static readonly SESSION_HEARTBEAT_INTERVAL_MS = 30_000;
+  static readonly SESSION_LEASE_TIMEOUT_MS = 90_000;
   static readonly ANDROID_ADB_COMMAND_TIMEOUT_MS = 120_000;
   static readonly ANDROID_EMULATOR_PHASE_TIMEOUT_MS = 3 * 60_000;
   static readonly ANDROID_UIAUTOMATOR_INSTALL_TIMEOUT_MS = 120_000;
