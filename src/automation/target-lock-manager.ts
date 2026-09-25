@@ -109,7 +109,7 @@ export class PersistentTargetLock {
     if (!metadata) {
       const information = await stat(path).catch(() => undefined);
       if (!information || Date.now() - information.mtimeMs < 5_000) return false;
-    } else if (PersistentTargetLock.processExists(metadata.pid)) return false;
+    } else if (PersistentTargetLock.processMatches(metadata)) return false;
     await rm(path, { recursive: true, force: true });
     return true;
   }
@@ -139,6 +139,11 @@ export class PersistentTargetLock {
     } catch (error) {
       return typeof error === "object" && error !== null && "code" in error && error.code === "EPERM";
     }
+  }
+
+  private static processMatches(metadata: LockMetadata): boolean {
+    if (metadata.pid !== process.pid) return this.processExists(metadata.pid);
+    return metadata.processStartedAt === this.PROCESS_STARTED_AT;
   }
 
   private static isExistsError(error: unknown): boolean {
@@ -209,16 +214,22 @@ export class TargetLockManager {
     let released = false;
     return async () => {
       if (released) return;
-      released = true;
       const queue = this.queues.get(targetId);
       const next = queue?.shift();
       if (next) {
         clearTimeout(next.timeout);
-        await this.persistent.handoff(targetId, next.ownerId, next.sessionId);
+        try {
+          await this.persistent.handoff(targetId, next.ownerId, next.sessionId);
+        } catch (error) {
+          next.reject(error instanceof Error ? error : new Error(String(error)));
+          throw error;
+        }
+        released = true;
         next.resolve();
       } else {
-        this.queues.delete(targetId);
         await this.persistent.release(targetId, sessionId);
+        released = true;
+        this.queues.delete(targetId);
       }
     };
   }
