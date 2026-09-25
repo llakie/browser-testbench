@@ -23,10 +23,21 @@ export interface ManagedSession {
   markSequence: number;
   marks: SessionMark[];
   recording?: { id: string; startedSessionTimeMs: number };
+  operationSequence: number;
+  operations: SessionOperation[];
 }
 export type PublicManagedSession = Omit<
   ManagedSession,
-  "controller" | "release" | "ownerId" | "lease" | "monotonicStartedAt" | "markSequence" | "marks" | "recording"
+  | "controller"
+  | "release"
+  | "ownerId"
+  | "lease"
+  | "monotonicStartedAt"
+  | "markSequence"
+  | "marks"
+  | "recording"
+  | "operationSequence"
+  | "operations"
 > & { sessionTimeMs: number };
 
 export interface SessionMark {
@@ -36,6 +47,14 @@ export interface SessionMark {
   sessionTimeMs: number;
   wallTime: string;
   recordingTimeMs?: number;
+}
+
+export interface SessionOperation {
+  id: number;
+  operation: string;
+  startedSessionTimeMs: number;
+  endedSessionTimeMs?: number;
+  status?: number;
 }
 
 export class SessionNotFoundError extends Error {}
@@ -95,6 +114,8 @@ export class SessionManager {
         monotonicStartedAt: performance.now(),
         markSequence: 0,
         marks: [],
+        operationSequence: 0,
+        operations: [],
       };
       this.refreshLease(session);
       this.sessions.set(id, session);
@@ -197,6 +218,32 @@ export class SessionManager {
     };
     session.marks.push(mark);
     return mark;
+  }
+
+  beginOperation(id: string, operation: string, ownerId?: string): ((status: number) => void) | undefined {
+    const session = this.sessions.get(id);
+    if (!session || (ownerId && session.ownerId !== ownerId)) return undefined;
+    const event = {
+      id: ++session.operationSequence,
+      operation,
+      startedSessionTimeMs: this.sessionTime(session),
+    } as SessionOperation;
+    session.operations.push(event);
+    return (status) => {
+      event.endedSessionTimeMs ??= this.sessionTime(session);
+      event.status ??= status;
+    };
+  }
+
+  async diagnosticBundle(id: string, ownerId?: string): Promise<Record<string, unknown>> {
+    const session = this.managed(id, ownerId);
+    this.refreshLease(session);
+    return {
+      session: this.publicSession(session),
+      marks: [...session.marks],
+      operations: session.operations.map((operation) => ({ ...operation })),
+      ...(await session.controller.diagnosticBundle()),
+    };
   }
 
   async startRecording(

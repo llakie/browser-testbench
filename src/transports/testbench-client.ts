@@ -966,6 +966,10 @@ export class RemoteSession {
     return this.testbench.request(`/v1/sessions/${this.id}/diagnostics`);
   }
 
+  diagnosticBundle(): Promise<Record<string, unknown>> {
+    return this.testbench.request(`/v1/sessions/${this.id}/diagnostics/bundle`);
+  }
+
   async clearDiagnostics(): Promise<void> {
     await this.testbench.request(`/v1/sessions/${this.id}/diagnostics`, { method: "DELETE" });
   }
