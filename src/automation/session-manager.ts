@@ -102,12 +102,12 @@ export class SessionManager {
     } catch (error) {
       try {
         await controller.close();
+        await release();
       } catch (cleanupError) {
+        this.retryControllerCleanup(controller, release);
         throw new AggregateError([error, cleanupError], "Session startup failed and cleanup also failed.", {
           cause: error,
         });
-      } finally {
-        await release();
       }
       throw error;
     }
@@ -302,10 +302,27 @@ export class SessionManager {
     this.sessions.delete(session.id);
     clearTimeout(session.lease);
     try {
-      return await session.controller.close();
-    } finally {
+      const result = await session.controller.close();
       await session.release();
+      return result;
+    } catch (error) {
+      this.retryQuarantinedCleanup(session);
+      throw error;
     }
+  }
+
+  private retryQuarantinedCleanup(session: ManagedSession): void {
+    this.retryControllerCleanup(session.controller, session.release);
+  }
+
+  private retryControllerCleanup(controller: InteractiveController, release: () => Promise<void>): void {
+    const retry = setTimeout(() => {
+      void controller
+        .close()
+        .then(() => release())
+        .catch(() => this.retryControllerCleanup(controller, release));
+    }, TestbenchDefaults.QUARANTINE_RETRY_INTERVAL_MS);
+    retry.unref();
   }
 
   private rememberClosure(id: string, ownerId: string, result: Promise<{ videoPath?: string }>): void {
