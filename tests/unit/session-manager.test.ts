@@ -154,4 +154,30 @@ describe("SessionManager", () => {
     expect(second.sessionTimeMs).toBeGreaterThanOrEqual(first.sessionTimeMs);
     await sessions.close(session.id);
   });
+
+  it("records public operations for diagnostic bundles", async () => {
+    vi.spyOn(TargetCatalogService, "sessionOptions").mockResolvedValue({
+      target: { id: "chrome", serial: false },
+      options: {},
+    } as never);
+    vi.spyOn(InteractiveController.prototype, "start").mockResolvedValue({});
+    vi.spyOn(InteractiveController.prototype, "diagnosticBundle").mockResolvedValue({ dom: "<html></html>" });
+    vi.spyOn(InteractiveController.prototype, "close").mockResolvedValue({});
+    const sessions = new SessionManager();
+    const session = await sessions.start({ target: "chrome" });
+    const finish = sessions.beginOperation(session.id, "POST /v1/sessions/id/wait");
+    finish?.(408);
+
+    await expect(sessions.diagnosticBundle(session.id)).resolves.toMatchObject({
+      dom: "<html></html>",
+      operations: [
+        {
+          id: 1,
+          operation: "POST /v1/sessions/id/wait",
+          status: 408,
+        },
+      ],
+    });
+    await sessions.close(session.id);
+  });
 });

@@ -159,6 +159,24 @@ export class ApiServer {
     );
     this.remoteApi.registerConnectionRoutes(this.app);
     this.app.use((request, response, next) => this.remoteApi.proxy(request, response, next));
+    this.app.use("/v1/sessions/:id", (request, response, next) => {
+      const finish = this.sessions.beginOperation(
+        request.params.id,
+        `${request.method} ${request.originalUrl.split("?")[0]}`,
+        this.ownerId(request),
+      );
+      if (finish) {
+        let completed = false;
+        const complete = (): void => {
+          if (completed) return;
+          completed = true;
+          finish(response.statusCode);
+        };
+        response.once("finish", complete);
+        response.once("close", complete);
+      }
+      next();
+    });
     this.registerRoutes();
     this.app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
       if (response.headersSent) {
@@ -670,6 +688,9 @@ export class ApiServer {
       response.json(
         await this.sessions.run(request.params.id, (session) => session.diagnostics(), this.ownerId(request)),
       );
+    });
+    this.app.get("/v1/sessions/:id/diagnostics/bundle", async (request, response) => {
+      response.json(await this.sessions.diagnosticBundle(request.params.id, this.ownerId(request)));
     });
     this.app.delete("/v1/sessions/:id/diagnostics", (request, response) => {
       this.sessions.get(request.params.id, this.ownerId(request)).clearDiagnostics();

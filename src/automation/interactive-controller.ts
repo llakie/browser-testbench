@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { stat } from "node:fs/promises";
 import { TestbenchDefaults } from "../config/defaults.js";
 import {
@@ -103,6 +103,11 @@ export class InteractiveController {
   private androidPermissions?: AndroidCameraUtilities;
   private originPermissions: Array<{ name: string; origin: string }> = [];
   private pendingBrowserClose?: Promise<void>;
+  private permissionMetadata?: {
+    requested: Array<{ name: string; origin: string }>;
+    confirmed: Array<{ name: string; origin: string }>;
+    packageName?: string;
+  };
 
   async start(options: ResolvedStartSessionInput): Promise<Record<string, unknown>> {
     if (!TargetRegistry.isSupported(options.target))
@@ -139,6 +144,7 @@ export class InteractiveController {
         const browser = await this.session.start(target, { appiumPort: this.appium?.port, targetId: options.targetId });
         browserStarted = true;
         const permissions = await this.preparePermissions(target, browser, options.permissions ?? []);
+        this.permissionMetadata = permissions;
         if (options.videoPath) {
           await this.startRecording({ outputPath: options.videoPath, scope: "screen" });
         }
@@ -595,6 +601,35 @@ export class InteractiveController {
     return [...this.diagnosticEvents];
   }
 
+  async diagnosticBundle(): Promise<Record<string, unknown>> {
+    const [screenshot, source, diagnostics, inspection] = await Promise.allSettled([
+      this.captureStructuredScreenshot("viewport"),
+      this.source(TestbenchDefaults.PAGE_SOURCE_MAX),
+      this.diagnostics(),
+      this.inspect(1),
+    ]);
+    const recording = this.lastRecording
+      ? { ...this.lastRecording, path: basename(this.lastRecording.path) }
+      : this.video
+        ? { id: this.video.id, active: true, scope: this.video.scope, geometry: { samples: this.video.geometry } }
+        : undefined;
+    return {
+      target: this.target
+        ? { name: this.target.name, deviceKind: this.target.deviceKind, deviceName: this.target.deviceName }
+        : undefined,
+      url: inspection.status === "fulfilled" ? inspection.value.url : undefined,
+      dom: source.status === "fulfilled" ? source.value : undefined,
+      screenshot: screenshot.status === "fulfilled" ? screenshot.value : undefined,
+      browserEvents: diagnostics.status === "fulfilled" ? diagnostics.value : [],
+      permissions: this.permissionMetadata,
+      recording,
+      cleanup: { state: this.target ? "active" : "complete" },
+      errors: [screenshot, source, diagnostics, inspection]
+        .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+        .map((result) => (result.reason instanceof Error ? result.reason.message : String(result.reason))),
+    };
+  }
+
   clearDiagnostics(): void {
     this.diagnosticEvents.length = 0;
     this.requestTimestamps.clear();
@@ -807,10 +842,22 @@ export class InteractiveController {
   }
 
   private pushDiagnostic(event: DiagnosticEvent): void {
-    this.diagnosticEvents.push(event);
+    this.diagnosticEvents.push({
+      ...event,
+      ...(event.headers ? { headers: this.redactHeaders(event.headers) } : {}),
+    });
     if (this.diagnosticEvents.length > TestbenchDefaults.DIAGNOSTIC_EVENT_LIMIT) {
       this.diagnosticEvents.splice(0, this.diagnosticEvents.length - TestbenchDefaults.DIAGNOSTIC_EVENT_LIMIT);
     }
+  }
+
+  private redactHeaders(headers: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(
+      Object.entries(headers).map(([name, value]) => [
+        name,
+        /^(authorization|proxy-authorization|cookie|set-cookie)$/iu.test(name) ? "[REDACTED]" : value,
+      ]),
+    );
   }
 
   async close(): Promise<{ videoPath?: string }> {
@@ -856,6 +903,7 @@ export class InteractiveController {
     this.androidPermissions = undefined;
     this.originPermissions = [];
     this.pendingBrowserClose = undefined;
+    this.permissionMetadata = undefined;
   }
 
   private async preparePermissions(

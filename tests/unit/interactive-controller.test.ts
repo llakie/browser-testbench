@@ -188,7 +188,12 @@ describe("InteractiveController", () => {
             performanceEntry("Network.requestWillBeSent", {
               requestId: "request-1",
               timestamp: 1,
-              request: { method: "POST", url: "https://example.com", postData },
+              request: {
+                method: "POST",
+                url: "https://example.com",
+                postData,
+                headers: { Authorization: "Bearer secret", Cookie: "session=secret", Accept: "application/json" },
+              },
             }),
           ]
         : [],
@@ -197,7 +202,11 @@ describe("InteractiveController", () => {
 
     const diagnostics = await controller.diagnostics();
 
-    expect(diagnostics[0]).toMatchObject({ type: "request", body: "x".repeat(TestbenchDefaults.PAGE_SOURCE_LIMIT) });
+    expect(diagnostics[0]).toMatchObject({
+      type: "request",
+      body: "x".repeat(TestbenchDefaults.PAGE_SOURCE_LIMIT),
+      headers: { Authorization: "[REDACTED]", Cookie: "[REDACTED]", Accept: "application/json" },
+    });
   });
 
   it("reports cleanup failures after clearing every managed resource", async () => {
