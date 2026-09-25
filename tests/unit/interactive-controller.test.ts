@@ -214,7 +214,11 @@ describe("InteractiveController", () => {
     await expect(controller.close()).rejects.toThrow("Session cleanup failed");
 
     expect(stopAppium).toHaveBeenCalledOnce();
-    expect(controller).toMatchObject({ video: undefined, appium: undefined, target: undefined });
+    expect(controller).toMatchObject({
+      video: expect.any(Object),
+      appium: expect.any(Object),
+      target: expect.any(Object),
+    });
   });
 
   it("waits for a stalled browser close to settle after stopping Appium", async () => {

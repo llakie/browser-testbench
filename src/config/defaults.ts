@@ -27,6 +27,7 @@ export class TestbenchDefaults {
   static readonly REMOTE_CLIENT_TOUCH_INTERVAL_MS = 30_000;
   static readonly TARGET_LOCK_TIMEOUT_MS = 60_000;
   static readonly TARGET_LOCK_POLL_INTERVAL_MS = 100;
+  static readonly QUARANTINE_RETRY_INTERVAL_MS = 1_000;
   static readonly REMOTE_CLEANUP_TIMEOUT_MS = 10_000;
   static readonly REMOTE_CONNECT_TIMEOUT_MS = 10_000;
   static readonly DEVTOOLS_DISCOVERY_TIMEOUT_MS = 2_000;

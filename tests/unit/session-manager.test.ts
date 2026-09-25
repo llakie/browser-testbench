@@ -22,6 +22,7 @@ describe("SessionManager", () => {
   });
 
   it("isolates clients and waits for every owned session to close before reporting an error", async () => {
+    vi.useFakeTimers();
     vi.spyOn(TargetCatalogService, "sessionOptions").mockImplementation(
       async (input) =>
         ({
@@ -43,6 +44,7 @@ describe("SessionManager", () => {
     expect(sessions.list("client-b")).toHaveLength(1);
     await expect(sessions.closeOwned("client-a")).rejects.toThrow("first close failed");
     expect(close).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1_000);
     expect(sessions.isTargetBusy("device-a")).toBe(false);
     expect(sessions.isTargetBusy("device-b")).toBe(false);
     expect(sessions.list("client-b")).toHaveLength(1);
@@ -50,18 +52,23 @@ describe("SessionManager", () => {
   });
 
   it("releases a serial target when both startup and cleanup fail", async () => {
+    vi.useFakeTimers();
     vi.spyOn(TargetCatalogService, "sessionOptions").mockResolvedValue({
       target: { id: "device-a", serial: true },
       options: {},
     } as never);
     vi.spyOn(InteractiveController.prototype, "start").mockRejectedValue(new Error("start failed"));
-    vi.spyOn(InteractiveController.prototype, "close").mockRejectedValue(new Error("cleanup failed"));
+    vi.spyOn(InteractiveController.prototype, "close")
+      .mockRejectedValueOnce(new Error("cleanup failed"))
+      .mockResolvedValue({});
     const sessions = new SessionManager();
 
     await expect(sessions.start({ target: "device-a", lockTimeoutMs: 0 })).rejects.toThrow(
       "Session startup failed and cleanup also failed",
     );
 
+    expect(sessions.isTargetBusy("device-a")).toBe(true);
+    await vi.advanceTimersByTimeAsync(1_000);
     expect(sessions.isTargetBusy("device-a")).toBe(false);
   });
 

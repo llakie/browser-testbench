@@ -101,6 +101,7 @@ export class InteractiveController {
   private readonly webSocketUrls = new Map<string, string>();
   private androidPermissions?: AndroidCameraUtilities;
   private originPermissions: Array<{ name: string; origin: string }> = [];
+  private pendingBrowserClose?: Promise<void>;
 
   async start(options: ResolvedStartSessionInput): Promise<Record<string, unknown>> {
     if (!TargetRegistry.isSupported(options.target))
@@ -820,22 +821,23 @@ export class InteractiveController {
       }
     } else videoPath = this.lastRecording?.path;
     await this.resetOriginPermissions().catch((error) => failures.push(error));
-    const browserClose = this.session.close();
+    const browserClose = (this.pendingBrowserClose ??= this.session.close());
     let browserCloseTimedOut = false;
     await this.withCleanupTimeout("browser session", browserClose).catch((error) => {
       if (error instanceof CleanupTimeoutError) browserCloseTimedOut = true;
       else failures.push(error);
     });
+    if (!browserCloseTimedOut) this.pendingBrowserClose = undefined;
     await this.appium?.process.stop().catch((error) => failures.push(error));
     await this.androidPermissions?.restore().catch((error) => failures.push(error));
     if (browserCloseTimedOut) {
-      await this.withCleanupTimeout("browser session after stopping Appium", browserClose).catch((error) =>
-        failures.push(error),
-      );
+      await this.withCleanupTimeout("browser session after stopping Appium", browserClose)
+        .then(() => (this.pendingBrowserClose = undefined))
+        .catch((error) => failures.push(error));
     }
     await IosSessionCleanup.run(target).catch((error) => failures.push(error));
-    this.clearState();
     if (failures.length > 0) throw new AggregateError(failures, "Session cleanup failed.");
+    this.clearState();
     return { videoPath };
   }
 
@@ -849,6 +851,7 @@ export class InteractiveController {
     this.webSocketUrls.clear();
     this.androidPermissions = undefined;
     this.originPermissions = [];
+    this.pendingBrowserClose = undefined;
   }
 
   private async preparePermissions(
