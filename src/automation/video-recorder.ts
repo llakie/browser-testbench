@@ -8,6 +8,7 @@ import { TestbenchError } from "../errors/testbench-error.js";
 import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { ProcessTerminator } from "../infrastructure/process-terminator.js";
+import { MediaTooling } from "../infrastructure/media-tooling.js";
 
 const ADB_COMMAND_TIMEOUT_MS = 5_000;
 const RECORDER_STOP_TIMEOUT_MS = 10_000;
@@ -55,6 +56,7 @@ export class VideoRecorder {
     outputPath: string,
     capabilities: Record<string, unknown>,
   ): Promise<VideoRecorder> {
+    if (!MediaTooling.isAvailable()) throw this.unsupported(target, "FFmpeg and ffprobe are required for recording.");
     await mkdir(dirname(outputPath), { recursive: true });
     if (target.name === "safari-ios") {
       const child = spawn("xcrun", ["simctl", "io", "booted", "recordVideo", "--codec=h264", outputPath], {
