@@ -5,6 +5,7 @@ import {
   PinchDirection,
   RemoteTestbench,
   SwipeDirection,
+  TestbenchError,
 } from "../../src/transports/testbench-client.js";
 import { ClientVersion } from "../../src/config/client-version.js";
 
@@ -126,6 +127,33 @@ describe("RemoteTestbench.availableTargets", () => {
 
     const init = fetchMock.mock.calls[0]![1]!;
     expect(new Headers(init.headers).get(ClientVersion.HEADER)).toBe(ClientVersion.CURRENT);
+  });
+
+  it("preserves structured server errors for callers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            code: "TARGET_BUSY",
+            message: "Target is busy.",
+            operation: "session.open",
+            details: { target: "chrome" },
+          }),
+          { status: 409, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+
+    const error = await new RemoteTestbench().targets().catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(TestbenchError);
+    expect(error).toMatchObject({
+      code: "TARGET_BUSY",
+      operation: "session.open",
+      status: 409,
+      details: { target: "chrome" },
+    });
   });
 });
 

@@ -325,6 +325,27 @@ describe("ApiServer", () => {
     });
   });
 
+  it("returns structured guidance when a JSON payload exceeds the request limit", async () => {
+    server = new ApiServer({ host: "127.0.0.1", port: 0 });
+    const address = await server.start();
+
+    const response = await apiFetch(`http://${address.host}:${address.port}/v1/sessions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ value: "x".repeat(TestbenchDefaults.REQUEST_BODY_LIMIT_BYTES) }),
+    });
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "PAYLOAD_TOO_LARGE",
+      operation: "request.parse",
+      details: {
+        limitBytes: TestbenchDefaults.REQUEST_BODY_LIMIT_BYTES,
+        suggestion: "session.assets.upload",
+      },
+    });
+  });
+
   it("requires the exact client version for API requests but keeps diagnostics reachable", async () => {
     server = new ApiServer(
       { host: "127.0.0.1", port: 0, remote: true },
