@@ -23,6 +23,22 @@ describe("TargetCapabilityService", () => {
     expect(android().limits.assetBytes).toBeGreaterThanOrEqual(25 * 1024 * 1024);
   });
 
+  it("does not advertise simulator recording for a physical iOS device", () => {
+    const physical = TargetCapabilityService.for({
+      browser: "safari-ios",
+      kind: "mobile",
+      deviceKind: "physical",
+    });
+    const simulator = TargetCapabilityService.for({
+      browser: "safari-ios",
+      kind: "mobile",
+      deviceKind: "simulator",
+    });
+
+    expect(physical.recording).toMatchObject({ screen: false, viewport: false, explicitLifecycle: false });
+    expect(simulator.recording.screen).toBe(MediaTooling.isAvailable());
+  });
+
   it("reports every missing nested capability", () => {
     expect(
       TargetCapabilityService.missing(

@@ -130,7 +130,7 @@ export class RecordingGeometry {
       await client.request("context", "POST", { name: "NATIVE_APP" });
       const value =
         target.name === "chrome-android"
-          ? "//*[@resource-id='com.android.chrome:id/compositor_view_holder']"
+          ? "//*[contains(@resource-id, ':id/compositor_view_holder')]"
           : "//XCUIElementTypeWebView";
       const element = await client.request<Record<string, string>>("element", "POST", { using: "xpath", value });
       const id = element["element-6066-11e4-a52e-4f735466cecf"] ?? element.ELEMENT;
