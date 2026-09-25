@@ -148,6 +148,28 @@ describe("RemoteTestbench.availableTargets", () => {
     );
   });
 
+  it("applies operation timeout and abort options to navigation", async () => {
+    const testbench = new RemoteTestbench();
+    const request = vi.spyOn(testbench, "request").mockResolvedValue({
+      id: "session",
+      target: "chrome",
+      createdAt: new Date().toISOString(),
+      runtime: {},
+    });
+    const session = await testbench.open({ target: "chrome" });
+    request.mockClear();
+    const controller = new AbortController();
+
+    await session.navigate("https://example.com", { timeoutMs: 90_000, signal: controller.signal });
+
+    expect(request).toHaveBeenCalledWith("/v1/sessions/session/navigate", {
+      method: "POST",
+      body: JSON.stringify({ url: "https://example.com", timeoutMs: 90_000 }),
+      timeoutMs: 95_000,
+      signal: controller.signal,
+    });
+  });
+
   it("rejects invalid wait timeouts before sending a request", async () => {
     const testbench = new RemoteTestbench();
     vi.spyOn(testbench, "request").mockResolvedValue({

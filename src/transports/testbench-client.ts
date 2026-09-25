@@ -527,8 +527,16 @@ export class RemoteSession {
     this.heartbeat.unref();
   }
 
-  navigate(url: string): Promise<PageInspection> {
-    return this.post("navigate", { url });
+  navigate(url: string, options: WaitOptions = {}): Promise<PageInspection> {
+    const timeout = options.timeoutMs;
+    if (timeout !== undefined && (!Number.isFinite(timeout) || timeout <= 0))
+      throw new TypeError("timeoutMs must be a positive finite number.");
+    return this.post(
+      "navigate",
+      { url, ...(timeout === undefined ? {} : { timeoutMs: timeout }) },
+      timeout === undefined ? undefined : timeout + TestbenchDefaults.REQUEST_TIMEOUT_GRACE_MS,
+      options.signal,
+    );
   }
 
   inspect(limit = TestbenchDefaults.INSPECTION_LIMIT): Promise<PageInspection> {
@@ -991,7 +999,7 @@ export class RemoteSession {
     return result;
   }
 
-  close(): Promise<{ closed: true; videoPath?: string }> {
+  close(_options: { signal?: AbortSignal } = {}): Promise<{ closed: true; videoPath?: string }> {
     if (!this.closeResult) {
       clearInterval(this.heartbeat);
       this.heartbeat = undefined;

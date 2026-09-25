@@ -27,6 +27,7 @@ import { TestbenchError } from "../errors/testbench-error.js";
 import { ImageDimensions, RecordingGeometry, type GeometrySample } from "./recording-geometry.js";
 import { VideoUtilities } from "./video-utilities.js";
 import { ScreenshotUtilities, type ScreenshotResult, type ScreenshotScope } from "./screenshot-utilities.js";
+import { AbortableOperation } from "./abortable-operation.js";
 
 export interface PageInspection {
   url: string;
@@ -181,11 +182,14 @@ export class InteractiveController {
     throw new Error("Browser session startup failed.");
   }
 
-  async navigate(url: string): Promise<PageInspection> {
+  async navigate(url: string, options: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<PageInspection> {
     if (!this.target) throw new Error("No interactive target is active.");
     if (this.target.name === "safari-ios" && this.target.deviceKind === "physical") {
       if (!this.appium) throw new Error("The Appium service for this iOS session is not available.");
-      await IosPhysicalSafariNavigator.navigate(this.appium.port, this.session.active.sessionId, url, this.target);
+      await AbortableOperation.run(
+        IosPhysicalSafariNavigator.navigate(this.appium.port, this.session.active.sessionId, url, this.target),
+        { name: "navigate", timeoutMs: options.timeoutMs, signal: options.signal, details: { url } },
+      );
       try {
         return await this.inspect();
       } catch (error) {
@@ -193,7 +197,7 @@ export class InteractiveController {
         throw error;
       }
     } else {
-      await this.session.navigate(url);
+      await this.session.navigate(url, options);
     }
     return this.inspect();
   }

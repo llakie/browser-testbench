@@ -105,7 +105,10 @@ export class InputSchemas {
   });
   static readonly remoteClientRole = z.strictObject({ role: this.remoteRole });
 
-  static readonly navigate = z.strictObject({ url: z.url() });
+  static readonly navigate = z.strictObject({
+    url: z.url(),
+    timeoutMs: z.number().positive().finite().optional(),
+  });
   static readonly click = z.strictObject({ selector: z.string().min(1) });
   static readonly type = z.strictObject({
     selector: z.string().min(1),
