@@ -423,6 +423,9 @@ export class ApiServer {
       response.json(result);
     });
     this.app.get("/v1/sessions", (request, response) => response.json(this.sessions.list(this.ownerId(request))));
+    this.app.post("/v1/sessions/:id/lease", (request, response) =>
+      response.json(this.sessions.touch(request.params.id, this.ownerId(request))),
+    );
     this.app.post("/v1/sessions", async (request, response) => {
       const raw = { ...(request.body as Record<string, unknown>) };
       const transferArtifacts = raw.transferArtifacts === true;

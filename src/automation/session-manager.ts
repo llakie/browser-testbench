@@ -4,6 +4,7 @@ import { InteractiveController } from "./interactive-controller.js";
 import { TargetCatalogService } from "../setup/target-catalog-service.js";
 import { TargetLockManager } from "./target-lock-manager.js";
 import { TestbenchDefaults } from "../config/defaults.js";
+import { TestbenchError } from "../errors/testbench-error.js";
 
 export interface ManagedSession {
   id: string;
@@ -13,13 +14,18 @@ export interface ManagedSession {
   controller: InteractiveController;
   runtime: Record<string, unknown>;
   release: () => void;
+  leaseTimeoutMs: number;
+  leaseExpiresAt: string;
+  lease?: NodeJS.Timeout;
 }
-export type PublicManagedSession = Omit<ManagedSession, "controller" | "release" | "ownerId">;
+export type PublicManagedSession = Omit<ManagedSession, "controller" | "release" | "ownerId" | "lease">;
 
 export class SessionNotFoundError extends Error {}
 
 export class SessionManager {
   private readonly sessions = new Map<string, ManagedSession>();
+  private readonly closures = new Map<string, { ownerId: string; result: Promise<{ videoPath?: string }> }>();
+  private readonly expired = new Set<string>();
   private readonly locks = new TargetLockManager();
 
   async start(input: StartSessionInput, ownerId = "local", signal?: AbortSignal): Promise<PublicManagedSession> {
@@ -41,7 +47,10 @@ export class SessionManager {
         controller,
         runtime,
         release,
+        leaseTimeoutMs: input.leaseTimeoutMs ?? TestbenchDefaults.SESSION_LEASE_TIMEOUT_MS,
+        leaseExpiresAt: "",
       };
+      this.refreshLease(session);
       this.sessions.set(id, session);
       return this.publicSession(session);
     } catch (error) {
@@ -66,6 +75,12 @@ export class SessionManager {
 
   get(id: string, ownerId?: string): InteractiveController {
     const session = this.sessions.get(id);
+    if (!session && this.expired.has(id))
+      throw new TestbenchError("SESSION_LEASE_EXPIRED", `Session '${id}' expired.`, {
+        operation: "session.access",
+        sessionId: id,
+        status: 410,
+      });
     if (!session || (ownerId && session.ownerId !== ownerId))
       throw new SessionNotFoundError(`Session '${id}' was not found.`);
     return session.controller;
@@ -73,6 +88,7 @@ export class SessionManager {
 
   async run<T>(id: string, action: (controller: InteractiveController) => Promise<T>, ownerId?: string): Promise<T> {
     const controller = this.get(id, ownerId);
+    this.touch(id, ownerId);
     try {
       return await action(controller);
     } catch (error) {
@@ -82,29 +98,22 @@ export class SessionManager {
   }
 
   async close(id: string, ownerId?: string): Promise<{ videoPath?: string }> {
+    const existing = this.closures.get(id);
+    if (existing) {
+      if (ownerId && existing.ownerId !== ownerId) throw new SessionNotFoundError(`Session '${id}' was not found.`);
+      return existing.result;
+    }
     const session = this.sessions.get(id);
     if (!session || (ownerId && session.ownerId !== ownerId))
       throw new SessionNotFoundError(`Session '${id}' was not found.`);
-    this.sessions.delete(id);
-    try {
-      return await session.controller.close();
-    } finally {
-      session.release();
-    }
+    const result = this.closeSession(session);
+    this.rememberClosure(id, session.ownerId, result);
+    return result;
   }
 
   async closeAll(): Promise<void> {
     const sessions = [...this.sessions.values()];
-    this.sessions.clear();
-    const results = await Promise.allSettled(
-      sessions.map(async (session) => {
-        try {
-          await session.controller.close();
-        } finally {
-          session.release();
-        }
-      }),
-    );
+    const results = await Promise.allSettled(sessions.map((session) => this.close(session.id, session.ownerId)));
     this.throwCloseFailure(results);
   }
 
@@ -117,6 +126,14 @@ export class SessionManager {
 
   isTargetBusy(targetId: string): boolean {
     return this.locks.isLocked(targetId);
+  }
+
+  touch(id: string, ownerId?: string): PublicManagedSession {
+    const session = this.sessions.get(id);
+    if (!session || (ownerId && session.ownerId !== ownerId))
+      throw new SessionNotFoundError(`Session '${id}' was not found.`);
+    this.refreshLease(session);
+    return this.publicSession(session);
   }
 
   static isTerminatedSessionError(error: unknown): boolean {
@@ -133,12 +150,7 @@ export class SessionManager {
   private async discard(id: string): Promise<void> {
     const session = this.sessions.get(id);
     if (!session) return;
-    this.sessions.delete(id);
-    try {
-      await session.controller.close();
-    } finally {
-      session.release();
-    }
+    await this.close(id, session.ownerId);
   }
 
   private publicSession(session: ManagedSession): PublicManagedSession {
@@ -147,7 +159,43 @@ export class SessionManager {
       target: session.target,
       createdAt: session.createdAt,
       runtime: session.runtime,
+      leaseTimeoutMs: session.leaseTimeoutMs,
+      leaseExpiresAt: session.leaseExpiresAt,
     };
+  }
+
+  private refreshLease(session: ManagedSession): void {
+    clearTimeout(session.lease);
+    session.leaseExpiresAt = new Date(Date.now() + session.leaseTimeoutMs).toISOString();
+    session.lease = setTimeout(() => {
+      this.expired.add(session.id);
+      void this.close(session.id, session.ownerId).catch((error) =>
+        console.error(
+          `Expired session '${session.id}' cleanup failed: ${error instanceof Error ? error.message : error}`,
+        ),
+      );
+    }, session.leaseTimeoutMs);
+    session.lease.unref();
+  }
+
+  private async closeSession(session: ManagedSession): Promise<{ videoPath?: string }> {
+    this.sessions.delete(session.id);
+    clearTimeout(session.lease);
+    try {
+      return await session.controller.close();
+    } finally {
+      session.release();
+    }
+  }
+
+  private rememberClosure(id: string, ownerId: string, result: Promise<{ videoPath?: string }>): void {
+    this.closures.set(id, { ownerId, result });
+    if (this.closures.size <= 100) return;
+    const oldest = this.closures.keys().next().value as string | undefined;
+    if (oldest) {
+      this.closures.delete(oldest);
+      this.expired.delete(oldest);
+    }
   }
 
   private throwCloseFailure(results: PromiseSettledResult<unknown>[]): void {

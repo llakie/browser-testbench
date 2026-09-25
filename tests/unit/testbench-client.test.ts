@@ -133,6 +133,20 @@ describe("RemoteTestbench.availableTargets", () => {
     expect(request).toHaveBeenNthCalledWith(2, "/v1/sessions/session", { method: "DELETE" });
   });
 
+  it("closes a remote session only once", async () => {
+    const testbench = new RemoteTestbench();
+    const request = vi
+      .spyOn(testbench, "request")
+      .mockResolvedValueOnce({ id: "session", target: "chrome", createdAt: new Date().toISOString(), runtime: {} })
+      .mockResolvedValueOnce({ closed: true });
+    const session = await testbench.open({ target: "chrome" });
+
+    await Promise.all([session.close(), session.close()]);
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenLastCalledWith("/v1/sessions/session", { method: "DELETE" });
+  });
+
   it("aborts requests after the configured client timeout", async () => {
     vi.stubGlobal(
       "fetch",

@@ -19,6 +19,7 @@ export class InputSchemas {
     videoPath: z.string().min(1).optional(),
     capabilities: z.record(z.string(), z.unknown()).optional(),
     lockTimeoutMs: z.number().nonnegative().optional(),
+    leaseTimeoutMs: z.number().positive().finite().optional(),
   });
 
   static readonly verification = z.strictObject({
