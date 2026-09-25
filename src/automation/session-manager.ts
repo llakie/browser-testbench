@@ -203,17 +203,12 @@ export class SessionManager {
     id: string,
     options: { outputPath: string; scope: "screen" | "viewport" },
     ownerId?: string,
-  ): Promise<{
-    id: string;
-    startedAt: string;
-    sessionTimeMs: number;
-    requestedScope: "screen";
-    actualScope: "screen";
-  }> {
+  ): Promise<Awaited<ReturnType<InteractiveController["startRecording"]>> & { sessionTimeMs: number }> {
     const session = this.managed(id, ownerId);
     this.refreshLease(session);
     const result = await session.controller.startRecording(options);
     const sessionTimeMs = this.sessionTime(session);
+    result.geometry.samples[0]!.sessionTimeMs = sessionTimeMs;
     session.recording = { id: result.id, startedSessionTimeMs: sessionTimeMs };
     return { ...result, sessionTimeMs };
   }
@@ -225,8 +220,8 @@ export class SessionManager {
   ): Promise<
     RecordingArtifact & {
       id: string;
-      requestedScope: "screen";
-      actualScope: "screen";
+      requestedScope: "screen" | "viewport";
+      actualScope: "screen" | "viewport";
       startedSessionTimeMs?: number;
       endedSessionTimeMs: number;
       marks: SessionMark[];
@@ -237,6 +232,7 @@ export class SessionManager {
     const active = session.recording;
     const result = await session.controller.stopRecording(signal);
     const endedSessionTimeMs = this.sessionTime(session);
+    for (const sample of result.geometry.samples) sample.sessionTimeMs ??= endedSessionTimeMs;
     session.recording = undefined;
     return {
       ...result,

@@ -30,6 +30,8 @@ import { TestbenchError } from "../errors/testbench-error.js";
 import type { AssetReference } from "../automation/session-asset-manager.js";
 import type { SessionMark } from "../automation/session-manager.js";
 import type { RecordingArtifact } from "../automation/video-recorder.js";
+import type { GeometrySample } from "../automation/recording-geometry.js";
+import type { ScreenshotResult, ScreenshotScope } from "../automation/screenshot-utilities.js";
 import {
   TargetCapabilityService,
   type CapabilityRequirement,
@@ -79,6 +81,7 @@ export interface RecordingStartResult {
   sessionTimeMs: number;
   requestedScope: "screen" | "viewport";
   actualScope: "screen" | "viewport";
+  geometry: { samples: GeometrySample[] };
 }
 
 export interface RecordingResult extends RecordingArtifact {
@@ -88,6 +91,7 @@ export interface RecordingResult extends RecordingArtifact {
   startedSessionTimeMs?: number;
   endedSessionTimeMs: number;
   marks: SessionMark[];
+  geometry: { samples: GeometrySample[] };
 }
 
 export interface WaitOptions {
@@ -906,6 +910,20 @@ export class RemoteSession {
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, Buffer.from(await this.screenshotBase64(fullPage), "base64"));
     return path;
+  }
+
+  captureScreenshot(options: { scope: ScreenshotScope; selector?: string }): Promise<ScreenshotResult> {
+    return this.post("screenshots", options);
+  }
+
+  async captureScreenshotTo(
+    path: string,
+    options: { scope: ScreenshotScope; selector?: string },
+  ): Promise<ScreenshotResult> {
+    const result = await this.captureScreenshot(options);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, Buffer.from(result.base64, "base64"));
+    return result;
   }
 
   close(): Promise<{ closed: true; videoPath?: string }> {

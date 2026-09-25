@@ -237,6 +237,10 @@ export class InputSchemas {
     path: z.string().min(1).optional(),
     fullPage: z.boolean().default(false),
   });
+  static readonly structuredScreenshot = z.strictObject({
+    scope: z.enum(["screen", "viewport", "fullPage", "element"]),
+    selector: z.string().min(1).optional(),
+  });
   static readonly mark = z.strictObject({
     name: z.string().trim().min(1),
     data: z.record(z.string(), z.unknown()).optional(),

@@ -595,6 +595,16 @@ export class ApiServer {
         ),
       });
     });
+    this.app.post("/v1/sessions/:id/screenshots", async (request, response) => {
+      const input = InputSchemas.structuredScreenshot.parse(request.body);
+      response.json(
+        await this.sessions.run(
+          request.params.id,
+          (session) => session.captureStructuredScreenshot(input.scope, input.selector),
+          this.ownerId(request),
+        ),
+      );
+    });
     this.app.post("/v1/sessions/:id/gesture", async (request, response) => {
       const input = InputSchemas.gesture.parse(request.body);
       response.json(

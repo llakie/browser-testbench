@@ -20,10 +20,13 @@ import { IosPhysicalSafariNavigator } from "./ios-physical-safari-navigator.js";
 import { IosSessionCleanup } from "./ios-session-cleanup.js";
 import { MobileGestures, type GestureExecution } from "./mobile-gestures.js";
 import { PageInspectionScript } from "./page-inspection-script.js";
-import { VideoRecorder, type RecordingArtifact } from "./video-recorder.js";
+import { RecordingProbe, VideoRecorder, type RecordingArtifact } from "./video-recorder.js";
 import { randomUUID } from "node:crypto";
 import { AndroidCameraUtilities } from "./android-camera-utilities.js";
 import { TestbenchError } from "../errors/testbench-error.js";
+import { ImageDimensions, RecordingGeometry, type GeometrySample } from "./recording-geometry.js";
+import { VideoUtilities } from "./video-utilities.js";
+import { ScreenshotUtilities, type ScreenshotResult, type ScreenshotScope } from "./screenshot-utilities.js";
 
 export interface PageInspection {
   url: string;
@@ -80,8 +83,19 @@ export class InteractiveController {
   private readonly session = new BrowserSession();
   private appium?: { process: ManagedProcess; port: number };
   private target?: TargetConfig;
-  private video?: { id: string; recorder: VideoRecorder; path: string; scope: "screen" };
-  private lastRecording?: RecordingArtifact & { id: string; requestedScope: "screen"; actualScope: "screen" };
+  private video?: {
+    id: string;
+    recorder: VideoRecorder;
+    path: string;
+    scope: "screen" | "viewport";
+    geometry: GeometrySample[];
+  };
+  private lastRecording?: RecordingArtifact & {
+    id: string;
+    requestedScope: "screen" | "viewport";
+    actualScope: "screen" | "viewport";
+    geometry: { samples: GeometrySample[] };
+  };
   private readonly diagnosticEvents: DiagnosticEvent[] = [];
   private readonly requestTimestamps = new Map<string, number>();
   private readonly webSocketUrls = new Map<string, string>();
@@ -373,10 +387,13 @@ export class InteractiveController {
     return { completed: action.action };
   }
 
-  async startRecording(options: {
-    outputPath: string;
-    scope?: "screen" | "viewport";
-  }): Promise<{ id: string; startedAt: string; requestedScope: "screen"; actualScope: "screen" }> {
+  async startRecording(options: { outputPath: string; scope?: "screen" | "viewport" }): Promise<{
+    id: string;
+    startedAt: string;
+    requestedScope: "screen" | "viewport";
+    actualScope: "screen" | "viewport";
+    geometry: { samples: GeometrySample[] };
+  }> {
     if (this.video)
       throw new TestbenchError("RECORDING_ALREADY_ACTIVE", "A recording is already active for this session.", {
         operation: "recording.start",
@@ -384,23 +401,27 @@ export class InteractiveController {
         details: { recordingId: this.video.id },
       });
     if (!this.target) throw new Error("No interactive target is active.");
-    if (options.scope === "viewport")
-      throw new TestbenchError("RECORDING_UNSUPPORTED", "Viewport recording geometry is not available yet.", {
-        operation: "recording.start",
-        status: 409,
-      });
     const id = randomUUID();
+    const scope = options.scope ?? "screen";
+    const geometry = [await RecordingGeometry.capture(this.session.active, this.target, this.appium?.port)];
     const recorder = await VideoRecorder.start(this.target, options.outputPath, this.session.active.capabilities);
-    this.video = { id, recorder, path: options.outputPath, scope: "screen" };
+    this.video = { id, recorder, path: options.outputPath, scope, geometry };
     this.lastRecording = undefined;
-    return { id, startedAt: new Date().toISOString(), requestedScope: "screen", actualScope: "screen" };
+    return {
+      id,
+      startedAt: new Date().toISOString(),
+      requestedScope: scope,
+      actualScope: scope,
+      geometry: { samples: geometry },
+    };
   }
 
   async stopRecording(signal?: AbortSignal): Promise<
     RecordingArtifact & {
       id: string;
-      requestedScope: "screen";
-      actualScope: "screen";
+      requestedScope: "screen" | "viewport";
+      actualScope: "screen" | "viewport";
+      geometry: { samples: GeometrySample[] };
     }
   > {
     if (!this.video) {
@@ -411,13 +432,26 @@ export class InteractiveController {
       });
     }
     const video = this.video;
-    const artifact = await video.recorder.stop(signal);
+    const endingGeometry = await RecordingGeometry.capture(this.session.active, this.target!, this.appium?.port);
+    if (!RecordingGeometry.equal(video.geometry[0]!, endingGeometry)) video.geometry.push(endingGeometry);
+    let artifact = await video.recorder.stop(signal);
+    if (video.scope === "viewport") {
+      if (video.geometry.length !== 1)
+        throw new TestbenchError("RECORDING_GEOMETRY_CHANGED", "Viewport geometry changed during recording.", {
+          operation: "recording.stop",
+          status: 409,
+          details: { partialArtifact: artifact, samples: video.geometry },
+        });
+      await VideoUtilities.crop(artifact.path, video.geometry[0]!.viewportInVideo);
+      artifact = await RecordingProbe.inspect(artifact.path);
+    }
     this.video = undefined;
     this.lastRecording = {
       ...artifact,
       id: video.id,
       requestedScope: video.scope,
       actualScope: video.scope,
+      geometry: { samples: video.geometry },
     };
     return this.lastRecording;
   }
@@ -438,6 +472,78 @@ export class InteractiveController {
       );
     }
     return this.session.active.takeFullPageScreenshot();
+  }
+
+  async captureStructuredScreenshot(scope: ScreenshotScope, selector?: string): Promise<ScreenshotResult> {
+    if (!this.target) throw new Error("No interactive target is active.");
+    const browser = this.session.active;
+    const mobile = this.target.name === "chrome-android" || this.target.name === "safari-ios";
+    if (scope === "element") {
+      if (!selector) throw new TypeError("Element screenshots require a selector.");
+      const state = await browser.elementState(selector);
+      const rect = state.rect as { x: number; y: number; width: number; height: number };
+      return ScreenshotUtilities.result(await browser.$(selector).screenshot(), scope, null, {
+        ...rect,
+        coordinateSystem: "viewport-css-pixels",
+        edges: "left-top-inclusive-right-bottom-exclusive",
+      });
+    }
+    if (scope === "fullPage") {
+      if (mobile) throw this.screenshotUnsupported(scope);
+      return ScreenshotUtilities.result(await browser.takeFullPageScreenshot(), scope, null, null);
+    }
+    if (scope === "screen") {
+      if (!mobile) throw this.screenshotUnsupported(scope);
+      const base64 = await browser.takeScreenshot();
+      const size = ImageDimensions.png(Buffer.from(base64, "base64"));
+      const geometry = await RecordingGeometry.capture(browser, this.target, this.appium?.port);
+      return ScreenshotUtilities.result(
+        base64,
+        scope,
+        {
+          x: 0,
+          y: 0,
+          ...size,
+          coordinateSystem: "video-pixels",
+          edges: "left-top-inclusive-right-bottom-exclusive",
+        },
+        {
+          x: 0,
+          y: 0,
+          ...geometry.viewportCss,
+          coordinateSystem: "viewport-css-pixels",
+          edges: "left-top-inclusive-right-bottom-exclusive",
+        },
+      );
+    }
+    if (!mobile) {
+      const base64 = await browser.takeScreenshot();
+      const size = ImageDimensions.png(Buffer.from(base64, "base64"));
+      return ScreenshotUtilities.result(base64, scope, null, {
+        x: 0,
+        y: 0,
+        ...size,
+        coordinateSystem: "viewport-css-pixels",
+        edges: "left-top-inclusive-right-bottom-exclusive",
+      });
+    }
+    const geometry = await RecordingGeometry.capture(browser, this.target, this.appium?.port);
+    const base64 = await ScreenshotUtilities.crop(await browser.takeScreenshot(), geometry.viewportInVideo);
+    return ScreenshotUtilities.result(base64, scope, geometry.viewportInVideo, {
+      x: 0,
+      y: 0,
+      ...geometry.viewportCss,
+      coordinateSystem: "viewport-css-pixels",
+      edges: "left-top-inclusive-right-bottom-exclusive",
+    });
+  }
+
+  private screenshotUnsupported(scope: ScreenshotScope): TestbenchError {
+    return new TestbenchError("SCREENSHOT_SCOPE_UNSUPPORTED", `Screenshot scope '${scope}' is not supported.`, {
+      operation: "screenshot.capture",
+      status: 409,
+      details: { target: this.target?.name, scope },
+    });
   }
 
   async source(maxCharacters = TestbenchDefaults.PAGE_SOURCE_LIMIT): Promise<string> {
