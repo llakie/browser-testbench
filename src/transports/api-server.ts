@@ -567,9 +567,14 @@ export class ApiServer {
       );
     });
     this.app.post("/v1/sessions/:id/navigate", async (request, response) => {
-      const { url } = InputSchemas.navigate.parse(request.body);
+      const { url, timeoutMs } = InputSchemas.navigate.parse(request.body);
+      const signal = RequestAbort.signal(request, response);
       response.json(
-        await this.sessions.run(request.params.id, (session) => session.navigate(url), this.ownerId(request)),
+        await this.sessions.run(
+          request.params.id,
+          (session) => session.navigate(url, { timeoutMs, signal }),
+          this.ownerId(request),
+        ),
       );
     });
     this.app.post("/v1/sessions/:id/click", async (request, response) => {

@@ -6,6 +6,7 @@ import type { TargetConfig } from "../config/types.js";
 import { AndroidUsbNetwork } from "./android-usb-network.js";
 import { TestbenchError } from "../errors/testbench-error.js";
 import { OperationWait } from "./operation-wait.js";
+import { AbortableOperation } from "./abortable-operation.js";
 
 export class FreshElementAction {
   static async run<T>(
@@ -691,10 +692,15 @@ export class BrowserSession {
     }
   }
 
-  async navigate(url: string): Promise<void> {
+  async navigate(url: string, options: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<void> {
     const mapped = this.target ? BrowserSession.urlForTarget(url, this.target) : url;
     const prepared = await this.androidUsbNetwork?.prepare(mapped);
-    await this.active.url(prepared ?? mapped);
+    await AbortableOperation.run(this.active.url(prepared ?? mapped), {
+      name: "navigate",
+      timeoutMs: options.timeoutMs,
+      signal: options.signal,
+      details: { url },
+    });
   }
 
   async close(): Promise<void> {
