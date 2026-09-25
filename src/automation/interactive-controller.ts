@@ -951,8 +951,10 @@ export class InteractiveController {
   private async resetOriginPermissions(): Promise<void> {
     if (!this.originPermissions.length) return;
     const browser = this.session.active;
+    const permissions = this.originPermissions;
+    this.originPermissions = [];
     const results = await Promise.allSettled(
-      this.originPermissions.map((permission) => this.setOriginPermission(this.target!, browser, permission, "prompt")),
+      permissions.map((permission) => this.setOriginPermission(this.target!, browser, permission, "prompt")),
     );
     const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
     if (failures.length)

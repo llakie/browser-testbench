@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PersistentTargetLock, TargetLockManager } from "../../src/automation/target-lock-manager.js";
 
 describe("TargetLockManager", () => {
@@ -74,6 +74,37 @@ describe("TargetLockManager", () => {
 
     await expect(readFile(metadataPath, "utf8")).resolves.toContain('"sessionId":"session-b"');
     await release();
+  });
+
+  it("removes a persisted lock when the PID belongs to a different process start", async () => {
+    const first = manager(root);
+    await first.acquire("device", 100, "owner-a", "session-a");
+    const [directory] = await readdir(root);
+    const metadataPath = join(root, directory!, "owner.json");
+    const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as Record<string, unknown>;
+    await writeFile(metadataPath, `${JSON.stringify({ ...metadata, processStartedAt: "2000-01-01T00:00:00.000Z" })}\n`);
+
+    const second = manager(root);
+    const release = await second.acquire("device", 100, "owner-b", "session-b");
+
+    await expect(readFile(metadataPath, "utf8")).resolves.toContain('"sessionId":"session-b"');
+    await release();
+  });
+
+  it("can retry a release after a persistent handoff failure", async () => {
+    const persistent = new PersistentTargetLock(root);
+    const handoff = vi.spyOn(persistent, "handoff").mockRejectedValueOnce(new Error("handoff failed"));
+    const locks = new TargetLockManager(persistent);
+    const releaseFirst = await locks.acquire("device", 100, "owner-a", "session-a");
+    const second = locks.acquire("device", 1_000, "owner-b", "session-b");
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await expect(releaseFirst()).rejects.toThrow("handoff failed");
+    await expect(second).rejects.toThrow("handoff failed");
+    await releaseFirst();
+
+    expect(handoff).toHaveBeenCalledOnce();
+    expect(locks.isLocked("device")).toBe(false);
   });
 });
 
