@@ -3,6 +3,7 @@ import { TestbenchDefaults } from "../config/defaults.js";
 import { TestbenchError } from "../errors/testbench-error.js";
 import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
+import { AndroidDeviceUtilities } from "./android-device-utilities.js";
 
 type NativePermissionName = "camera" | "microphone";
 
@@ -15,6 +16,7 @@ export class AndroidCameraUtilities {
   private readonly previous = new Map<string, boolean>();
   private packageName?: string;
   private adbPath?: string;
+  private serial?: string;
 
   constructor(
     private readonly target: TargetConfig,
@@ -22,10 +24,10 @@ export class AndroidCameraUtilities {
   ) {}
 
   async grant(names: NativePermissionName[]): Promise<{ packageName: string; permissions: NativePermissionName[] }> {
-    if (!this.target.udid) throw this.error("PERMISSION_UNSUPPORTED", "Android target has no ADB serial.");
     const root = await AndroidSdk.root();
     if (!root) throw this.error("PERMISSION_UNSUPPORTED", "Android SDK was not found.");
     this.adbPath = AndroidSdk.adb(root);
+    this.serial = await this.resolveSerial();
     this.packageName = await this.browserPackage();
     for (const name of [...new Set(names)]) {
       const permission = ANDROID_PERMISSIONS[name];
@@ -41,13 +43,13 @@ export class AndroidCameraUtilities {
   }
 
   async restore(): Promise<void> {
-    if (!this.packageName || !this.adbPath || !this.target.udid) return;
+    if (!this.packageName || !this.adbPath || !this.serial) return;
     const failures: Error[] = [];
     for (const [permission, wasGranted] of this.previous) {
       if (wasGranted) continue;
       const result = await CommandRunner.run(
         this.adbPath,
-        ["-s", this.target.udid, "shell", "pm", "revoke", this.packageName, permission],
+        ["-s", this.serial, "shell", "pm", "revoke", this.packageName, permission],
         { timeoutMs: TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS },
       );
       if (result.code !== 0) failures.push(new Error((result.stderr || result.stdout).trim()));
@@ -93,7 +95,7 @@ export class AndroidCameraUtilities {
     arguments_: string[],
     permission?: string,
   ): Promise<Awaited<ReturnType<typeof CommandRunner.run>>> {
-    const result = await CommandRunner.run(this.adbPath!, ["-s", this.target.udid!, ...arguments_], {
+    const result = await CommandRunner.run(this.adbPath!, ["-s", this.serial!, ...arguments_], {
       timeoutMs: TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS,
     });
     if (result.code !== 0)
@@ -103,6 +105,12 @@ export class AndroidCameraUtilities {
         permission,
       );
     return result;
+  }
+
+  private async resolveSerial(): Promise<string> {
+    const serial = await AndroidDeviceUtilities.serial(this.adbPath!, this.target, this.capabilities);
+    if (!serial) throw this.error("PERMISSION_UNSUPPORTED", "Android target has no ADB serial.");
+    return serial;
   }
 
   private error(
@@ -115,7 +123,7 @@ export class AndroidCameraUtilities {
       status: code === "PERMISSION_UNSUPPORTED" ? 409 : 403,
       details: {
         platform: "android",
-        serial: this.target.udid,
+        serial: this.serial ?? this.target.udid,
         packageName: this.packageName,
         permission,
       },

@@ -3,11 +3,13 @@ import { TestbenchDefaults } from "../config/defaults.js";
 import { AndroidSdk } from "../infrastructure/android-sdk.js";
 import { CommandRunner } from "../infrastructure/command-runner.js";
 import { TestbenchError } from "../errors/testbench-error.js";
+import { AndroidDeviceUtilities } from "./android-device-utilities.js";
 
 const ADB_TIMEOUT_MS = 8_000;
 
 export class AndroidUsbNetwork {
   private readonly forwardedPorts = new Set<number>();
+  private serial?: string;
 
   constructor(private readonly target: TargetConfig) {}
 
@@ -20,13 +22,13 @@ export class AndroidUsbNetwork {
       parsed.hostname = TestbenchDefaults.ANDROID_EMULATOR_LOOPBACK_HOST;
       return parsed.toString();
     }
-    if (!this.target.udid) throw this.unavailable("The Android target has no ADB device ID.");
-
     const port = Number(parsed.port || (parsed.protocol === "https:" ? 443 : 80));
     if (!this.forwardedPorts.has(port)) {
       const adb = await this.adb();
+      this.serial ??= await AndroidDeviceUtilities.serial(adb, this.target);
+      if (!this.serial) throw this.unavailable("The Android target has no ADB device ID.");
       const endpoint = `tcp:${port}`;
-      const mappings = await CommandRunner.run(adb, ["-s", this.target.udid, "reverse", "--list"], {
+      const mappings = await CommandRunner.run(adb, ["-s", this.serial, "reverse", "--list"], {
         timeoutMs: ADB_TIMEOUT_MS,
       });
       if (mappings.code !== 0) throw this.unavailable((mappings.stderr || mappings.stdout).trim());
@@ -37,7 +39,7 @@ export class AndroidUsbNetwork {
         parsed.hostname = TestbenchDefaults.LOOPBACK_HOST;
         return parsed.toString();
       }
-      const result = await CommandRunner.run(adb, ["-s", this.target.udid, "reverse", endpoint, endpoint], {
+      const result = await CommandRunner.run(adb, ["-s", this.serial, "reverse", endpoint, endpoint], {
         timeoutMs: ADB_TIMEOUT_MS,
       });
       if (result.code !== 0) throw this.unavailable((result.stderr || result.stdout).trim());
@@ -48,12 +50,12 @@ export class AndroidUsbNetwork {
   }
 
   async close(): Promise<void> {
-    if (!this.target.udid || this.forwardedPorts.size === 0) return;
+    if (!this.serial || this.forwardedPorts.size === 0) return;
     const adb = await this.adb().catch(() => undefined);
     if (!adb) return;
     const results = await Promise.all(
       [...this.forwardedPorts].map((port) =>
-        CommandRunner.run(adb, ["-s", this.target.udid!, "reverse", "--remove", `tcp:${port}`], {
+        CommandRunner.run(adb, ["-s", this.serial!, "reverse", "--remove", `tcp:${port}`], {
           timeoutMs: ADB_TIMEOUT_MS,
         }).then((result) => ({ port, result })),
       ),
@@ -89,7 +91,7 @@ export class AndroidUsbNetwork {
       status: 409,
       details: {
         platform: "android",
-        serial: this.target.udid,
+        serial: this.serial ?? this.target.udid,
         mode: this.target.localOrigins ?? "reverse",
       },
     });
