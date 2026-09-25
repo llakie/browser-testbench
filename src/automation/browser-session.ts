@@ -5,6 +5,7 @@ import { TargetRegistry } from "../config/target-registry.js";
 import type { TargetConfig } from "../config/types.js";
 import { AndroidUsbNetwork } from "./android-usb-network.js";
 import { TestbenchError } from "../errors/testbench-error.js";
+import { OperationWait } from "./operation-wait.js";
 
 export class FreshElementAction {
   static async run<T>(
@@ -182,20 +183,36 @@ export class BrowserElement {
     return this.run("screenshot", (element) => element.takeScreenshot());
   }
 
-  async waitForDisplayed(options: { timeout?: number } = {}): Promise<void> {
+  async waitForDisplayed(options: { timeout?: number; signal?: AbortSignal } = {}): Promise<void> {
     const timeout = options.timeout ?? TestbenchDefaults.WAIT_TIMEOUT_MS;
-    await this.driver.wait(async () => {
-      const [element] = await this.driver.findElements(By.css(this.selector));
-      return element ? element.isDisplayed().catch(() => false) : false;
-    }, timeout);
+    await OperationWait.until(
+      async () => {
+        const [element] = await this.driver.findElements(By.css(this.selector));
+        return element ? element.isDisplayed().catch(() => false) : false;
+      },
+      {
+        operation: "wait.element",
+        timeoutMs: timeout,
+        signal: options.signal,
+        details: { selector: this.selector },
+      },
+    );
   }
 
-  async waitForClickable(options: { timeout?: number } = {}): Promise<void> {
+  async waitForClickable(options: { timeout?: number; signal?: AbortSignal } = {}): Promise<void> {
     const timeout = options.timeout ?? TestbenchDefaults.WAIT_TIMEOUT_MS;
-    await this.driver.wait(async () => {
-      const element = await this.driver.findElement(By.css(this.selector)).catch(() => undefined);
-      return Boolean(element && (await element.isDisplayed()) && (await element.isEnabled()));
-    }, timeout);
+    await OperationWait.until(
+      async () => {
+        const element = await this.driver.findElement(By.css(this.selector)).catch(() => undefined);
+        return Boolean(element && (await element.isDisplayed()) && (await element.isEnabled()));
+      },
+      {
+        operation: "wait.clickable",
+        timeoutMs: timeout,
+        signal: options.signal,
+        details: { selector: this.selector },
+      },
+    );
   }
 }
 
@@ -493,93 +510,135 @@ export class BrowserHandle {
     return result;
   }
 
-  async waitForElement(selector: string, timeoutMs: number): Promise<void> {
-    await this.$(selector).waitForDisplayed({ timeout: timeoutMs });
+  async waitForElement(selector: string, timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    await this.$(selector).waitForDisplayed({ timeout: timeoutMs, signal });
   }
 
-  async waitForText(text: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.driver.wait(
+  async waitForText(text: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS, signal?: AbortSignal): Promise<void> {
+    await OperationWait.until(
       async () => this.execute<boolean>("return (document.body?.innerText ?? '').includes(arguments[0])", text),
-      timeoutMs,
+      { operation: "wait.text", timeoutMs, signal, details: { text } },
     );
   }
 
-  async waitForUrl(value: string, timeoutMs: number): Promise<void> {
-    await this.driver.wait(async () => (await this.getUrl()).includes(value), timeoutMs);
+  async waitForUrl(value: string, timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    await OperationWait.until(async () => (await this.getUrl()).includes(value), {
+      operation: "wait.url",
+      timeoutMs,
+      signal,
+      details: { value },
+    });
   }
 
   async waitForState(
     selector: string,
     state: "visible" | "hidden" | "present" | "absent" | "enabled" | "disabled" | "checked" | "unchecked",
     timeoutMs: number,
+    signal?: AbortSignal,
   ): Promise<void> {
-    await this.driver.wait(async () => {
-      const elements = await this.driver.findElements(By.css(selector));
-      if (state === "absent") return elements.length === 0;
-      if (state === "present") return elements.length > 0;
-      const element = elements[0];
-      if (!element) return state === "hidden";
-      if (state === "visible" || state === "hidden") {
-        const visible = await element.isDisplayed().catch(() => false);
-        return state === "visible" ? visible : !visible;
-      }
-      if (state === "enabled" || state === "disabled") {
-        const enabled = await element.isEnabled();
-        return state === "enabled" ? enabled : !enabled;
-      }
-      const selected = await element.isSelected();
-      return state === "checked" ? selected : !selected;
-    }, timeoutMs);
+    await OperationWait.until(
+      async () => {
+        const elements = await this.driver.findElements(By.css(selector));
+        if (state === "absent") return elements.length === 0;
+        if (state === "present") return elements.length > 0;
+        const element = elements[0];
+        if (!element) return state === "hidden";
+        if (state === "visible" || state === "hidden") {
+          const visible = await element.isDisplayed().catch(() => false);
+          return state === "visible" ? visible : !visible;
+        }
+        if (state === "enabled" || state === "disabled") {
+          const enabled = await element.isEnabled();
+          return state === "enabled" ? enabled : !enabled;
+        }
+        const selected = await element.isSelected();
+        return state === "checked" ? selected : !selected;
+      },
+      { operation: "wait.state", timeoutMs, signal, details: { selector, state } },
+    );
   }
 
-  async waitForValue(selector: string, value: string, timeoutMs: number): Promise<void> {
-    await this.driver.wait(async () => {
-      const element = await this.findOptionalElement(selector);
-      return element ? (await element.getAttribute("value")) === value : false;
-    }, timeoutMs);
+  async waitForValue(selector: string, value: string, timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    await OperationWait.until(
+      async () => {
+        const element = await this.findOptionalElement(selector);
+        return element ? (await element.getAttribute("value")) === value : false;
+      },
+      { operation: "wait.value", timeoutMs, signal, details: { selector, value } },
+    );
   }
 
-  async waitForCount(selector: string, count: number, timeoutMs: number): Promise<void> {
-    await this.driver.wait(async () => (await this.driver.findElements(By.css(selector))).length === count, timeoutMs);
+  async waitForCount(selector: string, count: number, timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    await OperationWait.until(async () => (await this.driver.findElements(By.css(selector))).length === count, {
+      operation: "wait.count",
+      timeoutMs,
+      signal,
+      details: { selector, count },
+    });
   }
 
-  async waitForAttribute(selector: string, name: string, value: string | undefined, timeoutMs: number): Promise<void> {
-    await this.driver.wait(async () => {
-      const element = await this.findOptionalElement(selector);
-      if (!element) return false;
-      const attribute = await element.getAttribute(name);
-      return value === undefined ? attribute !== null : attribute === value;
-    }, timeoutMs);
+  async waitForAttribute(
+    selector: string,
+    name: string,
+    value: string | undefined,
+    timeoutMs: number,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await OperationWait.until(
+      async () => {
+        const element = await this.findOptionalElement(selector);
+        if (!element) return false;
+        const attribute = await element.getAttribute(name);
+        return value === undefined ? attribute !== null : attribute === value;
+      },
+      { operation: "wait.attribute", timeoutMs, signal, details: { selector, name, value } },
+    );
   }
 
-  async waitForElementText(selector: string, text: string, timeoutMs: number): Promise<void> {
-    await this.driver.wait(async () => {
-      const element = await this.findOptionalElement(selector);
-      return element ? (await element.getText()).includes(text) : false;
-    }, timeoutMs);
+  async waitForElementText(selector: string, text: string, timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    await OperationWait.until(
+      async () => {
+        const element = await this.findOptionalElement(selector);
+        return element ? (await element.getText()).includes(text) : false;
+      },
+      { operation: "wait.elementText", timeoutMs, signal, details: { selector, text } },
+    );
   }
 
-  async waitForWindowCount(count: number, timeoutMs: number): Promise<void> {
-    await this.driver.wait(async () => (await this.driver.getAllWindowHandles()).length === count, timeoutMs);
+  async waitForWindowCount(count: number, timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    await OperationWait.until(async () => (await this.driver.getAllWindowHandles()).length === count, {
+      operation: "wait.windowCount",
+      timeoutMs,
+      signal,
+      details: { count },
+    });
   }
 
-  async waitForNetworkIdle(quietMs: number, timeoutMs: number): Promise<void> {
+  async waitForNetworkIdle(quietMs: number, timeoutMs: number, signal?: AbortSignal): Promise<void> {
     let lastCount = -1;
     let unchangedSince = Date.now();
-    await this.driver.wait(async () => {
-      const state = await this.execute<{ ready: boolean; resources: number }>(
-        "return {ready: document.readyState === 'complete', resources: performance.getEntriesByType('resource').length}",
-      );
-      if (state.resources !== lastCount) {
-        lastCount = state.resources;
-        unchangedSince = Date.now();
-      }
-      return state.ready && Date.now() - unchangedSince >= quietMs;
-    }, timeoutMs);
+    await OperationWait.until(
+      async () => {
+        const state = await this.execute<{ ready: boolean; resources: number }>(
+          "return {ready: document.readyState === 'complete', resources: performance.getEntriesByType('resource').length}",
+        );
+        if (state.resources !== lastCount) {
+          lastCount = state.resources;
+          unchangedSince = Date.now();
+        }
+        return state.ready && Date.now() - unchangedSince >= quietMs;
+      },
+      { operation: "wait.networkIdle", timeoutMs, signal, details: { quietMs } },
+    );
   }
 
-  async waitForScript(script: string, arguments_: unknown[], timeoutMs: number): Promise<void> {
-    await this.driver.wait(async () => Boolean(await this.execute(script, ...arguments_)), timeoutMs);
+  async waitForScript(script: string, arguments_: unknown[], timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    await OperationWait.until(async () => Boolean(await this.execute(script, ...arguments_)), {
+      operation: "wait.script",
+      timeoutMs,
+      signal,
+      details: { condition: script },
+    });
   }
 
   async getWindowRect(): Promise<{ x: number; y: number; width: number; height: number }> {

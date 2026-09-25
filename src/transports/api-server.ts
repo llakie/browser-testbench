@@ -224,9 +224,7 @@ export class ApiServer {
 
   private static errorNumber(error: unknown, key: string): number | undefined {
     const value =
-      typeof error === "object" && error !== null && key in error
-        ? (error as Record<string, unknown>)[key]
-        : undefined;
+      typeof error === "object" && error !== null && key in error ? (error as Record<string, unknown>)[key] : undefined;
     return typeof value === "number" && Number.isFinite(value) ? value : undefined;
   }
 
@@ -561,9 +559,10 @@ export class ApiServer {
       );
     });
     this.app.post("/v1/sessions/:id/wait", async (request, response) => {
+      const signal = RequestAbort.signal(request, response);
       await this.sessions.run(
         request.params.id,
-        (session) => session.wait(InputSchemas.wait.parse(request.body)),
+        (session) => session.wait(InputSchemas.wait.parse(request.body), signal),
         this.ownerId(request),
       );
       response.json({ ready: true });

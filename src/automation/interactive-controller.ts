@@ -383,26 +383,34 @@ export class InteractiveController {
     return MobileGestures.perform(this.session.active, this.target, input);
   }
 
-  async wait(input: WaitRequest): Promise<void> {
+  async wait(input: WaitRequest, signal?: AbortSignal): Promise<void> {
     const request = InputSchemas.wait.parse(input);
-    if (request.type === "element") await this.session.active.waitForElement(request.selector, request.timeoutMs);
-    if (request.type === "text") await this.session.active.waitForText(request.text, request.timeoutMs);
-    if (request.type === "url") await this.session.active.waitForUrl(request.value, request.timeoutMs);
+    if (request.type === "element")
+      await this.session.active.waitForElement(request.selector, request.timeoutMs, signal);
+    if (request.type === "text") await this.session.active.waitForText(request.text, request.timeoutMs, signal);
+    if (request.type === "url") await this.session.active.waitForUrl(request.value, request.timeoutMs, signal);
     if (request.type === "state")
-      await this.session.active.waitForState(request.selector, request.state, request.timeoutMs);
+      await this.session.active.waitForState(request.selector, request.state, request.timeoutMs, signal);
     if (request.type === "value")
-      await this.session.active.waitForValue(request.selector, request.value, request.timeoutMs);
+      await this.session.active.waitForValue(request.selector, request.value, request.timeoutMs, signal);
     if (request.type === "count")
-      await this.session.active.waitForCount(request.selector, request.count, request.timeoutMs);
+      await this.session.active.waitForCount(request.selector, request.count, request.timeoutMs, signal);
     if (request.type === "attribute")
-      await this.session.active.waitForAttribute(request.selector, request.name, request.value, request.timeoutMs);
+      await this.session.active.waitForAttribute(
+        request.selector,
+        request.name,
+        request.value,
+        request.timeoutMs,
+        signal,
+      );
     if (request.type === "elementText")
-      await this.session.active.waitForElementText(request.selector, request.text, request.timeoutMs);
-    if (request.type === "windowCount") await this.session.active.waitForWindowCount(request.count, request.timeoutMs);
+      await this.session.active.waitForElementText(request.selector, request.text, request.timeoutMs, signal);
+    if (request.type === "windowCount")
+      await this.session.active.waitForWindowCount(request.count, request.timeoutMs, signal);
     if (request.type === "networkIdle")
-      await this.session.active.waitForNetworkIdle(request.quietMs, request.timeoutMs);
+      await this.session.active.waitForNetworkIdle(request.quietMs, request.timeoutMs, signal);
     if (request.type === "script")
-      await this.session.active.waitForScript(request.script, request.arguments, request.timeoutMs);
+      await this.session.active.waitForScript(request.script, request.arguments, request.timeoutMs, signal);
   }
 
   async diagnostics(): Promise<DiagnosticEvent[]> {

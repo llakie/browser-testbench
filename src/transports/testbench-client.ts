@@ -48,6 +48,11 @@ export interface TestbenchRequestInit extends RequestInit {
   timeoutMs?: number;
 }
 
+export interface WaitOptions {
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
 export interface TestbenchCapabilities {
   platform: NodeJS.Platform;
   architecture: string;
@@ -246,6 +251,11 @@ export class RemoteTestbench {
     } catch (error) {
       if (timeoutSignal?.aborted)
         throw new Error(`Browser Testbench at ${this.server} timed out after ${timeoutMs} ms.`);
+      if (requestInit.signal?.aborted)
+        throw new TestbenchError("OPERATION_ABORTED", `Request to ${path} was aborted.`, {
+          operation: RemoteTestbench.operation(path),
+          status: 499,
+        });
       throw new Error(
         `Browser Testbench is not reachable at ${this.server}: ${error instanceof Error ? error.message : error}`,
       );
@@ -264,6 +274,10 @@ export class RemoteTestbench {
       throw new Error(message);
     }
     return payload;
+  }
+
+  private static operation(path: string): string {
+    return path.endsWith("/wait") ? "wait" : path.endsWith("/navigate") ? "navigate" : "request";
   }
 }
 
@@ -400,68 +414,93 @@ export class RemoteSession {
     return this.gesture({ type: "pinch", ...input });
   }
 
-  async waitForElement(selector: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.wait({ type: "element", selector, timeoutMs });
+  async waitForElement(
+    selector: string,
+    timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS,
+  ): Promise<void> {
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "element", selector, timeoutMs: options.timeoutMs }, options.signal);
   }
 
-  async waitForText(text: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.wait({ type: "text", text, timeoutMs });
+  async waitForText(text: string, timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "text", text, timeoutMs: options.timeoutMs }, options.signal);
   }
 
-  async waitForUrl(value: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.wait({ type: "url", value, timeoutMs });
+  async waitForUrl(value: string, timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "url", value, timeoutMs: options.timeoutMs }, options.signal);
   }
 
   async waitForState(
     selector: string,
     state: "visible" | "hidden" | "present" | "absent" | "enabled" | "disabled" | "checked" | "unchecked",
-    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+    timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.wait({ type: "state", selector, state, timeoutMs });
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "state", selector, state, timeoutMs: options.timeoutMs }, options.signal);
   }
 
-  async waitForValue(selector: string, value: string, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.wait({ type: "value", selector, value, timeoutMs });
+  async waitForValue(
+    selector: string,
+    value: string,
+    timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS,
+  ): Promise<void> {
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "value", selector, value, timeoutMs: options.timeoutMs }, options.signal);
   }
 
-  async waitForCount(selector: string, count: number, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.wait({ type: "count", selector, count, timeoutMs });
+  async waitForCount(
+    selector: string,
+    count: number,
+    timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS,
+  ): Promise<void> {
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "count", selector, count, timeoutMs: options.timeoutMs }, options.signal);
   }
 
   async waitForAttribute(
     selector: string,
     name: string,
     value?: string,
-    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+    timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.wait({ type: "attribute", selector, name, value, timeoutMs });
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "attribute", selector, name, value, timeoutMs: options.timeoutMs }, options.signal);
   }
 
   async waitForElementText(
     selector: string,
     text: string,
-    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+    timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.wait({ type: "elementText", selector, text, timeoutMs });
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "elementText", selector, text, timeoutMs: options.timeoutMs }, options.signal);
   }
 
-  async waitForWindowCount(count: number, timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS): Promise<void> {
-    await this.wait({ type: "windowCount", count, timeoutMs });
+  async waitForWindowCount(
+    count: number,
+    timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS,
+  ): Promise<void> {
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "windowCount", count, timeoutMs: options.timeoutMs }, options.signal);
   }
 
   async waitForNetworkIdle(
     quietMs = TestbenchDefaults.NETWORK_IDLE_QUIET_MS,
-    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+    timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.wait({ type: "networkIdle", quietMs, timeoutMs });
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "networkIdle", quietMs, timeoutMs: options.timeoutMs }, options.signal);
   }
 
   async waitForScript(
     script: string,
     arguments_: unknown[] = [],
-    timeoutMs = TestbenchDefaults.WAIT_TIMEOUT_MS,
+    timeout: number | WaitOptions = TestbenchDefaults.WAIT_TIMEOUT_MS,
   ): Promise<void> {
-    await this.wait({ type: "script", script, arguments: arguments_, timeoutMs });
+    const options = RemoteSession.waitOptions(timeout);
+    await this.wait({ type: "script", script, arguments: arguments_, timeoutMs: options.timeoutMs }, options.signal);
   }
 
   async back(): Promise<void> {
@@ -670,11 +709,12 @@ export class RemoteSession {
     return this.post("browser", input);
   }
 
-  async wait(input: WaitRequest): Promise<void> {
+  async wait(input: WaitRequest, signal?: AbortSignal): Promise<void> {
     await this.post(
       "wait",
       input,
       (input.timeoutMs ?? TestbenchDefaults.WAIT_TIMEOUT_MS) + TestbenchDefaults.REQUEST_TIMEOUT_GRACE_MS,
+      signal,
     );
   }
 
@@ -725,11 +765,20 @@ export class RemoteSession {
     return this.post("browser", input, timeoutMs);
   }
 
-  private post<T = unknown>(action: string, body: unknown, timeoutMs?: number): Promise<T> {
+  private post<T = unknown>(action: string, body: unknown, timeoutMs?: number, signal?: AbortSignal): Promise<T> {
     return this.testbench.request(`/v1/sessions/${this.id}/${action}`, {
       method: "POST",
       body: JSON.stringify(body),
       ...(timeoutMs === undefined ? {} : { timeoutMs }),
+      ...(signal ? { signal } : {}),
     });
+  }
+
+  private static waitOptions(timeout: number | WaitOptions): Required<Pick<WaitOptions, "timeoutMs">> & WaitOptions {
+    const options = typeof timeout === "number" ? { timeoutMs: timeout } : timeout;
+    const timeoutMs = options.timeoutMs ?? TestbenchDefaults.WAIT_TIMEOUT_MS;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
+      throw new TypeError("timeoutMs must be a positive finite number.");
+    return { ...options, timeoutMs };
   }
 }
