@@ -5,6 +5,7 @@ import { TargetCatalogService } from "../setup/target-catalog-service.js";
 import { TargetLockManager } from "./target-lock-manager.js";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { TestbenchError } from "../errors/testbench-error.js";
+import { AndroidMediaUtilities, type CameraImageResource } from "./android-media-utilities.js";
 
 export interface ManagedSession {
   id: string;
@@ -43,10 +44,19 @@ export class SessionManager {
   private readonly expired = new Set<string>();
   private readonly locks = new TargetLockManager();
 
-  async start(input: StartSessionInput, ownerId = "local", signal?: AbortSignal): Promise<PublicManagedSession> {
+  async start(
+    input: StartSessionInput,
+    ownerId = "local",
+    signal?: AbortSignal,
+    resources: { cameraImage?: CameraImageResource } = {},
+  ): Promise<PublicManagedSession> {
     const id = randomUUID();
     const controller = new InteractiveController();
     const { target, options } = await TargetCatalogService.sessionOptions(input);
+    const camera = resources.cameraImage
+      ? await AndroidMediaUtilities.prepare(target, resources.cameraImage, options.capabilities)
+      : undefined;
+    if (camera) options.capabilities = camera.capabilities;
     const release = target.serial
       ? await this.locks.acquire(
           target.id,
@@ -58,6 +68,17 @@ export class SessionManager {
     try {
       signal?.throwIfAborted();
       const runtime = await controller.start(options);
+      if (camera) {
+        const capabilities = runtime.capabilities;
+        if (capabilities && typeof capabilities === "object" && !Array.isArray(capabilities)) {
+          const { "appium:avdArgs": _privateMediaArguments, ...publicCapabilities } = capabilities as Record<
+            string,
+            unknown
+          >;
+          runtime.capabilities = publicCapabilities;
+        }
+        runtime.media = { camera: camera.metadata };
+      }
       signal?.throwIfAborted();
       const session = {
         id,

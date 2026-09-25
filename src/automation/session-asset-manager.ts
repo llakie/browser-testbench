@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
-import { basename, isAbsolute, join } from "node:path";
+import { mkdir, rm, rmdir } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { Transform, type Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { TestbenchDefaults } from "../config/defaults.js";
@@ -111,11 +111,44 @@ export class SessionAssetManager {
     return asset.path;
   }
 
+  resource(
+    reference: AssetReference,
+    ownerId: string,
+    sessionId?: string,
+  ): { reference: AssetReference; path: string } {
+    const path = this.resolve(reference, ownerId, sessionId);
+    const asset = this.assets.get(reference.id)!;
+    return {
+      path,
+      reference: {
+        id: asset.id,
+        name: asset.name,
+        contentType: asset.contentType,
+        size: asset.size,
+        sha256: asset.sha256,
+      },
+    };
+  }
+
+  bind(reference: AssetReference, ownerId: string, sessionId: string): void {
+    const asset = this.assets.get(reference.id);
+    if (!asset || asset.ownerId !== ownerId || asset.sessionId) {
+      throw new TestbenchError("ASSET_NOT_FOUND", "Asset reference cannot be bound to this session.", {
+        operation: "asset.bind",
+        status: 404,
+        details: { assetId: reference.id },
+      });
+    }
+    asset.sessionId = sessionId;
+  }
+
   async cleanupSession(sessionId: string): Promise<void> {
     const matching = [...this.assets.values()].filter((asset) => asset.sessionId === sessionId);
     for (const asset of matching) this.assets.delete(asset.id);
-    const ownerId = matching[0]?.ownerId;
-    if (ownerId) await rm(join(this.root, this.scopeDirectory(ownerId, sessionId)), { recursive: true, force: true });
+    await Promise.all(matching.map((asset) => rm(asset.path, { force: true })));
+    await Promise.all(
+      [...new Set(matching.map((asset) => dirname(asset.path)))].map((path) => rmdir(path).catch(() => undefined)),
+    );
   }
 
   async cleanup(): Promise<void> {

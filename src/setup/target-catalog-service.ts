@@ -72,17 +72,50 @@ export class TargetCatalogService {
     const target = await this.resolve(input.target);
     if (target.ready === false) throw new TargetNotReadyError(target.id);
     TargetCapabilityService.assert(input.require, TargetCapabilityService.for(target), target.id);
+    const permissions = input.permissions ?? this.legacyBrowserPermissions(input, target.browser);
+    if (permissions) {
+      const native =
+        target.browser === "chrome-android"
+          ? permissions
+              .map((permission) => permission.name)
+              .filter((name) => name === "camera" || name === "microphone")
+          : [];
+      TargetCapabilityService.assert(
+        {
+          permissions: {
+            origin: permissions.map((permission) => permission.name),
+            ...(native.length ? { native } : {}),
+          },
+        },
+        TargetCapabilityService.for(target),
+        target.id,
+      );
+    }
     IosPhysicalUrlGuard.assertReachable(input.url, target.config);
     return {
       target,
       options: {
         ...target.config,
         ...input,
+        permissions,
         target: target.browser,
         targetId: target.id,
         ...(target.kind === "mobile" ? { headless: undefined } : {}),
       },
     };
+  }
+
+  private static legacyBrowserPermissions(
+    input: StartSessionInput,
+    browser: TestTarget["browser"],
+  ): StartSessionInput["permissions"] {
+    if (browser !== "chrome-android" || input.capabilities?.["appium:autoGrantPermissions"] !== true || !input.url)
+      return undefined;
+    const origin = new URL(input.url).origin;
+    return [
+      { name: "camera", origin },
+      { name: "microphone", origin },
+    ];
   }
 
   static async publicWithCapabilities(): Promise<

@@ -21,6 +21,8 @@ import { IosSessionCleanup } from "./ios-session-cleanup.js";
 import { MobileGestures, type GestureExecution } from "./mobile-gestures.js";
 import { PageInspectionScript } from "./page-inspection-script.js";
 import { VideoRecorder } from "./video-recorder.js";
+import { AndroidCameraUtilities } from "./android-camera-utilities.js";
+import { TestbenchError } from "../errors/testbench-error.js";
 
 export interface PageInspection {
   url: string;
@@ -81,6 +83,8 @@ export class InteractiveController {
   private readonly diagnosticEvents: DiagnosticEvent[] = [];
   private readonly requestTimestamps = new Map<string, number>();
   private readonly webSocketUrls = new Map<string, string>();
+  private androidPermissions?: AndroidCameraUtilities;
+  private originPermissions: Array<{ name: string; origin: string }> = [];
 
   async start(options: ResolvedStartSessionInput): Promise<Record<string, unknown>> {
     if (!TargetRegistry.isSupported(options.target))
@@ -116,6 +120,7 @@ export class InteractiveController {
           this.appium = await ServiceManager.startAppium();
         const browser = await this.session.start(target, { appiumPort: this.appium?.port, targetId: options.targetId });
         browserStarted = true;
+        const permissions = await this.preparePermissions(target, browser, options.permissions ?? []);
         if (options.videoPath) {
           const recorder = await VideoRecorder.start(target, dirname(options.videoPath), browser.capabilities);
           this.video = { recorder, path: options.videoPath };
@@ -143,6 +148,7 @@ export class InteractiveController {
                 },
               }
             : {}),
+          permissions,
         };
       } catch (error) {
         const appiumOutput = browserStarted ? "" : await this.iosStartupDiagnostic(target, error);
@@ -649,6 +655,7 @@ export class InteractiveController {
   async close(): Promise<{ videoPath?: string }> {
     const target = this.target;
     const failures: unknown[] = [];
+    await this.resetOriginPermissions().catch((error) => failures.push(error));
     const browserClose = this.session.close();
     let browserCloseTimedOut = false;
     await this.withCleanupTimeout("browser session", browserClose).catch((error) => {
@@ -666,6 +673,7 @@ export class InteractiveController {
       }
     }
     await this.appium?.process.stop().catch((error) => failures.push(error));
+    await this.androidPermissions?.restore().catch((error) => failures.push(error));
     if (browserCloseTimedOut) {
       await this.withCleanupTimeout("browser session after stopping Appium", browserClose).catch((error) =>
         failures.push(error),
@@ -684,6 +692,53 @@ export class InteractiveController {
     this.diagnosticEvents.length = 0;
     this.requestTimestamps.clear();
     this.webSocketUrls.clear();
+    this.androidPermissions = undefined;
+    this.originPermissions = [];
+  }
+
+  private async preparePermissions(
+    target: TargetConfig,
+    browser: BrowserSession["active"],
+    requested: Array<{ name: "camera" | "microphone" | "geolocation" | "notifications"; origin: string }>,
+  ): Promise<{ requested: typeof requested; confirmed: typeof requested; packageName?: string }> {
+    let packageName: string | undefined;
+    if (target.name === "chrome-android") {
+      const native = requested
+        .map((permission) => permission.name)
+        .filter((name): name is "camera" | "microphone" => name === "camera" || name === "microphone");
+      if (native.length) {
+        this.androidPermissions = new AndroidCameraUtilities(target, browser.capabilities);
+        packageName = (await this.androidPermissions.grant(native)).packageName;
+      }
+    }
+    for (const permission of requested) {
+      try {
+        await browser.permission(permission.name, "granted", permission.origin);
+      } catch (error) {
+        throw new TestbenchError("PERMISSION_DENIED", `Could not grant ${permission.name} for ${permission.origin}.`, {
+          operation: "permission.origin",
+          status: 403,
+          cause: error,
+          details: { platform: target.name, packageName, origin: permission.origin, permission: permission.name },
+        });
+      }
+      this.originPermissions.push(permission);
+    }
+    return { requested, confirmed: [...requested], ...(packageName ? { packageName } : {}) };
+  }
+
+  private async resetOriginPermissions(): Promise<void> {
+    if (!this.originPermissions.length) return;
+    const browser = this.session.active;
+    const results = await Promise.allSettled(
+      this.originPermissions.map((permission) => browser.permission(permission.name, "prompt", permission.origin)),
+    );
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failures.length)
+      throw new AggregateError(
+        failures.map((failure) => failure.reason),
+        "Could not reset origin permissions.",
+      );
   }
 
   private async iosStartupDiagnostic(target: TargetConfig, error: unknown): Promise<string> {

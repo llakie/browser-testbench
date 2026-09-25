@@ -453,12 +453,15 @@ export class ApiServer {
         this.remoteAuthentication.principal(request),
       );
       const prepared = await this.artifactHost.prepareSession(input, transferArtifacts);
+      const ownerId = this.ownerId(request);
+      const cameraImage = input.media?.camera.source
+        ? this.sessionAssets.resource(input.media.camera.source, ownerId)
+        : undefined;
       try {
-        const session = await this.sessions.start(
-          prepared.input,
-          this.ownerId(request),
-          RequestAbort.signal(request, response),
-        );
+        const session = await this.sessions.start(prepared.input, ownerId, RequestAbort.signal(request, response), {
+          cameraImage,
+        });
+        if (cameraImage) this.sessionAssets.bind(cameraImage.reference, ownerId, session.id);
         this.artifactHost.track(session.id, prepared.directory);
         this.notifyWorkbenchChanged("session");
         response.status(201).json(session);
