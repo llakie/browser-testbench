@@ -128,4 +128,23 @@ describe("SessionManager", () => {
     await expect(second).resolves.toEqual({ videoPath: "video.mp4" });
     expect(close).toHaveBeenCalledOnce();
   });
+
+  it("orders marks on the monotonic session clock", async () => {
+    vi.spyOn(TargetCatalogService, "sessionOptions").mockResolvedValue({
+      target: { id: "chrome", serial: false },
+      options: {},
+    } as never);
+    vi.spyOn(InteractiveController.prototype, "start").mockResolvedValue({});
+    vi.spyOn(InteractiveController.prototype, "close").mockResolvedValue({});
+    const sessions = new SessionManager();
+    const session = await sessions.start({ target: "chrome" });
+
+    const first = sessions.mark(session.id, "story.start");
+    const second = sessions.mark(session.id, "price.visible", { price: "12.34" });
+
+    expect(first).toMatchObject({ name: "story.start", sequence: 1 });
+    expect(second).toMatchObject({ name: "price.visible", sequence: 2, data: { price: "12.34" } });
+    expect(second.sessionTimeMs).toBeGreaterThanOrEqual(first.sessionTimeMs);
+    await sessions.close(session.id);
+  });
 });

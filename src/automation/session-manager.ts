@@ -17,8 +17,23 @@ export interface ManagedSession {
   leaseTimeoutMs: number;
   leaseExpiresAt: string;
   lease?: NodeJS.Timeout;
+  monotonicStartedAt: number;
+  markSequence: number;
+  marks: SessionMark[];
 }
-export type PublicManagedSession = Omit<ManagedSession, "controller" | "release" | "ownerId" | "lease">;
+export type PublicManagedSession = Omit<
+  ManagedSession,
+  "controller" | "release" | "ownerId" | "lease" | "monotonicStartedAt" | "markSequence" | "marks"
+> & { sessionTimeMs: number };
+
+export interface SessionMark {
+  name: string;
+  data?: Record<string, unknown>;
+  sequence: number;
+  sessionTimeMs: number;
+  wallTime: string;
+  recordingTimeMs?: number;
+}
 
 export class SessionNotFoundError extends Error {}
 
@@ -54,6 +69,9 @@ export class SessionManager {
         release,
         leaseTimeoutMs: input.leaseTimeoutMs ?? TestbenchDefaults.SESSION_LEASE_TIMEOUT_MS,
         leaseExpiresAt: "",
+        monotonicStartedAt: performance.now(),
+        markSequence: 0,
+        marks: [],
       };
       this.refreshLease(session);
       this.sessions.set(id, session);
@@ -141,6 +159,20 @@ export class SessionManager {
     return this.publicSession(session);
   }
 
+  mark(id: string, name: string, data?: Record<string, unknown>, ownerId?: string): SessionMark {
+    const session = this.managed(id, ownerId);
+    this.refreshLease(session);
+    const mark = {
+      name,
+      ...(data ? { data } : {}),
+      sequence: ++session.markSequence,
+      sessionTimeMs: this.sessionTime(session),
+      wallTime: new Date().toISOString(),
+    };
+    session.marks.push(mark);
+    return mark;
+  }
+
   static isTerminatedSessionError(error: unknown): boolean {
     if (!(error instanceof Error)) return false;
     const description = `${error.name} ${error.message}`.toLowerCase();
@@ -166,7 +198,17 @@ export class SessionManager {
       runtime: session.runtime,
       leaseTimeoutMs: session.leaseTimeoutMs,
       leaseExpiresAt: session.leaseExpiresAt,
+      sessionTimeMs: this.sessionTime(session),
     };
+  }
+
+  private managed(id: string, ownerId?: string): ManagedSession {
+    this.get(id, ownerId);
+    return this.sessions.get(id)!;
+  }
+
+  private sessionTime(session: ManagedSession): number {
+    return Math.max(0, performance.now() - session.monotonicStartedAt);
   }
 
   private refreshLease(session: ManagedSession): void {

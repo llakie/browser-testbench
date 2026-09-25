@@ -28,6 +28,12 @@ import { ClientVersion } from "../config/client-version.js";
 import { ErrorResponse, type ErrorResponsePayload } from "../i18n/error-response.js";
 import { TestbenchError } from "../errors/testbench-error.js";
 import type { AssetReference } from "../automation/session-asset-manager.js";
+import type { SessionMark } from "../automation/session-manager.js";
+import {
+  TargetCapabilityService,
+  type CapabilityRequirement,
+  type FeatureCapabilities,
+} from "../setup/target-capability-service.js";
 
 export { TestbenchError } from "../errors/testbench-error.js";
 
@@ -71,7 +77,8 @@ export interface TestbenchCapabilities {
   architecture: string;
   targets: Array<TargetDefinition & { check?: DoctorCheck }>;
   checks: DoctorCheck[];
-  testTargets: TestTargetInfo[];
+  testTargets: Array<TestTargetInfo & { capabilities: FeatureCapabilities }>;
+  limits: FeatureCapabilities["limits"];
 }
 
 export interface ElementState {
@@ -128,6 +135,12 @@ export class RemoteTestbench {
 
   async targets(): Promise<TestTargetInfo[]> {
     return this.request<TestTargetInfo[]>("/v1/targets");
+  }
+
+  async target(id: string): Promise<RemoteTarget> {
+    const target = (await this.capabilities()).testTargets.find((candidate) => candidate.id === id);
+    if (!target) throw new Error(`Browser Testbench target '${id}' was not found.`);
+    return new RemoteTarget(target);
   }
 
   async doctor(targets?: string[]): Promise<DoctorCheck[]> {
@@ -304,6 +317,31 @@ export class RemoteTestbench {
 
   private static operation(path: string): string {
     return path.endsWith("/wait") ? "wait" : path.endsWith("/navigate") ? "navigate" : "request";
+  }
+}
+
+export class RemoteTarget {
+  readonly id: string;
+  readonly capabilities: FeatureCapabilities;
+
+  constructor(readonly info: TestTargetInfo & { capabilities: FeatureCapabilities }) {
+    this.id = info.id;
+    this.capabilities = info.capabilities;
+  }
+
+  require(requirement: CapabilityRequirement): this {
+    const missing = TargetCapabilityService.missing(requirement, this.capabilities);
+    if (missing.length)
+      throw new TestbenchError(
+        "CAPABILITY_UNAVAILABLE",
+        `Target '${this.id}' does not provide required capabilities.`,
+        {
+          operation: "capability.require",
+          status: 409,
+          details: { target: this.id, requested: requirement, available: this.capabilities, missing },
+        },
+      );
+    return this;
   }
 }
 
@@ -852,6 +890,10 @@ export class RemoteSession {
       this.closeResult = this.testbench.closeSession(this.id);
     }
     return this.closeResult;
+  }
+
+  mark(name: string, data?: Record<string, unknown>): Promise<SessionMark> {
+    return this.post("marks", { name, data });
   }
 
   private gesture(input: GestureRequest): Promise<GestureExecution> {
