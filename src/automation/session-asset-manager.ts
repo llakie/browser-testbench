@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdir, rm, rmdir } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { tmpdir } from "node:os";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { Transform, type Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { TestbenchDefaults } from "../config/defaults.js";
 import { TestbenchError } from "../errors/testbench-error.js";
-import { TestbenchPaths } from "../infrastructure/paths.js";
 
 export interface AssetReference {
   id: string;
@@ -32,7 +32,14 @@ export interface AssetUploadMetadata {
 export class SessionAssetManager {
   private readonly assets = new Map<string, StoredAsset>();
 
-  constructor(private readonly root = TestbenchPaths.data("assets", String(process.pid))) {}
+  constructor(
+    private readonly root = join(
+      process.platform === "darwin" ? "/tmp" : tmpdir(),
+      "browser-testbench",
+      "assets",
+      String(process.pid),
+    ),
+  ) {}
 
   async upload(
     ownerId: string,
@@ -55,7 +62,7 @@ export class SessionAssetManager {
 
     const id = randomUUID();
     const directory = join(this.root, this.scopeDirectory(ownerId, sessionId));
-    const path = join(directory, id);
+    const path = join(directory, `${id}${extname(name)}`);
     await mkdir(directory, { recursive: true });
     const hash = createHash("sha256");
     let actualBytes = 0;
