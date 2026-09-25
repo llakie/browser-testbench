@@ -20,6 +20,7 @@ export class InputSchemas {
     capabilities: z.record(z.string(), z.unknown()).optional(),
     lockTimeoutMs: z.number().nonnegative().optional(),
     leaseTimeoutMs: z.number().positive().finite().optional(),
+    require: z.record(z.string(), z.unknown()).optional(),
   });
 
   static readonly verification = z.strictObject({
@@ -212,6 +213,10 @@ export class InputSchemas {
   static readonly screenshot = z.strictObject({
     path: z.string().min(1).optional(),
     fullPage: z.boolean().default(false),
+  });
+  static readonly mark = z.strictObject({
+    name: z.string().trim().min(1),
+    data: z.record(z.string(), z.unknown()).optional(),
   });
   static readonly wait = z.discriminatedUnion("type", [
     z.strictObject({

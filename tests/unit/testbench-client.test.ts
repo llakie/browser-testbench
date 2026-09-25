@@ -34,6 +34,49 @@ describe("RemoteTestbench.availableTargets", () => {
     ]);
   });
 
+  it("checks target requirements before a run", async () => {
+    const testbench = new RemoteTestbench();
+    vi.spyOn(testbench, "capabilities").mockResolvedValue({
+      platform: process.platform,
+      architecture: process.arch,
+      targets: [],
+      checks: [],
+      limits: { requestBytes: 1, assetBytes: 2, sessionAssetBytes: 3 },
+      testTargets: [
+        {
+          ...target("android", true),
+          capabilities: {
+            limits: { requestBytes: 1, assetBytes: 2, sessionAssetBytes: 3 },
+            permissions: { native: ["camera"], origin: ["camera"] },
+            localOrigins: { reverse: true },
+            mediaInjection: { cameraImage: true },
+            recording: {
+              screen: true,
+              viewport: false,
+              explicitLifecycle: false,
+              pauseResume: false,
+              geometry: false,
+              marks: true,
+            },
+            screenshots: { screen: false, viewport: true, fullPage: false, element: true },
+          },
+        },
+      ],
+    });
+
+    const android = await testbench.target("android");
+
+    expect(() =>
+      android.require({ localOrigins: { reverse: true }, permissions: { native: ["camera"] } }),
+    ).not.toThrow();
+    expect(() => android.require({ recording: { viewport: true } })).toThrowError(
+      expect.objectContaining({
+        code: "CAPABILITY_UNAVAILABLE",
+        details: expect.objectContaining({ missing: ["recording.viewport"] }),
+      }),
+    );
+  });
+
   it("rejects when no requested target is ready", async () => {
     const testbench = new RemoteTestbench();
     vi.spyOn(testbench, "targets").mockResolvedValue([target("chrome", false)]);

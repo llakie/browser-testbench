@@ -437,6 +437,10 @@ export class ApiServer {
     this.app.post("/v1/sessions/:id/lease", (request, response) =>
       response.json(this.sessions.touch(request.params.id, this.ownerId(request))),
     );
+    this.app.post("/v1/sessions/:id/marks", (request, response) => {
+      const input = InputSchemas.mark.parse(request.body);
+      response.status(201).json(this.sessions.mark(request.params.id, input.name, input.data, this.ownerId(request)));
+    });
     this.app.post("/v1/sessions", async (request, response) => {
       const raw = { ...(request.body as Record<string, unknown>) };
       const transferArtifacts = raw.transferArtifacts === true;

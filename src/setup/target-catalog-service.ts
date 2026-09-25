@@ -12,6 +12,7 @@ import { VerificationStore } from "./verification-store.js";
 import type { StartSessionInput } from "../config/input-schemas.js";
 import { IosPhysicalUrlGuard } from "../automation/ios-physical-url-guard.js";
 import { LocalizedError } from "../i18n/translator.js";
+import { TargetCapabilityService } from "./target-capability-service.js";
 
 export class UnknownTargetError extends LocalizedError {
   constructor(id: string) {
@@ -70,6 +71,7 @@ export class TargetCatalogService {
   static async sessionOptions(input: StartSessionInput) {
     const target = await this.resolve(input.target);
     if (target.ready === false) throw new TargetNotReadyError(target.id);
+    TargetCapabilityService.assert(input.require, TargetCapabilityService.for(target), target.id);
     IosPhysicalUrlGuard.assertReachable(input.url, target.config);
     return {
       target,
@@ -81,6 +83,17 @@ export class TargetCatalogService {
         ...(target.kind === "mobile" ? { headless: undefined } : {}),
       },
     };
+  }
+
+  static async publicWithCapabilities(): Promise<
+    Array<TestTargetInfo & { capabilities: ReturnType<typeof TargetCapabilityService.for> }>
+  > {
+    const targets = await this.list();
+    const publicTargets = await this.toPublic(targets);
+    return publicTargets.map((target, index) => ({
+      ...target,
+      capabilities: TargetCapabilityService.for(targets[index]!),
+    }));
   }
 
   static build(checks: DoctorCheck[]): TestTarget[] {
