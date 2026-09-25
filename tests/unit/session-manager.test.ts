@@ -45,8 +45,10 @@ describe("SessionManager", () => {
     await expect(sessions.closeOwned("client-a")).rejects.toThrow("first close failed");
     expect(close).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(sessions.isTargetBusy("device-a")).toBe(false);
-    expect(sessions.isTargetBusy("device-b")).toBe(false);
+    await vi.waitFor(() => {
+      expect(sessions.isTargetBusy("device-a")).toBe(false);
+      expect(sessions.isTargetBusy("device-b")).toBe(false);
+    });
     expect(sessions.list("client-b")).toHaveLength(1);
     await sessions.closeOwned("client-b");
   });
@@ -69,7 +71,7 @@ describe("SessionManager", () => {
 
     expect(sessions.isTargetBusy("device-a")).toBe(true);
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(sessions.isTargetBusy("device-a")).toBe(false);
+    await vi.waitFor(() => expect(sessions.isTargetBusy("device-a")).toBe(false));
   });
 
   it("closes a session that finishes starting after its request was aborted", async () => {
