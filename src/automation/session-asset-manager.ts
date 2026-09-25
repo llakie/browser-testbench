@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { mkdir, rm, rmdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { Transform, type Readable } from "node:stream";
@@ -31,15 +31,9 @@ export interface AssetUploadMetadata {
 
 export class SessionAssetManager {
   private readonly assets = new Map<string, StoredAsset>();
+  private temporaryRoot?: Promise<string>;
 
-  constructor(
-    private readonly root = join(
-      process.platform === "darwin" ? "/tmp" : tmpdir(),
-      "browser-testbench",
-      "assets",
-      String(process.pid),
-    ),
-  ) {}
+  constructor(private readonly configuredRoot?: string) {}
 
   async upload(
     ownerId: string,
@@ -61,7 +55,7 @@ export class SessionAssetManager {
       );
 
     const id = randomUUID();
-    const directory = join(this.root, this.scopeDirectory(ownerId, sessionId));
+    const directory = join(await this.root(), this.scopeDirectory(ownerId, sessionId));
     const path = join(directory, `${id}${extname(name)}`);
     await mkdir(directory, { recursive: true });
     const hash = createHash("sha256");
@@ -160,7 +154,16 @@ export class SessionAssetManager {
 
   async cleanup(): Promise<void> {
     this.assets.clear();
-    await rm(this.root, { recursive: true, force: true });
+    const root = this.configuredRoot ?? (this.temporaryRoot ? await this.temporaryRoot : undefined);
+    if (root) await rm(root, { recursive: true, force: true });
+  }
+
+  private root(): Promise<string> {
+    if (this.configuredRoot) return Promise.resolve(this.configuredRoot);
+    this.temporaryRoot ??= mkdtemp(
+      join(process.platform === "darwin" ? "/tmp" : tmpdir(), "browser-testbench-assets-"),
+    );
+    return this.temporaryRoot;
   }
 
   private safeName(value: string): string {
