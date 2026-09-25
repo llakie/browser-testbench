@@ -111,7 +111,7 @@ npm install --global browser-testbench
 browser-testbench start
 ```
 
-Video recording and mobile screenshots limited to the visible web page area also require `ffmpeg` and `ffprobe` on `PATH`. They are not bundled with the npm package. The Overview page detects them and shows the installation command for macOS, Windows, or Linux. Existing WebDriver screenshots and structured desktop, element, and full mobile screen screenshots remain available without these tools.
+Mobile video recording requires `ffmpeg` and `ffprobe` on `PATH`. They are not bundled with the npm package. The Overview page detects them and shows the installation command for macOS, Windows, or Linux. All screenshot scopes remain available without these tools.
 
 By default, the interface runs at `http://127.0.0.1:55808/setup` and opens on startup. To use a different address:
 

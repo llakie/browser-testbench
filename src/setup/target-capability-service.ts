@@ -48,7 +48,7 @@ export class TargetCapabilityService {
         geometry: mobile,
         marks: true,
       },
-      screenshots: { screen: mobile, viewport: !mobile || mediaTooling, fullPage: !mobile, element: true },
+      screenshots: { screen: mobile, viewport: true, fullPage: !mobile, element: true },
     };
   }
 

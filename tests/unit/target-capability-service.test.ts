@@ -39,12 +39,12 @@ describe("TargetCapabilityService", () => {
     expect(simulator.recording.screen).toBe(MediaTooling.isAvailable());
   });
 
-  it("keeps non-cropped screenshots available without FFmpeg", () => {
+  it("keeps all screenshot scopes available without FFmpeg", () => {
     vi.mocked(MediaTooling.isAvailable).mockReturnValue(false);
 
     expect(android()).toMatchObject({
       recording: { screen: false, viewport: false },
-      screenshots: { screen: true, viewport: false, element: true },
+      screenshots: { screen: true, viewport: true, element: true },
     });
   });
 
