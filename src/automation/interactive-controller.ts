@@ -91,6 +91,7 @@ export class InteractiveController {
     path: string;
     scope: "screen" | "viewport";
     geometry: GeometrySample[];
+    startedAtMs: number;
   };
   private lastRecording?: RecordingArtifact & {
     id: string;
@@ -420,7 +421,7 @@ export class InteractiveController {
     const scope = options.scope ?? "screen";
     const geometry = [await RecordingGeometry.capture(this.session.active, this.target, this.appium?.port)];
     const recorder = await VideoRecorder.start(this.target, options.outputPath, this.session.active.capabilities);
-    this.video = { id, recorder, path: options.outputPath, scope, geometry };
+    this.video = { id, recorder, path: options.outputPath, scope, geometry, startedAtMs: performance.now() };
     this.lastRecording = undefined;
     return {
       id,
@@ -449,7 +450,9 @@ export class InteractiveController {
     const video = this.video;
     const endingGeometry = await RecordingGeometry.capture(this.session.active, this.target!, this.appium?.port);
     if (!RecordingGeometry.equal(video.geometry[0]!, endingGeometry)) video.geometry.push(endingGeometry);
+    const recordedDurationMs = Math.max(1, Math.round(performance.now() - video.startedAtMs));
     let artifact = await video.recorder.stop(signal);
+    const repairDuration = artifact.durationMs + 100 < recordedDurationMs ? recordedDurationMs : undefined;
     if (video.scope === "viewport") {
       if (video.geometry.length !== 1)
         throw new TestbenchError("RECORDING_GEOMETRY_CHANGED", "Viewport geometry changed during recording.", {
@@ -457,7 +460,10 @@ export class InteractiveController {
           status: 409,
           details: { partialArtifact: artifact, samples: video.geometry },
         });
-      await VideoUtilities.crop(artifact.path, video.geometry[0]!.viewportInVideo);
+      await VideoUtilities.crop(artifact.path, video.geometry[0]!.viewportInVideo, repairDuration);
+      artifact = await RecordingProbe.inspect(artifact.path);
+    } else if (repairDuration) {
+      await VideoUtilities.normalizeDuration(artifact.path, repairDuration);
       artifact = await RecordingProbe.inspect(artifact.path);
     }
     this.video = undefined;

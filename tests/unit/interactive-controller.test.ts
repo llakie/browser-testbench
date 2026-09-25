@@ -316,7 +316,7 @@ describe("InteractiveController", () => {
     await controller.startRecording({ outputPath: "viewport.mp4", scope: "viewport" });
     const result = await controller.stopRecording();
 
-    expect(crop).toHaveBeenCalledWith("video.mp4", recordingGeometry().viewportInVideo);
+    expect(crop).toHaveBeenCalledWith("video.mp4", recordingGeometry().viewportInVideo, undefined);
     expect(result).toMatchObject({ requestedScope: "viewport", actualScope: "viewport", height: 2063 });
   });
 });

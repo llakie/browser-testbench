@@ -6,14 +6,36 @@ import { CommandRunner } from "../infrastructure/command-runner.js";
 import type { PixelRect } from "./recording-geometry.js";
 
 export class VideoUtilities {
-  static async crop(path: string, bounds: PixelRect): Promise<void> {
-    const temporary = join(dirname(path), `.${randomUUID()}.crop.mp4`);
+  static async crop(path: string, bounds: PixelRect, durationMs?: number): Promise<void> {
+    const durationSeconds = durationMs ? (durationMs / 1_000).toFixed(3) : undefined;
+    const filter = [
+      "format=yuv444p",
+      `crop=${bounds.width}:${bounds.height}:${bounds.x}:${bounds.y}`,
+      ...(durationSeconds
+        ? ["setpts=N/(30*TB)", "fps=30", `tpad=stop_mode=clone:stop_duration=${durationSeconds}`]
+        : []),
+    ].join(",");
+    await this.transform(path, filter, durationSeconds);
+  }
+
+  static async normalizeDuration(path: string, durationMs: number): Promise<void> {
+    const durationSeconds = (durationMs / 1_000).toFixed(3);
+    await this.transform(
+      path,
+      `setpts=N/(30*TB),fps=30,tpad=stop_mode=clone:stop_duration=${durationSeconds}`,
+      durationSeconds,
+    );
+  }
+
+  private static async transform(path: string, filter: string, durationSeconds?: string): Promise<void> {
+    const temporary = join(dirname(path), `.${randomUUID()}.transform.mp4`);
     const result = await CommandRunner.run("ffmpeg", [
       "-y",
       "-i",
       path,
       "-vf",
-      `crop=${bounds.width}:${bounds.height}:${bounds.x}:${bounds.y}`,
+      filter,
+      ...(durationSeconds ? ["-t", durationSeconds] : []),
       "-c:v",
       "libx264",
       "-preset",
@@ -25,10 +47,10 @@ export class VideoUtilities {
     ]);
     if (result.code !== 0) {
       await rm(temporary, { force: true });
-      throw new TestbenchError("RECORDING_FINALIZE_FAILED", "Viewport recording could not be cropped.", {
-        operation: "recording.crop",
+      throw new TestbenchError("RECORDING_FINALIZE_FAILED", "Recording could not be transformed.", {
+        operation: "recording.transform",
         status: 500,
-        details: { bounds, diagnostic: (result.stderr || result.stdout).slice(-4_000) },
+        details: { filter, diagnostic: (result.stderr || result.stdout).slice(-4_000) },
       });
     }
     await rm(path, { force: true });
