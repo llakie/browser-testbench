@@ -37,8 +37,10 @@
     }
   },
   "files": [
+    "CHANGELOG.md",
     "dist",
     "docs/assets",
+    "docs/releases",
     "public",
     "templates",
     "LICENSE.txt",
