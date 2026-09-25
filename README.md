@@ -111,7 +111,7 @@ npm install --global browser-testbench
 browser-testbench start
 ```
 
-Mobile video recording requires `ffmpeg` and `ffprobe` on `PATH`. They are not bundled with the npm package. The Overview page detects them and shows the installation command for macOS, Windows, or Linux. All screenshot scopes remain available without these tools.
+Mobile video recording requires `ffmpeg` and `ffprobe` on `PATH`. They are not bundled with the npm package. FFprobe validates the native MP4 output, including codec, dimensions, duration, and frame rate. FFmpeg crops viewport recordings and stabilizes frame rate and duration when a native backend produces irregular or missing frames. The Overview page detects both tools and shows the installation command for macOS, Windows, or Linux. All screenshot scopes remain available without them.
 
 By default, the interface runs at `http://127.0.0.1:55808/setup` and opens on startup. To use a different address:
 
