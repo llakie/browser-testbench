@@ -30,7 +30,7 @@ describe("SessionAssetManager", () => {
     });
 
     expect(reference).toMatchObject({ name: "card.jpg", size: bytes.length, contentType: "image/jpeg" });
-    expect(assets.resolve(reference, "owner", "session")).toContain(reference.id);
+    expect(assets.resolve(reference, "owner", "session")).toMatch(new RegExp(`${reference.id}\\.jpg$`, "u"));
 
     await assets.cleanupSession("session");
     expect(await readdir(root)).toEqual([]);
