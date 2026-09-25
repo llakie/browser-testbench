@@ -22,6 +22,28 @@ export class InputSchemas {
     leaseTimeoutMs: z.number().positive().finite().optional(),
     require: z.record(z.string(), z.unknown()).optional(),
     localOrigins: z.enum(["reverse", "emulator-host"]).optional(),
+    permissions: z
+      .array(
+        z.strictObject({
+          name: z.enum(["camera", "microphone", "geolocation", "notifications"]),
+          origin: z.url(),
+        }),
+      )
+      .optional(),
+    media: z
+      .strictObject({
+        camera: z.strictObject({
+          facing: z.literal("back"),
+          source: z.strictObject({
+            id: z.uuid(),
+            name: z.string().min(1),
+            contentType: z.string().min(1),
+            size: z.number().int().nonnegative(),
+            sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+          }),
+        }),
+      })
+      .optional(),
   });
 
   static readonly verification = z.strictObject({
