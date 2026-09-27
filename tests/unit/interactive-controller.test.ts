@@ -15,6 +15,84 @@ describe("InteractiveController", () => {
     vi.restoreAllMocks();
   });
 
+  it("clears restored Android Chrome UI before permissions and requested navigation", async () => {
+    const controller = new InteractiveController();
+    const navigate = vi.fn().mockResolvedValue(undefined);
+    const stop = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(ServiceManager, "startAppium").mockResolvedValue({
+      process: { stop, recentOutput: "" } as never,
+      port: 1,
+    });
+    Object.assign(controller, {
+      session: {
+        start: vi.fn().mockResolvedValue({
+          sessionId: "session-id",
+          capabilities: { deviceUDID: "emulator-5554" },
+        }),
+        navigate,
+        active: { getUrl: vi.fn().mockResolvedValue("https://example.com/") },
+        close: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    await controller.start({
+      target: "chrome-android",
+      targetId: "android-emulator",
+      deviceKind: "emulator",
+      url: "https://example.com",
+    });
+
+    expect(navigate.mock.calls).toEqual([["about:blank"], ["https://example.com"]]);
+  });
+
+  it("grants requested permissions to an HTTP redirect origin before reloading it", async () => {
+    const controller = new InteractiveController();
+    const navigate = vi.fn().mockResolvedValue(undefined);
+    const setOriginPermission = vi.fn().mockResolvedValue(undefined);
+    const stop = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(ServiceManager, "startAppium").mockResolvedValue({
+      process: { stop, recentOutput: "" } as never,
+      port: 1,
+    });
+    Object.assign(controller, {
+      setOriginPermission,
+      session: {
+        start: vi.fn().mockResolvedValue({
+          sessionId: "session-id",
+          capabilities: { deviceUDID: "emulator-5554" },
+        }),
+        navigate,
+        active: { getUrl: vi.fn().mockResolvedValue("https://www.example.com/scan") },
+        close: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    const result = await controller.start({
+      target: "chrome-android",
+      targetId: "android-emulator",
+      deviceKind: "emulator",
+      url: "https://example.com/scan",
+      permissions: [{ name: "geolocation", origin: "https://example.com" }],
+    });
+
+    expect(setOriginPermission.mock.calls).toEqual([
+      [expect.any(Object), expect.any(Object), { name: "geolocation", origin: "https://example.com" }, "granted"],
+      [expect.any(Object), expect.any(Object), { name: "geolocation", origin: "https://www.example.com" }, "granted"],
+    ]);
+    expect(navigate.mock.calls).toEqual([
+      ["about:blank"],
+      ["https://example.com/scan"],
+      ["https://www.example.com/scan"],
+    ]);
+    expect(result.permissions).toEqual({
+      requested: [{ name: "geolocation", origin: "https://example.com" }],
+      confirmed: [
+        { name: "geolocation", origin: "https://example.com" },
+        { name: "geolocation", origin: "https://www.example.com" },
+      ],
+    });
+  });
+
   it("retries a blocked physical Safari debugger with an initial deeplink", async () => {
     vi.spyOn(TargetRegistry, "isSupported").mockReturnValue(true);
     const controller = new InteractiveController();

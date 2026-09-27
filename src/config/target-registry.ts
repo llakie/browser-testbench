@@ -152,6 +152,9 @@ export class TargetRegistry {
         return {
           platformName: "Android",
           browserName: "Chrome",
+          "goog:chromeOptions": {
+            args: ["--disable-features=Translate,TranslateUI"],
+          },
           "appium:automationName": "UiAutomator2",
           "appium:deviceName": target.deviceName ?? "Android Emulator",
           "appium:chromedriverExecutableDir": TestbenchPaths.data("chromedrivers"),

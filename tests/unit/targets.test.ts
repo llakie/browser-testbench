@@ -35,6 +35,9 @@ describe("TargetRegistry", () => {
     expect(TargetRegistry.capabilities({ name: "chrome-android", avd: "Pixel_Test" })).toMatchObject({
       platformName: "Android",
       browserName: "Chrome",
+      "goog:chromeOptions": {
+        args: ["--disable-features=Translate,TranslateUI"],
+      },
       "appium:automationName": "UiAutomator2",
       "appium:avd": "Pixel_Test",
       "appium:adbExecTimeout": 120_000,

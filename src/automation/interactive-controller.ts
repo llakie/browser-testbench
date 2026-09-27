@@ -147,6 +147,7 @@ export class InteractiveController {
         browserStarted = true;
         if (target.name === "chrome-android") {
           target.udid ??= AndroidDeviceUtilities.configuredSerial(target, browser.capabilities);
+          await this.session.navigate("about:blank");
         }
         const permissions = await this.preparePermissions(target, browser, options.permissions ?? []);
         this.permissionMetadata = permissions;
@@ -160,6 +161,36 @@ export class InteractiveController {
           } else {
             await this.session.navigate(options.url);
           }
+          const requestedUrl = new URL(options.url);
+          const actualUrl = permissions.requested.length ? await this.session.active.getUrl() : options.url;
+          const actualUrlValue = new URL(actualUrl);
+          const redirectedPermissions = permissions.requested
+            .filter(
+              (permission) =>
+                permission.origin === requestedUrl.origin &&
+                permission.origin !== actualUrlValue.origin &&
+                InteractiveController.isEquivalentPermissionOrigin(requestedUrl, actualUrlValue),
+            )
+            .map((permission) => ({ ...permission, origin: actualUrlValue.origin }));
+          for (const permission of redirectedPermissions) {
+            try {
+              await this.setOriginPermission(target, browser, permission, "granted");
+            } catch (error) {
+              throw new TestbenchError(
+                "PERMISSION_DENIED",
+                `Could not grant ${permission.name} for redirected origin ${permission.origin}.`,
+                {
+                  operation: "permission.origin",
+                  status: 403,
+                  cause: error,
+                  details: { platform: target.name, origin: permission.origin, permission: permission.name },
+                },
+              );
+            }
+            this.originPermissions.push(permission);
+            permissions.confirmed.push(permission);
+          }
+          if (redirectedPermissions.length) await this.session.navigate(actualUrl);
         }
         return {
           target: options.targetId,
@@ -929,6 +960,15 @@ export class InteractiveController {
     this.originPermissions = [];
     this.pendingBrowserClose = undefined;
     this.permissionMetadata = undefined;
+  }
+
+  private static isEquivalentPermissionOrigin(requested: URL, actual: URL): boolean {
+    const hostname = (url: URL): string => url.hostname.replace(/^www\./iu, "");
+    return (
+      requested.protocol === actual.protocol &&
+      requested.port === actual.port &&
+      hostname(requested) === hostname(actual)
+    );
   }
 
   private async preparePermissions(
