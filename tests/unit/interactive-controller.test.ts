@@ -346,11 +346,12 @@ describe("InteractiveController", () => {
     const controller = new InteractiveController();
     const artifact = recordingArtifact();
     const stop = vi.fn().mockResolvedValue(artifact);
-    vi.spyOn(VideoRecorder, "start").mockResolvedValue({ stop } as never);
+    const start = vi.spyOn(VideoRecorder, "start").mockResolvedValue({ stop } as never);
     vi.spyOn(RecordingGeometry, "capture").mockResolvedValue(recordingGeometry());
+    const browser = { capabilities: {} };
     Object.assign(controller, {
       target: { name: "chrome-android", deviceKind: "emulator", udid: "emulator-5554" },
-      session: { active: { capabilities: {} } },
+      session: { active: browser },
     });
 
     const started = await controller.startRecording({ outputPath: "video.mp4", scope: "screen" });
@@ -363,6 +364,12 @@ describe("InteractiveController", () => {
     expect(started).toMatchObject({ requestedScope: "screen", actualScope: "screen" });
     expect(first).toMatchObject({ ...artifact, id: started.id });
     expect(second).toEqual(first);
+    expect(start).toHaveBeenCalledWith(
+      { name: "chrome-android", deviceKind: "emulator", udid: "emulator-5554" },
+      "video.mp4",
+      browser.capabilities,
+      browser,
+    );
     expect(stop).toHaveBeenCalledOnce();
   });
 

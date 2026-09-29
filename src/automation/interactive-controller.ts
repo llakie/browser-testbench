@@ -451,7 +451,12 @@ export class InteractiveController {
     const id = randomUUID();
     const scope = options.scope ?? "screen";
     const geometry = [await RecordingGeometry.capture(this.session.active, this.target, this.appium?.port)];
-    const recorder = await VideoRecorder.start(this.target, options.outputPath, this.session.active.capabilities);
+    const recorder = await VideoRecorder.start(
+      this.target,
+      options.outputPath,
+      this.session.active.capabilities,
+      this.session.active,
+    );
     this.video = { id, recorder, path: options.outputPath, scope, geometry, startedAtMs: performance.now() };
     this.lastRecording = undefined;
     return {

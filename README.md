@@ -11,7 +11,7 @@ The responsibilities are deliberately clear:
 
 Browser Testbench does not import test files from a project or run third-party test runners.
 
-Release documentation: [Browser Testbench 0.5.1](docs/releases/0.5.1.md), [Browser Testbench 0.5.0](docs/releases/0.5.0.md), and [migration from 0.4.x](docs/releases/0.5.0-migration.md).
+Release documentation: [Browser Testbench 0.6.0](docs/releases/0.6.0.md), [Browser Testbench 0.5.1](docs/releases/0.5.1.md), [Browser Testbench 0.5.0](docs/releases/0.5.0.md), and [migration from 0.4.x](docs/releases/0.5.0-migration.md).
 
 ## Supported targets
 
@@ -111,7 +111,7 @@ npm install --global browser-testbench
 browser-testbench start
 ```
 
-Mobile video recording requires `ffmpeg` and `ffprobe` on `PATH`. They are not bundled with the npm package. FFprobe validates the native MP4 output, including codec, dimensions, duration, and frame rate. FFmpeg crops viewport recordings and stabilizes frame rate and duration when a native backend produces irregular or missing frames. The Overview page detects both tools and shows the installation command for macOS, Windows, or Linux. All screenshot scopes remain available without them.
+Video recording requires `ffmpeg` and `ffprobe` on `PATH`. They are not bundled with the npm package. Desktop Chrome, Edge, and Firefox record the browser viewport directly; mobile targets use their native recorder. FFprobe validates the MP4 output, including codec, dimensions, duration, and frame rate. FFmpeg creates desktop recordings, crops viewport recordings, and stabilizes frame rate and duration when a native backend produces irregular or missing frames. The Overview page detects both tools and shows the installation command for macOS, Windows, or Linux. All screenshot scopes remain available without them.
 
 By default, the interface runs at `http://127.0.0.1:55808/setup` and opens on startup. To use a different address:
 
