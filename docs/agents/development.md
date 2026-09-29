@@ -20,6 +20,10 @@
 ## Engineering Execution Rules (Mandatory)
 
 - Keep changes scoped to the requested behavior; avoid unrelated refactors.
+- Run `npm run lint`, `npm run format:check`, `npm run check`, and the affected tests before completion.
+- Always wrap control-statement bodies in braces. Keep control blocks multiline and separate complete control
+  statements from surrounding statements with a blank line. Prefer guard clauses and omit `else` after a branch
+  that unconditionally returns.
 - Reuse existing patterns, services, and component conventions in the codebase.
 - Before introducing UI markup or styling, first check whether an existing atom or molecule can be reused
   or adapted. Only build a new UI primitive when reuse/adaptation is clearly not suitable. New UI should

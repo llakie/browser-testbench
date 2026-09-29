@@ -1,151 +1,200 @@
-import { createApp, defineComponent, type Component } from "vue";
-import type { ConnectionStatus } from "../../remote/remote-types.js";
-import { ApiClient } from "./core/api-client.js";
-import { DocumentationDisclosure } from "./core/documentation-disclosure.js";
-import { LiveReloadClient } from "./core/live-reload.js";
-import { CommandBlock } from "./components/command-block.js";
-import { DeviceSetupChecklist } from "./components/device-setup-checklist.js";
-import { OverviewPage } from "./components/overview-page.js";
-import { TargetsPage } from "./components/targets-page.js";
-import { workbenchStore } from "./stores/workbench-store.js";
-import { translator } from "./core/translator.js";
+import { createApp, defineComponent, type Component } from 'vue';
+import type { ConnectionStatus } from '../../remote/remote-types.js';
+import { ApiClient } from './core/api-client.js';
+import { DocumentationDisclosure } from './core/documentation-disclosure.js';
+import { LiveReloadClient } from './core/live-reload.js';
+import { CommandBlock } from './components/command-block.js';
+import { DeviceSetupChecklist } from './components/device-setup-checklist.js';
+import { OverviewPage } from './components/overview-page.js';
+import { TargetsPage } from './components/targets-page.js';
+import { workbenchStore } from './stores/workbench-store.js';
+import { translator } from './core/translator.js';
 
-const collapsedStorageKey = "browser-testbench-sidebar-collapsed";
-const appElement = document.querySelector<HTMLElement>("#app");
-if (!appElement) throw new Error("Browser Testbench UI root was not found.");
-const activePage = appElement.dataset.page ?? "dashboard";
-LiveReloadClient.start(appElement.dataset.liveReload === "true");
+const collapsedStorageKey = 'browser-testbench-sidebar-collapsed';
+const appElement = document.querySelector<HTMLElement>('#app');
 
-if (activePage === "dashboard") {
-  workbenchStore.state.loading = true;
-  workbenchStore.state.analyzing = true;
+if (!appElement) {
+    throw new Error('Browser Testbench UI root was not found.');
+}
+
+const activePage = appElement.dataset.page ?? 'dashboard';
+LiveReloadClient.start(appElement.dataset.liveReload === 'true');
+
+if (activePage === 'dashboard') {
+    workbenchStore.state.loading = true;
+    workbenchStore.state.analyzing = true;
 }
 
 const attachTemplate = (component: Component, selector: string): void => {
-  const template = document.querySelector<HTMLElement>(selector);
-  (component as Component & { template: string }).template = template?.innerHTML ?? "";
+    const template = document.querySelector<HTMLElement>(selector);
+    (component as Component & { template: string }).template = template?.innerHTML ?? '';
 };
 
-attachTemplate(OverviewPage, "#overview-page-template");
-attachTemplate(TargetsPage, "#targets-page-template");
-attachTemplate(DeviceSetupChecklist, "#device-setup-checklist-template");
+attachTemplate(OverviewPage, '#overview-page-template');
+attachTemplate(TargetsPage, '#targets-page-template');
+attachTemplate(DeviceSetupChecklist, '#device-setup-checklist-template');
 
 const RootApp = defineComponent({
-  data: () => ({
-    store: workbenchStore,
-    page: activePage,
-    sidebarCollapsed: localStorage.getItem(collapsedStorageKey) === "true",
-    mobileMenuOpen: false,
-    shellBusy: false,
-  }),
-  computed: {
-    connection(): ConnectionStatus {
-      return this.store.connection;
+    data: () => ({
+        store: workbenchStore,
+        page: activePage,
+        sidebarCollapsed: localStorage.getItem(collapsedStorageKey) === 'true',
+        mobileMenuOpen: false,
+        shellBusy: false,
+    }),
+    computed: {
+        connection(): ConnectionStatus {
+            return this.store.connection;
+        },
+        badgeIcon(): string {
+            if (this.page === 'docs') {
+                return 'fa-book-open';
+            }
+
+            if (!this.store.workbench) {
+                return 'fa-circle-notch fa-spin';
+            }
+
+            return this.store.workbench.platform === 'darwin'
+                ? 'fa-laptop'
+                : this.store.workbench.platform === 'win32'
+                  ? 'fa-desktop'
+                  : 'fa-terminal';
+        },
+        badgeLabel(): string {
+            if (this.page === 'docs') {
+                return translator.t('common.status.localDocumentation');
+            }
+
+            const workbench = this.store.workbench;
+            return workbench
+                ? `${this.platformLabel(workbench.platform)} · ${workbench.architecture}`
+                : translator.t('common.status.checkingSystem');
+        },
+        remoteBannerDetail(): string {
+            const remote = this.connection.remote;
+
+            if (!remote) {
+                return '';
+            }
+
+            return ` · ${this.platformLabel(remote.platform)} · ${translator.t(`common.remoteRole.${remote.role}`)} · ${translator.t(this.connection.reachable === false ? 'common.connection.unreachable' : 'common.connection.connected')} · ${remote.url}`;
+        },
     },
-    badgeIcon(): string {
-      if (this.page === "docs") return "fa-book-open";
-      if (!this.store.workbench) return "fa-circle-notch fa-spin";
-      return this.store.workbench.platform === "darwin"
-        ? "fa-laptop"
-        : this.store.workbench.platform === "win32"
-          ? "fa-desktop"
-          : "fa-terminal";
+    mounted(): void {
+        this.applySidebar();
+        document.addEventListener('keydown', this.onKeydown);
+        document.addEventListener('toggle', DocumentationDisclosure.handleToggle, true);
+        window.addEventListener('hashchange', this.revealDocumentationTarget);
+        window.addEventListener('browser-testbench:connection-changed', this.refreshConnection);
+        window.addEventListener('browser-testbench:authorization-changed', this.refreshConnection);
+        document.querySelector('#sidebar')?.addEventListener('click', (event) => {
+            if (event.target instanceof Element && event.target.closest('a')) {
+                this.closeMobileMenu();
+            }
+        });
+        this.$nextTick(this.revealDocumentationTarget);
+        void this.store.initialize(this.page !== 'docs');
     },
-    badgeLabel(): string {
-      if (this.page === "docs") return translator.t("common.status.localDocumentation");
-      const workbench = this.store.workbench;
-      return workbench
-        ? `${this.platformLabel(workbench.platform)} · ${workbench.architecture}`
-        : translator.t("common.status.checkingSystem");
+    beforeUnmount(): void {
+        document.removeEventListener('keydown', this.onKeydown);
+        document.removeEventListener('toggle', DocumentationDisclosure.handleToggle, true);
+        window.removeEventListener('hashchange', this.revealDocumentationTarget);
+        window.removeEventListener('browser-testbench:connection-changed', this.refreshConnection);
+        window.removeEventListener(
+            'browser-testbench:authorization-changed',
+            this.refreshConnection,
+        );
     },
-    remoteBannerDetail(): string {
-      const remote = this.connection.remote;
-      if (!remote) return "";
-      return ` · ${this.platformLabel(remote.platform)} · ${translator.t(`common.remoteRole.${remote.role}`)} · ${translator.t(this.connection.reachable === false ? "common.connection.unreachable" : "common.connection.connected")} · ${remote.url}`;
+    methods: {
+        t: translator.t.bind(translator),
+        platformLabel(platform: NodeJS.Platform): string {
+            if (platform === 'darwin') {
+                return translator.t('common.platform.darwin');
+            }
+
+            if (platform === 'win32') {
+                return translator.t('common.platform.win32');
+            }
+
+            if (platform === 'linux') {
+                return translator.t('common.platform.linux');
+            }
+
+            return platform;
+        },
+        toggleSidebar(): void {
+            this.sidebarCollapsed = !this.sidebarCollapsed;
+            localStorage.setItem(collapsedStorageKey, String(this.sidebarCollapsed));
+            this.applySidebar();
+        },
+        applySidebar(): void {
+            document.documentElement.classList.toggle(
+                'is-sidebar-collapsed',
+                this.sidebarCollapsed,
+            );
+        },
+        toggleMobileMenu(): void {
+            this.mobileMenuOpen = !this.mobileMenuOpen;
+            document.documentElement.classList.toggle('is-menu-open', this.mobileMenuOpen);
+
+            if (this.mobileMenuOpen) {
+                this.$nextTick(() =>
+                    document.querySelector<HTMLElement>('#sidebar a, #sidebar button')?.focus(),
+                );
+            }
+        },
+        closeMobileMenu(): void {
+            this.mobileMenuOpen = false;
+            document.documentElement.classList.remove('is-menu-open');
+        },
+        onKeydown(event: KeyboardEvent): void {
+            if (event.key === 'Escape') {
+                this.closeMobileMenu();
+            }
+        },
+        refreshConnection(): void {
+            void this.store.refreshConnection();
+        },
+        revealDocumentationTarget(): void {
+            DocumentationDisclosure.openTarget(window.location.hash);
+        },
+        async retryRemote(): Promise<void> {
+            this.shellBusy = true;
+
+            try {
+                await this.store.refreshConnection();
+
+                if (this.page !== 'docs' && this.connection.reachable) {
+                    await this.store.refresh({ analyze: true });
+                }
+            } finally {
+                this.shellBusy = false;
+            }
+        },
+        async disconnectRemote(): Promise<void> {
+            this.shellBusy = true;
+
+            try {
+                await ApiClient.request<ConnectionStatus>('/v1/connections/active', {
+                    method: 'DELETE',
+                });
+                this.store.clearNotice();
+                await (this.page === 'docs'
+                    ? this.store.refreshConnection()
+                    : this.store.refresh({ analyze: true }));
+            } catch (error) {
+                this.store.setNotice(this.store.message(error), 'error');
+            } finally {
+                this.shellBusy = false;
+            }
+        },
     },
-  },
-  mounted(): void {
-    this.applySidebar();
-    document.addEventListener("keydown", this.onKeydown);
-    document.addEventListener("toggle", DocumentationDisclosure.handleToggle, true);
-    window.addEventListener("hashchange", this.revealDocumentationTarget);
-    window.addEventListener("browser-testbench:connection-changed", this.refreshConnection);
-    window.addEventListener("browser-testbench:authorization-changed", this.refreshConnection);
-    document.querySelector("#sidebar")?.addEventListener("click", (event) => {
-      if (event.target instanceof Element && event.target.closest("a")) this.closeMobileMenu();
-    });
-    this.$nextTick(this.revealDocumentationTarget);
-    void this.store.initialize(this.page !== "docs");
-  },
-  beforeUnmount(): void {
-    document.removeEventListener("keydown", this.onKeydown);
-    document.removeEventListener("toggle", DocumentationDisclosure.handleToggle, true);
-    window.removeEventListener("hashchange", this.revealDocumentationTarget);
-    window.removeEventListener("browser-testbench:connection-changed", this.refreshConnection);
-    window.removeEventListener("browser-testbench:authorization-changed", this.refreshConnection);
-  },
-  methods: {
-    t: translator.t.bind(translator),
-    platformLabel(platform: NodeJS.Platform): string {
-      if (platform === "darwin") return translator.t("common.platform.darwin");
-      if (platform === "win32") return translator.t("common.platform.win32");
-      if (platform === "linux") return translator.t("common.platform.linux");
-      return platform;
-    },
-    toggleSidebar(): void {
-      this.sidebarCollapsed = !this.sidebarCollapsed;
-      localStorage.setItem(collapsedStorageKey, String(this.sidebarCollapsed));
-      this.applySidebar();
-    },
-    applySidebar(): void {
-      document.documentElement.classList.toggle("is-sidebar-collapsed", this.sidebarCollapsed);
-    },
-    toggleMobileMenu(): void {
-      this.mobileMenuOpen = !this.mobileMenuOpen;
-      document.documentElement.classList.toggle("is-menu-open", this.mobileMenuOpen);
-      if (this.mobileMenuOpen)
-        this.$nextTick(() => document.querySelector<HTMLElement>("#sidebar a, #sidebar button")?.focus());
-    },
-    closeMobileMenu(): void {
-      this.mobileMenuOpen = false;
-      document.documentElement.classList.remove("is-menu-open");
-    },
-    onKeydown(event: KeyboardEvent): void {
-      if (event.key === "Escape") this.closeMobileMenu();
-    },
-    refreshConnection(): void {
-      void this.store.refreshConnection();
-    },
-    revealDocumentationTarget(): void {
-      DocumentationDisclosure.openTarget(window.location.hash);
-    },
-    async retryRemote(): Promise<void> {
-      this.shellBusy = true;
-      try {
-        await this.store.refreshConnection();
-        if (this.page !== "docs" && this.connection.reachable) await this.store.refresh({ analyze: true });
-      } finally {
-        this.shellBusy = false;
-      }
-    },
-    async disconnectRemote(): Promise<void> {
-      this.shellBusy = true;
-      try {
-        await ApiClient.request<ConnectionStatus>("/v1/connections/active", { method: "DELETE" });
-        this.store.clearNotice();
-        await (this.page === "docs" ? this.store.refreshConnection() : this.store.refresh({ analyze: true }));
-      } catch (error) {
-        this.store.setNotice(this.store.message(error), "error");
-      } finally {
-        this.shellBusy = false;
-      }
-    },
-  },
 });
 
 const app = createApp(RootApp);
-app.component("command-block", CommandBlock);
-app.component("device-setup-checklist", DeviceSetupChecklist);
-app.component("overview-page", OverviewPage);
-app.component("targets-page", TargetsPage);
+app.component('command-block', CommandBlock);
+app.component('device-setup-checklist', DeviceSetupChecklist);
+app.component('overview-page', OverviewPage);
+app.component('targets-page', TargetsPage);
 app.mount(appElement);

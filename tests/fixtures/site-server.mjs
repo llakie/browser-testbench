@@ -1,9 +1,9 @@
-import { createServer } from "node:http";
+import { createServer } from 'node:http';
 
 const port = Number(process.env.PORT ?? 4173);
 createServer((_request, response) => {
-  response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-  response.end(`<!doctype html>
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    response.end(`<!doctype html>
     <html lang="en">
       <head><meta charset="utf-8"><title>Browser Testbench Fixture</title></head>
       <body>
@@ -16,4 +16,4 @@ createServer((_request, response) => {
         <script>document.querySelector('#submit').onclick = () => document.querySelector('#result').textContent = 'Hello ' + document.querySelector('#name').value;</script>
       </body>
     </html>`);
-}).listen(port, "0.0.0.0", () => console.log(`Fixture listening on http://127.0.0.1:${port}`));
+}).listen(port, '0.0.0.0', () => console.log(`Fixture listening on http://127.0.0.1:${port}`));

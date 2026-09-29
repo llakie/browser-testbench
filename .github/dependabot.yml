@@ -1,25 +1,25 @@
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: weekly
-    groups:
-      npm-dependencies:
-        patterns:
-          - "*"
-    ignore:
-      - dependency-name: "@types/node"
-        update-types:
-          - version-update:semver-major
-      - dependency-name: generate-license-file
-        versions:
-          - ">=4.2.4 <5"
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-    groups:
-      github-actions:
-        patterns:
-          - "*"
+    - package-ecosystem: npm
+      directory: /
+      schedule:
+          interval: weekly
+      groups:
+          npm-dependencies:
+              patterns:
+                  - '*'
+      ignore:
+          - dependency-name: '@types/node'
+            update-types:
+                - version-update:semver-major
+          - dependency-name: generate-license-file
+            versions:
+                - '>=4.2.4 <5'
+    - package-ecosystem: github-actions
+      directory: /
+      schedule:
+          interval: weekly
+      groups:
+          github-actions:
+              patterns:
+                  - '*'

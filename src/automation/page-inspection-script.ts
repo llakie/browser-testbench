@@ -1,5 +1,5 @@
 export class PageInspectionScript {
-  static readonly SOURCE = `
+    static readonly SOURCE = `
     const maxItems = arguments[0];
     const maxTextLength = arguments[1];
     const selector = "a,button,input,textarea,select,[role],[contenteditable='true'],h1,h2,h3";

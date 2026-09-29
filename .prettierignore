@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.kilo/
 .cache/
 artifacts/
 package-lock.json

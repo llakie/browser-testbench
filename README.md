@@ -11,7 +11,7 @@ The responsibilities are deliberately clear:
 
 Browser Testbench does not import test files from a project or run third-party test runners.
 
-Release documentation: [Browser Testbench 0.6.0](docs/releases/0.6.0.md), [Browser Testbench 0.5.1](docs/releases/0.5.1.md), [Browser Testbench 0.5.0](docs/releases/0.5.0.md), and [migration from 0.4.x](docs/releases/0.5.0-migration.md).
+Release documentation: [Browser Testbench 0.6.1](docs/releases/0.6.1.md), [Browser Testbench 0.6.0](docs/releases/0.6.0.md), [Browser Testbench 0.5.1](docs/releases/0.5.1.md), [Browser Testbench 0.5.0](docs/releases/0.5.0.md), and [migration from 0.4.x](docs/releases/0.5.0-migration.md).
 
 ## Supported targets
 
@@ -282,29 +282,29 @@ npm install --save-dev browser-testbench
 Any Node-based test runner can then use the same remote control:
 
 ```js
-import assert from "node:assert/strict";
-import { RemoteTestbench } from "browser-testbench/client";
+import assert from 'node:assert/strict';
+import { RemoteTestbench } from 'browser-testbench/client';
 
 const testbench = new RemoteTestbench();
-const targets = await testbench.availableTargets(["chrome", "safari-ios-iphone-17-pro-26-5"]);
+const targets = await testbench.availableTargets(['chrome', 'safari-ios-iphone-17-pro-26-5']);
 
 for (const target of targets) {
-  const browser = await testbench.open({
-    target,
-    url: "http://127.0.0.1:5173/login",
-    headless: true,
-  });
+    const browser = await testbench.open({
+        target,
+        url: 'http://127.0.0.1:5173/login',
+        headless: true,
+    });
 
-  try {
-    await browser.fill('input[name="email"]', "test@example.com");
-    await browser.check('[data-testid="terms"]');
-    await browser.click('button[type="submit"]');
-    await browser.waitForText("Welcome");
-    assert.match((await browser.inspect()).url, /dashboard/);
-    await browser.screenshot(`artifacts/login-${target}.png`);
-  } finally {
-    await browser.close();
-  }
+    try {
+        await browser.fill('input[name="email"]', 'test@example.com');
+        await browser.check('[data-testid="terms"]');
+        await browser.click('button[type="submit"]');
+        await browser.waitForText('Welcome');
+        assert.match((await browser.inspect()).url, /dashboard/);
+        await browser.screenshot(`artifacts/login-${target}.png`);
+    } finally {
+        await browser.close();
+    }
 }
 ```
 
@@ -323,6 +323,10 @@ emulator can finish booting. The client provides:
 - `targets()`, `capabilities()`, and `availableTargets([...])`
 - `open({ target, url, ... })`
 - `forEachTarget(targets, options, callback)`
+
+`capabilities()` reports `mediaPlayback.autoplay` for targets that Browser Testbench configures for deterministic
+audio and video playback without a manual browser gesture. A session can require it with
+`require: { mediaPlayback: { autoplay: true } }` and will fail before launch on an incompatible target.
 
 A `RemoteSession` provides:
 
