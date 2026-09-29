@@ -1,42 +1,58 @@
-import { TestbenchDefaults } from "../config/defaults.js";
-import { IosDeviceDiscovery } from "./ios-device-discovery.js";
+import { TestbenchDefaults } from '../config/defaults.js';
+import { IosDeviceDiscovery } from './ios-device-discovery.js';
 
 export class IosDeviceMonitor {
-  private timer?: NodeJS.Timeout;
-  private fingerprint?: string;
-  private running = false;
-  private checking = false;
+    private timer?: NodeJS.Timeout;
+    private fingerprint?: string;
+    private running = false;
+    private checking = false;
 
-  constructor(
-    private readonly onChange: () => void,
-    private readonly intervalMs = TestbenchDefaults.IOS_DEVICE_POLL_INTERVAL_MS,
-  ) {}
+    constructor(
+        private readonly onChange: () => void,
+        private readonly intervalMs = TestbenchDefaults.IOS_DEVICE_POLL_INTERVAL_MS,
+    ) {}
 
-  start(): void {
-    if (this.running || process.platform !== "darwin") return;
-    this.running = true;
-    void this.checkNow();
-  }
+    start(): void {
+        if (this.running || process.platform !== 'darwin') {
+            return;
+        }
 
-  stop(): void {
-    this.running = false;
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = undefined;
-  }
-
-  async checkNow(): Promise<void> {
-    if (this.checking) return;
-    this.checking = true;
-    try {
-      const current = await IosDeviceDiscovery.fingerprint();
-      if (this.fingerprint !== undefined && current !== this.fingerprint) this.onChange();
-      this.fingerprint = current;
-    } finally {
-      this.checking = false;
-      if (this.running) {
-        this.timer = setTimeout(() => void this.checkNow(), this.intervalMs);
-        this.timer.unref();
-      }
+        this.running = true;
+        void this.checkNow();
     }
-  }
+
+    stop(): void {
+        this.running = false;
+
+        if (this.timer) {
+            clearTimeout(this.timer);
+        }
+
+        this.timer = undefined;
+    }
+
+    async checkNow(): Promise<void> {
+        if (this.checking) {
+            return;
+        }
+
+        this.checking = true;
+
+        try {
+            const current = await IosDeviceDiscovery.fingerprint();
+
+            if (this.fingerprint !== undefined && current !== this.fingerprint) {
+                this.onChange();
+            }
+
+            this.fingerprint = current;
+        } finally {
+            this.checking = false;
+
+            if (this.running) {
+                this.timer = setTimeout(() => void this.checkNow(), this.intervalMs);
+                this.timer.unref();
+            }
+        }
+    }
 }

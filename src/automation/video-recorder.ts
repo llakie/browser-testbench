@@ -1,16 +1,16 @@
-import { createHash } from "node:crypto";
-import { spawn, type ChildProcess } from "node:child_process";
-import { createReadStream } from "node:fs";
-import { mkdir, stat } from "node:fs/promises";
-import { dirname } from "node:path";
-import type { TargetConfig } from "../config/types.js";
-import { TestbenchError } from "../errors/testbench-error.js";
-import { AndroidSdk } from "../infrastructure/android-sdk.js";
-import { CommandRunner } from "../infrastructure/command-runner.js";
-import { ProcessTerminator } from "../infrastructure/process-terminator.js";
-import { MediaTooling } from "../infrastructure/media-tooling.js";
-import { AndroidDeviceUtilities } from "./android-device-utilities.js";
-import type { BrowserHandle } from "./browser-session.js";
+import { createHash } from 'node:crypto';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { createReadStream } from 'node:fs';
+import { mkdir, stat } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import type { TargetConfig } from '../config/types.js';
+import { TestbenchError } from '../errors/testbench-error.js';
+import { AndroidSdk } from '../infrastructure/android-sdk.js';
+import { CommandRunner } from '../infrastructure/command-runner.js';
+import { ProcessTerminator } from '../infrastructure/process-terminator.js';
+import { MediaTooling } from '../infrastructure/media-tooling.js';
+import { AndroidDeviceUtilities } from './android-device-utilities.js';
+import type { BrowserHandle } from './browser-session.js';
 
 const ADB_COMMAND_TIMEOUT_MS = 5_000;
 const RECORDER_STOP_TIMEOUT_MS = 10_000;
@@ -19,310 +19,426 @@ const RECORDER_START_GRACE_PERIOD_MS = 300;
 const DESKTOP_CAPTURE_INTERVAL_MS = 50;
 
 export interface RecordingArtifact {
-  path: string;
-  size: number;
-  sha256: string;
-  mimeType: "video/mp4";
-  container: string;
-  codec: string;
-  width: number;
-  height: number;
-  durationMs: number;
-  timeBase: string;
-  averageFrameRate: number;
-  frameRateMode: "constant" | "variable";
+    path: string;
+    size: number;
+    sha256: string;
+    mimeType: 'video/mp4';
+    container: string;
+    codec: string;
+    width: number;
+    height: number;
+    durationMs: number;
+    timeBase: string;
+    averageFrameRate: number;
+    frameRateMode: 'constant' | 'variable';
 }
 
 interface ProbeOutput {
-  streams?: Array<{
-    codec_name?: string;
-    width?: number;
-    height?: number;
-    avg_frame_rate?: string;
-    r_frame_rate?: string;
-    time_base?: string;
-  }>;
-  format?: { format_name?: string; duration?: string };
+    streams?: Array<{
+        codec_name?: string;
+        width?: number;
+        height?: number;
+        avg_frame_rate?: string;
+        r_frame_rate?: string;
+        time_base?: string;
+    }>;
+    format?: { format_name?: string; duration?: string };
 }
 
 export class VideoRecorder {
-  private stopResult?: Promise<RecordingArtifact>;
-  private desktopCapture?: { active: boolean; completed: Promise<void> };
+    private stopResult?: Promise<RecordingArtifact>;
+    private desktopCapture?: { active: boolean; completed: Promise<void> };
 
-  private constructor(
-    private readonly child: ChildProcess,
-    private readonly outputPath: string,
-    private readonly android?: { adb: string; serial: string; remotePath: string },
-  ) {}
+    private constructor(
+        private readonly child: ChildProcess,
+        private readonly outputPath: string,
+        private readonly android?: { adb: string; serial: string; remotePath: string },
+    ) {}
 
-  static async start(
-    target: TargetConfig,
-    outputPath: string,
-    capabilities: Record<string, unknown>,
-    browser?: BrowserHandle,
-  ): Promise<VideoRecorder> {
-    if (!MediaTooling.isAvailable()) throw this.unsupported(target, "FFmpeg and ffprobe are required for recording.");
-    await mkdir(dirname(outputPath), { recursive: true });
-    if (target.name === "safari-ios") {
-      if (target.deviceKind === "physical")
-        throw this.unsupported(target, "Video recording is only available for iOS simulators.");
-      const child = spawn(
-        "xcrun",
-        ["simctl", "io", target.udid ?? "booted", "recordVideo", "--codec=h264", outputPath],
-        {
-          stdio: ["ignore", "pipe", "pipe"],
-          windowsHide: true,
-        },
-      );
-      await this.ensureStarted(child, "iOS video recorder");
-      return new VideoRecorder(child, outputPath);
-    }
-    if (target.name === "chrome-android") {
-      const sdkRoot = await AndroidSdk.root();
-      if (!sdkRoot) throw this.unsupported(target, "Android SDK not found for video recording.");
-      const adb = AndroidSdk.adb(sdkRoot);
-      const serial = await this.androidSerial(adb, target, capabilities);
-      const remotePath = `/sdcard/browser-testbench-${Date.now()}.mp4`;
-      const child = spawn(adb, ["-s", serial, "shell", "screenrecord", remotePath], {
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      });
-      await this.ensureStarted(child, "Android video recorder");
-      return new VideoRecorder(child, outputPath, { adb, serial, remotePath });
-    }
-    if (["chrome", "edge", "firefox"].includes(target.name)) {
-      if (!browser) throw this.unsupported(target, "An active browser is required for viewport recording.");
-      const child = spawn(
-        "ffmpeg",
-        [
-          "-y",
-          "-loglevel",
-          "error",
-          "-use_wallclock_as_timestamps",
-          "1",
-          "-f",
-          "image2pipe",
-          "-vcodec",
-          "png",
-          "-i",
-          "pipe:0",
-          "-vf",
-          "format=yuv444p,fps=30",
-          "-an",
-          "-c:v",
-          "libx264",
-          "-preset",
-          "veryfast",
-          "-pix_fmt",
-          "yuv444p",
-          "-movflags",
-          "+faststart",
-          outputPath,
-        ],
-        { stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
-      );
-      await this.ensureStarted(child, "Desktop viewport recorder");
-      const recorder = new VideoRecorder(child, outputPath);
-      await recorder.startDesktopCapture(browser);
-      return recorder;
-    }
-    throw this.unsupported(target, `Video recording is not supported for '${target.name}'.`);
-  }
-
-  stop(signal?: AbortSignal): Promise<RecordingArtifact> {
-    this.stopResult ??= this.finalize();
-    if (!signal) return this.stopResult;
-    return this.stopResult.then((artifact) => {
-      if (signal.aborted)
-        throw new TestbenchError(
-          "OPERATION_ABORTED",
-          "Recording finalization was aborted after safe recorder cleanup.",
-          {
-            operation: "recording.stop",
-            status: 499,
-            details: { partialArtifact: artifact },
-          },
-        );
-      return artifact;
-    });
-  }
-
-  private async finalize(): Promise<RecordingArtifact> {
-    try {
-      if (this.desktopCapture) {
-        this.desktopCapture.active = false;
-        await this.desktopCapture.completed;
-        this.child.stdin?.end();
-        if (!(await ProcessTerminator.wait(this.child, RECORDER_STOP_TIMEOUT_MS))) {
-          await ProcessTerminator.stop(this.child, { graceMs: RECORDER_STOP_TIMEOUT_MS });
+    static async start(
+        target: TargetConfig,
+        outputPath: string,
+        capabilities: Record<string, unknown>,
+        browser?: BrowserHandle,
+    ): Promise<VideoRecorder> {
+        if (!MediaTooling.isAvailable()) {
+            throw this.unsupported(target, 'FFmpeg and ffprobe are required for recording.');
         }
-      } else if (this.android) {
-        await CommandRunner.run(this.android.adb, ["-s", this.android.serial, "shell", "pkill", "-2", "screenrecord"], {
-          timeoutMs: ADB_COMMAND_TIMEOUT_MS,
+
+        await mkdir(dirname(outputPath), { recursive: true });
+
+        if (target.name === 'safari-ios') {
+            if (target.deviceKind === 'physical') {
+                throw this.unsupported(
+                    target,
+                    'Video recording is only available for iOS simulators.',
+                );
+            }
+
+            const child = spawn(
+                'xcrun',
+                [
+                    'simctl',
+                    'io',
+                    target.udid ?? 'booted',
+                    'recordVideo',
+                    '--codec=h264',
+                    outputPath,
+                ],
+                {
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                    windowsHide: true,
+                },
+            );
+            await this.ensureStarted(child, 'iOS video recorder');
+            return new VideoRecorder(child, outputPath);
+        }
+
+        if (target.name === 'chrome-android') {
+            const sdkRoot = await AndroidSdk.root();
+
+            if (!sdkRoot) {
+                throw this.unsupported(target, 'Android SDK not found for video recording.');
+            }
+
+            const adb = AndroidSdk.adb(sdkRoot);
+            const serial = await this.androidSerial(adb, target, capabilities);
+            const remotePath = `/sdcard/browser-testbench-${Date.now()}.mp4`;
+            const child = spawn(adb, ['-s', serial, 'shell', 'screenrecord', remotePath], {
+                stdio: ['ignore', 'pipe', 'pipe'],
+                windowsHide: true,
+            });
+            await this.ensureStarted(child, 'Android video recorder');
+            return new VideoRecorder(child, outputPath, { adb, serial, remotePath });
+        }
+
+        if (['chrome', 'edge', 'firefox'].includes(target.name)) {
+            if (!browser) {
+                throw this.unsupported(
+                    target,
+                    'An active browser is required for viewport recording.',
+                );
+            }
+
+            const child = spawn(
+                'ffmpeg',
+                [
+                    '-y',
+                    '-loglevel',
+                    'error',
+                    '-use_wallclock_as_timestamps',
+                    '1',
+                    '-f',
+                    'image2pipe',
+                    '-vcodec',
+                    'png',
+                    '-i',
+                    'pipe:0',
+                    '-vf',
+                    'format=yuv444p,fps=30',
+                    '-an',
+                    '-c:v',
+                    'libx264',
+                    '-preset',
+                    'veryfast',
+                    '-pix_fmt',
+                    'yuv444p',
+                    '-movflags',
+                    '+faststart',
+                    outputPath,
+                ],
+                { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
+            );
+            await this.ensureStarted(child, 'Desktop viewport recorder');
+            const recorder = new VideoRecorder(child, outputPath);
+            await recorder.startDesktopCapture(browser);
+            return recorder;
+        }
+
+        throw this.unsupported(target, `Video recording is not supported for '${target.name}'.`);
+    }
+
+    stop(signal?: AbortSignal): Promise<RecordingArtifact> {
+        this.stopResult ??= this.finalize();
+
+        if (!signal) {
+            return this.stopResult;
+        }
+
+        return this.stopResult.then((artifact) => {
+            if (signal.aborted) {
+                throw new TestbenchError(
+                    'OPERATION_ABORTED',
+                    'Recording finalization was aborted after safe recorder cleanup.',
+                    {
+                        operation: 'recording.stop',
+                        status: 499,
+                        details: { partialArtifact: artifact },
+                    },
+                );
+            }
+
+            return artifact;
         });
-      } else {
-        await ProcessTerminator.stop(this.child, { gracefulSignal: "SIGINT", graceMs: RECORDER_STOP_TIMEOUT_MS });
-      }
-      if (this.android) await this.finalizeAndroid();
-      return await RecordingProbe.inspect(this.outputPath);
-    } catch (error) {
-      if (error instanceof TestbenchError) throw error;
-      const partial = await stat(this.outputPath).catch(() => undefined);
-      throw new TestbenchError("RECORDING_FINALIZE_FAILED", "Recording could not be finalized.", {
-        operation: "recording.stop",
-        status: 500,
-        cause: error,
-        details: {
-          path: this.outputPath,
-          ...(partial ? { partialBytes: partial.size } : {}),
-        },
-      });
     }
-  }
 
-  private async startDesktopCapture(browser: BrowserHandle): Promise<void> {
-    const state = { active: true, completed: Promise.resolve() };
-    const firstFrame = await browser.takeScreenshot();
-    await this.writeFrame(Buffer.from(firstFrame, "base64"));
-    state.completed = (async () => {
-      while (state.active) {
-        const startedAt = performance.now();
-        const frame = await browser.takeScreenshot();
-        if (!state.active) break;
-        await this.writeFrame(Buffer.from(frame, "base64"));
-        const remaining = DESKTOP_CAPTURE_INTERVAL_MS - (performance.now() - startedAt);
-        if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
-      }
-    })();
-    this.desktopCapture = state;
-  }
+    private async finalize(): Promise<RecordingArtifact> {
+        try {
+            if (this.desktopCapture) {
+                this.desktopCapture.active = false;
+                await this.desktopCapture.completed;
+                this.child.stdin?.end();
 
-  private async writeFrame(frame: Buffer): Promise<void> {
-    const input = this.child.stdin;
-    if (!input || input.destroyed) throw new Error("Desktop viewport recorder is not accepting frames.");
-    if (input.write(frame)) return;
-    await new Promise<void>((resolve, reject) => {
-      const complete = (error?: Error): void => {
-        input.off("drain", onDrain);
-        input.off("error", onError);
-        if (error) reject(error);
-        else resolve();
-      };
-      const onDrain = (): void => complete();
-      const onError = (error: Error): void => complete(error);
-      input.once("drain", onDrain);
-      input.once("error", onError);
-    });
-  }
+                if (!(await ProcessTerminator.wait(this.child, RECORDER_STOP_TIMEOUT_MS))) {
+                    await ProcessTerminator.stop(this.child, { graceMs: RECORDER_STOP_TIMEOUT_MS });
+                }
+            } else if (this.android) {
+                await CommandRunner.run(
+                    this.android.adb,
+                    ['-s', this.android.serial, 'shell', 'pkill', '-2', 'screenrecord'],
+                    {
+                        timeoutMs: ADB_COMMAND_TIMEOUT_MS,
+                    },
+                );
+            } else {
+                await ProcessTerminator.stop(this.child, {
+                    gracefulSignal: 'SIGINT',
+                    graceMs: RECORDER_STOP_TIMEOUT_MS,
+                });
+            }
 
-  private async finalizeAndroid(): Promise<void> {
-    if (!this.android) return;
-    if (!(await ProcessTerminator.wait(this.child, RECORDER_STOP_TIMEOUT_MS))) {
-      const forced = await CommandRunner.run(
-        this.android.adb,
-        ["-s", this.android.serial, "shell", "pkill", "-9", "screenrecord"],
-        { timeoutMs: ADB_COMMAND_TIMEOUT_MS },
-      );
-      await ProcessTerminator.stop(this.child, { graceMs: RECORDER_STOP_TIMEOUT_MS });
-      if (forced.code !== 0)
-        throw new Error(`Could not stop Android video recording: ${forced.stderr || forced.stdout}`);
+            if (this.android) {
+                await this.finalizeAndroid();
+            }
+
+            return await RecordingProbe.inspect(this.outputPath);
+        } catch (error) {
+            if (error instanceof TestbenchError) {
+                throw error;
+            }
+
+            const partial = await stat(this.outputPath).catch(() => undefined);
+            throw new TestbenchError(
+                'RECORDING_FINALIZE_FAILED',
+                'Recording could not be finalized.',
+                {
+                    operation: 'recording.stop',
+                    status: 500,
+                    cause: error,
+                    details: {
+                        path: this.outputPath,
+                        ...(partial ? { partialBytes: partial.size } : {}),
+                    },
+                },
+            );
+        }
     }
-    const pulled = await CommandRunner.run(
-      this.android.adb,
-      ["-s", this.android.serial, "pull", this.android.remotePath, this.outputPath],
-      { timeoutMs: VIDEO_PULL_TIMEOUT_MS },
-    );
-    const removed = await CommandRunner.run(
-      this.android.adb,
-      ["-s", this.android.serial, "shell", "rm", this.android.remotePath],
-      { timeoutMs: ADB_COMMAND_TIMEOUT_MS },
-    );
-    if (pulled.code !== 0) throw new Error(`Could not retrieve Android video: ${pulled.stderr || pulled.stdout}`);
-    if (removed.code !== 0)
-      throw new Error(`Could not remove the temporary Android video: ${removed.stderr || removed.stdout}`);
-  }
 
-  private static async androidSerial(
-    adb: string,
-    target: TargetConfig,
-    capabilities: Record<string, unknown>,
-  ): Promise<string> {
-    const serial = await AndroidDeviceUtilities.serial(adb, target, capabilities);
-    if (!serial) throw new Error("No connected Android device was found for video recording.");
-    return serial;
-  }
+    private async startDesktopCapture(browser: BrowserHandle): Promise<void> {
+        const state = { active: true, completed: Promise.resolve() };
+        const firstFrame = await browser.takeScreenshot();
+        await this.writeFrame(Buffer.from(firstFrame, 'base64'));
+        state.completed = (async () => {
+            while (state.active) {
+                const startedAt = performance.now();
+                const frame = await browser.takeScreenshot();
 
-  private static async ensureStarted(child: ChildProcess, label: string): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      const complete = (error?: Error): void => {
-        clearTimeout(timer);
-        child.off("error", onError);
-        child.off("exit", onExit);
-        if (error) reject(error);
-        else resolve();
-      };
-      const onError = (error: Error): void => complete(error);
-      const onExit = (code: number | null): void =>
-        complete(new Error(`${label} exited immediately with code ${code ?? "unknown"}.`));
-      const timer = setTimeout(() => complete(), RECORDER_START_GRACE_PERIOD_MS);
-      child.once("error", onError);
-      child.once("exit", onExit);
-    });
-  }
+                if (!state.active) {
+                    break;
+                }
 
-  private static unsupported(target: TargetConfig, message: string): TestbenchError {
-    return new TestbenchError("RECORDING_UNSUPPORTED", message, {
-      operation: "recording.start",
-      status: 409,
-      details: { target: target.name, deviceKind: target.deviceKind },
-    });
-  }
+                await this.writeFrame(Buffer.from(frame, 'base64'));
+                const remaining = DESKTOP_CAPTURE_INTERVAL_MS - (performance.now() - startedAt);
+
+                if (remaining > 0) {
+                    await new Promise((resolve) => setTimeout(resolve, remaining));
+                }
+            }
+        })();
+        this.desktopCapture = state;
+    }
+
+    private async writeFrame(frame: Buffer): Promise<void> {
+        const input = this.child.stdin;
+
+        if (!input || input.destroyed) {
+            throw new Error('Desktop viewport recorder is not accepting frames.');
+        }
+
+        if (input.write(frame)) {
+            return;
+        }
+
+        await new Promise<void>((resolve, reject) => {
+            const complete = (error?: Error): void => {
+                input.off('drain', onDrain);
+                input.off('error', onError);
+
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve();
+                }
+            };
+            const onDrain = (): void => complete();
+            const onError = (error: Error): void => complete(error);
+            input.once('drain', onDrain);
+            input.once('error', onError);
+        });
+    }
+
+    private async finalizeAndroid(): Promise<void> {
+        if (!this.android) {
+            return;
+        }
+
+        if (!(await ProcessTerminator.wait(this.child, RECORDER_STOP_TIMEOUT_MS))) {
+            const forced = await CommandRunner.run(
+                this.android.adb,
+                ['-s', this.android.serial, 'shell', 'pkill', '-9', 'screenrecord'],
+                { timeoutMs: ADB_COMMAND_TIMEOUT_MS },
+            );
+            await ProcessTerminator.stop(this.child, { graceMs: RECORDER_STOP_TIMEOUT_MS });
+
+            if (forced.code !== 0) {
+                throw new Error(
+                    `Could not stop Android video recording: ${forced.stderr || forced.stdout}`,
+                );
+            }
+        }
+
+        const pulled = await CommandRunner.run(
+            this.android.adb,
+            ['-s', this.android.serial, 'pull', this.android.remotePath, this.outputPath],
+            { timeoutMs: VIDEO_PULL_TIMEOUT_MS },
+        );
+        const removed = await CommandRunner.run(
+            this.android.adb,
+            ['-s', this.android.serial, 'shell', 'rm', this.android.remotePath],
+            { timeoutMs: ADB_COMMAND_TIMEOUT_MS },
+        );
+
+        if (pulled.code !== 0) {
+            throw new Error(`Could not retrieve Android video: ${pulled.stderr || pulled.stdout}`);
+        }
+
+        if (removed.code !== 0) {
+            throw new Error(
+                `Could not remove the temporary Android video: ${removed.stderr || removed.stdout}`,
+            );
+        }
+    }
+
+    private static async androidSerial(
+        adb: string,
+        target: TargetConfig,
+        capabilities: Record<string, unknown>,
+    ): Promise<string> {
+        const serial = await AndroidDeviceUtilities.serial(adb, target, capabilities);
+
+        if (!serial) {
+            throw new Error('No connected Android device was found for video recording.');
+        }
+
+        return serial;
+    }
+
+    private static async ensureStarted(child: ChildProcess, label: string): Promise<void> {
+        await new Promise<void>((resolve, reject) => {
+            const complete = (error?: Error): void => {
+                clearTimeout(timer);
+                child.off('error', onError);
+                child.off('exit', onExit);
+
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve();
+                }
+            };
+            const onError = (error: Error): void => complete(error);
+            const onExit = (code: number | null): void =>
+                complete(new Error(`${label} exited immediately with code ${code ?? 'unknown'}.`));
+            const timer = setTimeout(() => complete(), RECORDER_START_GRACE_PERIOD_MS);
+            child.once('error', onError);
+            child.once('exit', onExit);
+        });
+    }
+
+    private static unsupported(target: TargetConfig, message: string): TestbenchError {
+        return new TestbenchError('RECORDING_UNSUPPORTED', message, {
+            operation: 'recording.start',
+            status: 409,
+            details: { target: target.name, deviceKind: target.deviceKind },
+        });
+    }
 }
 
 export class RecordingProbe {
-  static async inspect(path: string): Promise<RecordingArtifact> {
-    const file = await stat(path);
-    if (!file.isFile() || file.size === 0) throw new Error("Video recorder produced an empty file.");
-    const result = await CommandRunner.run("ffprobe", [
-      "-v",
-      "error",
-      "-select_streams",
-      "v:0",
-      "-show_entries",
-      "stream=codec_name,width,height,avg_frame_rate,r_frame_rate,time_base:format=format_name,duration",
-      "-of",
-      "json",
-      path,
-    ]);
-    if (result.code !== 0) throw new Error(`ffprobe could not read the recording: ${result.stderr || result.stdout}`);
-    const probe = JSON.parse(result.stdout) as ProbeOutput;
-    const stream = probe.streams?.[0];
-    if (!stream?.codec_name || !stream.width || !stream.height)
-      throw new Error("Recording has no readable video stream.");
-    const averageFrameRate = this.rate(stream.avg_frame_rate);
-    const nominalFrameRate = this.rate(stream.r_frame_rate);
-    const hash = createHash("sha256");
-    for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
-    return {
-      path,
-      size: file.size,
-      sha256: hash.digest("hex"),
-      mimeType: "video/mp4",
-      container: probe.format?.format_name?.split(",")[0] ?? "unknown",
-      codec: stream.codec_name,
-      width: stream.width,
-      height: stream.height,
-      durationMs: Math.round(Number(probe.format?.duration ?? 0) * 1_000),
-      timeBase: stream.time_base ?? "unknown",
-      averageFrameRate,
-      frameRateMode: Math.abs(averageFrameRate - nominalFrameRate) < 0.001 ? "constant" : "variable",
-    };
-  }
+    static async inspect(path: string): Promise<RecordingArtifact> {
+        const file = await stat(path);
 
-  private static rate(value?: string): number {
-    if (!value) return 0;
-    const [numerator, denominator = "1"] = value.split("/");
-    const result = Number(numerator) / Number(denominator);
-    return Number.isFinite(result) ? result : 0;
-  }
+        if (!file.isFile() || file.size === 0) {
+            throw new Error('Video recorder produced an empty file.');
+        }
+
+        const result = await CommandRunner.run('ffprobe', [
+            '-v',
+            'error',
+            '-select_streams',
+            'v:0',
+            '-show_entries',
+            'stream=codec_name,width,height,avg_frame_rate,r_frame_rate,time_base:format=format_name,duration',
+            '-of',
+            'json',
+            path,
+        ]);
+
+        if (result.code !== 0) {
+            throw new Error(
+                `ffprobe could not read the recording: ${result.stderr || result.stdout}`,
+            );
+        }
+
+        const probe = JSON.parse(result.stdout) as ProbeOutput;
+        const stream = probe.streams?.[0];
+
+        if (!stream?.codec_name || !stream.width || !stream.height) {
+            throw new Error('Recording has no readable video stream.');
+        }
+
+        const averageFrameRate = this.rate(stream.avg_frame_rate);
+        const nominalFrameRate = this.rate(stream.r_frame_rate);
+        const hash = createHash('sha256');
+
+        for await (const chunk of createReadStream(path)) {
+            hash.update(chunk as Buffer);
+        }
+
+        return {
+            path,
+            size: file.size,
+            sha256: hash.digest('hex'),
+            mimeType: 'video/mp4',
+            container: probe.format?.format_name?.split(',')[0] ?? 'unknown',
+            codec: stream.codec_name,
+            width: stream.width,
+            height: stream.height,
+            durationMs: Math.round(Number(probe.format?.duration ?? 0) * 1_000),
+            timeBase: stream.time_base ?? 'unknown',
+            averageFrameRate,
+            frameRateMode:
+                Math.abs(averageFrameRate - nominalFrameRate) < 0.001 ? 'constant' : 'variable',
+        };
+    }
+
+    private static rate(value?: string): number {
+        if (!value) {
+            return 0;
+        }
+
+        const [numerator, denominator = '1'] = value.split('/');
+        const result = Number(numerator) / Number(denominator);
+        return Number.isFinite(result) ? result : 0;
+    }
 }

@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-29
+
+### Added
+
+- Chrome, Edge, Firefox, and Android Chrome targets advertise deterministic media autoplay and start sessions with
+  the browser-native autoplay policy required by automated audio workflows.
+
+### Changed
+
+- ESLint now enforces braces, guard clauses, brace style, and consistent spacing around control structures in local
+  development and CI.
+
 ## [0.6.0] - 2026-09-29
 
 ### Added

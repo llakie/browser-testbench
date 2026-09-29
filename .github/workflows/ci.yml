@@ -1,29 +1,30 @@
 name: CI
 
 on:
-  push:
-    branches: [master]
-    tags: ["v*"]
-  pull_request:
+    push:
+        branches: [master]
+        tags: ['v*']
+    pull_request:
 
 jobs:
-  verify:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run licenses:check
-      - run: npm run format:check
-      - run: npm run check
-      - run: npm test
-        env:
-          BTB_BROWSER_TESTS: "1"
-      - run: npm run build
+    verify:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [macos-latest, windows-latest, ubuntu-latest]
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run licenses:check
+            - run: npm run format:check
+            - run: npm run lint
+            - run: npm run check
+            - run: npm test
+              env:
+                  BTB_BROWSER_TESTS: '1'
+            - run: npm run build

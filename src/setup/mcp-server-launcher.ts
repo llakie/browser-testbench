@@ -1,8 +1,8 @@
-import { existsSync, realpathSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { PackageMetadata } from "../config/package-metadata.js";
-import { TestbenchPaths } from "../infrastructure/paths.js";
+import { existsSync, realpathSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { PackageMetadata } from '../config/package-metadata.js';
+import { TestbenchPaths } from '../infrastructure/paths.js';
 
 const LAUNCHER_SOURCE = `import { spawn } from "node:child_process";
 import { delimiter, dirname } from "node:path";
@@ -25,83 +25,99 @@ child.once("exit", (code, signal) => {
 `;
 
 interface LauncherContext {
-  platform?: NodeJS.Platform;
-  environment?: NodeJS.ProcessEnv;
-  nodeExecutable?: string;
-  dataDirectory?: string;
+    platform?: NodeJS.Platform;
+    environment?: NodeJS.ProcessEnv;
+    nodeExecutable?: string;
+    dataDirectory?: string;
 }
 
 export interface McpServerLaunchCommand {
-  command: string;
-  args: string[];
-  verificationArgs: string[];
+    command: string;
+    args: string[];
+    verificationArgs: string[];
 }
 
 export class McpServerLauncher {
-  private static readonly preparations = new Map<string, Promise<void>>();
+    private static readonly preparations = new Map<string, Promise<void>>();
 
-  static async prepare(context: LauncherContext = {}): Promise<void> {
-    const launcherPath = this.launcherPath(context);
-    const existing = this.preparations.get(launcherPath);
-    if (existing) return existing;
+    static async prepare(context: LauncherContext = {}): Promise<void> {
+        const launcherPath = this.launcherPath(context);
+        const existing = this.preparations.get(launcherPath);
 
-    const preparation = this.writeLauncher(launcherPath).catch((error) => {
-      this.preparations.delete(launcherPath);
-      throw error;
-    });
-    this.preparations.set(launcherPath, preparation);
-    return preparation;
-  }
+        if (existing) {
+            return existing;
+        }
 
-  static command(context: LauncherContext = {}): McpServerLaunchCommand {
-    const platform = context.platform ?? process.platform;
-    const environment = context.environment ?? process.env;
-    const nodeExecutable = context.nodeExecutable ?? process.execPath;
-    const packageSpec = `${PackageMetadata.NAME}@latest`;
-    const npxCli = this.npxCli(platform, environment, nodeExecutable);
-
-    if (!npxCli) {
-      return {
-        command: "npx",
-        args: ["--yes", packageSpec, "mcp"],
-        verificationArgs: ["--yes", packageSpec, "--version"],
-      };
+        const preparation = this.writeLauncher(launcherPath).catch((error) => {
+            this.preparations.delete(launcherPath);
+            throw error;
+        });
+        this.preparations.set(launcherPath, preparation);
+        return preparation;
     }
 
-    return {
-      command: nodeExecutable,
-      args: [this.launcherPath(context), nodeExecutable, npxCli, "--yes", packageSpec, "mcp"],
-      verificationArgs: [this.launcherPath(context), nodeExecutable, npxCli, "--yes", packageSpec, "--version"],
-    };
-  }
+    static command(context: LauncherContext = {}): McpServerLaunchCommand {
+        const platform = context.platform ?? process.platform;
+        const environment = context.environment ?? process.env;
+        const nodeExecutable = context.nodeExecutable ?? process.execPath;
+        const packageSpec = `${PackageMetadata.NAME}@latest`;
+        const npxCli = this.npxCli(platform, environment, nodeExecutable);
 
-  private static launcherPath(context: LauncherContext): string {
-    return join(context.dataDirectory ?? TestbenchPaths.dataRoot, "mcp", "launcher.mjs");
-  }
+        if (!npxCli) {
+            return {
+                command: 'npx',
+                args: ['--yes', packageSpec, 'mcp'],
+                verificationArgs: ['--yes', packageSpec, '--version'],
+            };
+        }
 
-  private static async writeLauncher(launcherPath: string): Promise<void> {
-    await mkdir(dirname(launcherPath), { recursive: true });
-    const current = await readFile(launcherPath, "utf8").catch(() => undefined);
-    if (current !== LAUNCHER_SOURCE) await writeFile(launcherPath, LAUNCHER_SOURCE, { mode: 0o600 });
-  }
-
-  private static npxCli(
-    platform: NodeJS.Platform,
-    environment: NodeJS.ProcessEnv,
-    nodeExecutable: string,
-  ): string | undefined {
-    const override = environment.BROWSER_TESTBENCH_NPX_CLI_PATH?.trim();
-    const nodeDirectory = dirname(nodeExecutable);
-    const candidates = [
-      override,
-      platform === "win32"
-        ? join(nodeDirectory, "node_modules", "npm", "bin", "npx-cli.js")
-        : resolve(nodeDirectory, "../lib/node_modules/npm/bin/npx-cli.js"),
-    ].filter((candidate): candidate is string => Boolean(candidate));
-
-    for (const candidate of candidates) {
-      if (existsSync(candidate)) return realpathSync(candidate);
+        return {
+            command: nodeExecutable,
+            args: [this.launcherPath(context), nodeExecutable, npxCli, '--yes', packageSpec, 'mcp'],
+            verificationArgs: [
+                this.launcherPath(context),
+                nodeExecutable,
+                npxCli,
+                '--yes',
+                packageSpec,
+                '--version',
+            ],
+        };
     }
-    return undefined;
-  }
+
+    private static launcherPath(context: LauncherContext): string {
+        return join(context.dataDirectory ?? TestbenchPaths.dataRoot, 'mcp', 'launcher.mjs');
+    }
+
+    private static async writeLauncher(launcherPath: string): Promise<void> {
+        await mkdir(dirname(launcherPath), { recursive: true });
+        const current = await readFile(launcherPath, 'utf8').catch(() => undefined);
+
+        if (current !== LAUNCHER_SOURCE) {
+            await writeFile(launcherPath, LAUNCHER_SOURCE, { mode: 0o600 });
+        }
+    }
+
+    private static npxCli(
+        platform: NodeJS.Platform,
+        environment: NodeJS.ProcessEnv,
+        nodeExecutable: string,
+    ): string | undefined {
+        const override = environment.BROWSER_TESTBENCH_NPX_CLI_PATH?.trim();
+        const nodeDirectory = dirname(nodeExecutable);
+        const candidates = [
+            override,
+            platform === 'win32'
+                ? join(nodeDirectory, 'node_modules', 'npm', 'bin', 'npx-cli.js')
+                : resolve(nodeDirectory, '../lib/node_modules/npm/bin/npx-cli.js'),
+        ].filter((candidate): candidate is string => Boolean(candidate));
+
+        for (const candidate of candidates) {
+            if (existsSync(candidate)) {
+                return realpathSync(candidate);
+            }
+        }
+
+        return undefined;
+    }
 }

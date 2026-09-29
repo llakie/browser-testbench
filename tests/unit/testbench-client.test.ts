@@ -1,390 +1,442 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TestTargetInfo } from "../../src/config/types.js";
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { TestTargetInfo } from '../../src/config/types.js';
 import {
-  BrowserOrientation,
-  PinchDirection,
-  RemoteTestbench,
-  SwipeDirection,
-  TestbenchError,
-} from "../../src/transports/testbench-client.js";
-import { ClientVersion } from "../../src/config/client-version.js";
+    BrowserOrientation,
+    PinchDirection,
+    RemoteTestbench,
+    SwipeDirection,
+    TestbenchError,
+} from '../../src/transports/testbench-client.js';
+import { ClientVersion } from '../../src/config/client-version.js';
 
-describe("RemoteTestbench.availableTargets", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-  });
-  it("exports type-safe interaction values for project tests", () => {
-    expect(BrowserOrientation.Landscape).toBe("LANDSCAPE");
-    expect(SwipeDirection.Up).toBe("up");
-    expect(PinchDirection.Out).toBe("out");
-  });
+describe('RemoteTestbench.availableTargets', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    });
+    it('exports type-safe interaction values for project tests', () => {
+        expect(BrowserOrientation.Landscape).toBe('LANDSCAPE');
+        expect(SwipeDirection.Up).toBe('up');
+        expect(PinchDirection.Out).toBe('out');
+    });
 
-  it("returns ready requested IDs in the requested order", async () => {
-    const testbench = new RemoteTestbench();
-    vi.spyOn(testbench, "targets").mockResolvedValue([
-      target("chrome", true),
-      target("firefox", false),
-      target("safari-ios-iphone-17-pro-26-5", true),
-    ]);
+    it('returns ready requested IDs in the requested order', async () => {
+        const testbench = new RemoteTestbench();
+        vi.spyOn(testbench, 'targets').mockResolvedValue([
+            target('chrome', true),
+            target('firefox', false),
+            target('safari-ios-iphone-17-pro-26-5', true),
+        ]);
 
-    await expect(testbench.availableTargets(["firefox", "safari-ios-iphone-17-pro-26-5", "chrome"])).resolves.toEqual([
-      "safari-ios-iphone-17-pro-26-5",
-      "chrome",
-    ]);
-  });
+        await expect(
+            testbench.availableTargets(['firefox', 'safari-ios-iphone-17-pro-26-5', 'chrome']),
+        ).resolves.toEqual(['safari-ios-iphone-17-pro-26-5', 'chrome']);
+    });
 
-  it("checks target requirements before a run", async () => {
-    const testbench = new RemoteTestbench();
-    vi.spyOn(testbench, "capabilities").mockResolvedValue({
-      platform: process.platform,
-      architecture: process.arch,
-      targets: [],
-      checks: [],
-      limits: { requestBytes: 1, assetBytes: 2, sessionAssetBytes: 3 },
-      testTargets: [
-        {
-          ...target("android", true),
-          capabilities: {
+    it('checks target requirements before a run', async () => {
+        const testbench = new RemoteTestbench();
+        vi.spyOn(testbench, 'capabilities').mockResolvedValue({
+            platform: process.platform,
+            architecture: process.arch,
+            targets: [],
+            checks: [],
             limits: { requestBytes: 1, assetBytes: 2, sessionAssetBytes: 3 },
-            permissions: { native: ["camera"], origin: ["camera"] },
-            localOrigins: { reverse: true },
-            mediaInjection: { cameraImage: true },
-            recording: {
-              screen: true,
-              viewport: false,
-              explicitLifecycle: false,
-              pauseResume: false,
-              geometry: false,
-              marks: true,
+            testTargets: [
+                {
+                    ...target('android', true),
+                    capabilities: {
+                        limits: { requestBytes: 1, assetBytes: 2, sessionAssetBytes: 3 },
+                        permissions: { native: ['camera'], origin: ['camera'] },
+                        localOrigins: { reverse: true },
+                        mediaInjection: { cameraImage: true },
+                        mediaPlayback: { autoplay: true },
+                        recording: {
+                            screen: true,
+                            viewport: false,
+                            explicitLifecycle: false,
+                            pauseResume: false,
+                            geometry: false,
+                            marks: true,
+                        },
+                        screenshots: {
+                            screen: false,
+                            viewport: true,
+                            fullPage: false,
+                            element: true,
+                        },
+                    },
+                },
+            ],
+        });
+
+        const android = await testbench.target('android');
+
+        expect(() =>
+            android.require({
+                localOrigins: { reverse: true },
+                permissions: { native: ['camera'] },
+            }),
+        ).not.toThrow();
+        expect(() => android.require({ recording: { viewport: true } })).toThrowError(
+            expect.objectContaining({
+                code: 'CAPABILITY_UNAVAILABLE',
+                details: expect.objectContaining({ missing: ['recording.viewport'] }),
+            }),
+        );
+    });
+
+    it('rejects when no requested target is ready', async () => {
+        const testbench = new RemoteTestbench();
+        vi.spyOn(testbench, 'targets').mockResolvedValue([target('chrome', false)]);
+
+        await expect(testbench.availableTargets(['chrome', 'missing'])).rejects.toThrow(
+            'None of the requested Browser Testbench targets are ready',
+        );
+    });
+
+    it('allows cold mobile targets enough time to start', async () => {
+        const testbench = new RemoteTestbench();
+        const request = vi.spyOn(testbench, 'request').mockResolvedValue({
+            id: 'session',
+            target: 'chrome-android-pixel-8-16',
+            createdAt: new Date().toISOString(),
+            runtime: {},
+        });
+
+        await testbench.open({ target: 'chrome-android-pixel-8-16' });
+        await testbench.verify('safari-ios-iphone-17-pro-26-5');
+
+        expect(request).toHaveBeenNthCalledWith(
+            1,
+            '/v1/sessions',
+            expect.objectContaining({ timeoutMs: 7 * 60_000 }),
+        );
+        expect(request).toHaveBeenNthCalledWith(
+            2,
+            '/v1/verify',
+            expect.objectContaining({ timeoutMs: 7 * 60_000 }),
+        );
+    });
+
+    it('keeps the transport alive for caller-defined waits and downloads', async () => {
+        const testbench = new RemoteTestbench();
+        const request = vi.spyOn(testbench, 'request').mockResolvedValue({
+            id: 'session',
+            target: 'chrome',
+            createdAt: new Date().toISOString(),
+            runtime: {},
+        });
+        const session = await testbench.open({ target: 'chrome' });
+        request.mockClear();
+
+        await session.waitForText('ready', 180_000);
+        await session.waitForDownload('report.pdf', 240_000);
+
+        expect(request).toHaveBeenNthCalledWith(
+            1,
+            '/v1/sessions/session/wait',
+            expect.objectContaining({ timeoutMs: 185_000 }),
+        );
+        expect(request).toHaveBeenNthCalledWith(
+            2,
+            '/v1/sessions/session/browser',
+            expect.objectContaining({ timeoutMs: 245_000 }),
+        );
+    });
+
+    it('supports wait options without breaking positional timeouts', async () => {
+        const testbench = new RemoteTestbench();
+        const request = vi.spyOn(testbench, 'request').mockResolvedValue({
+            id: 'session',
+            target: 'chrome',
+            createdAt: new Date().toISOString(),
+            runtime: {},
+        });
+        const session = await testbench.open({ target: 'chrome' });
+        request.mockClear();
+        const controller = new AbortController();
+
+        await session.waitForElement('#result', { timeoutMs: 90_000, signal: controller.signal });
+
+        expect(request).toHaveBeenCalledWith(
+            '/v1/sessions/session/wait',
+            expect.objectContaining({ timeoutMs: 95_000, signal: controller.signal }),
+        );
+    });
+
+    it('applies operation timeout and abort options to navigation', async () => {
+        const testbench = new RemoteTestbench();
+        const request = vi.spyOn(testbench, 'request').mockResolvedValue({
+            id: 'session',
+            target: 'chrome',
+            createdAt: new Date().toISOString(),
+            runtime: {},
+        });
+        const session = await testbench.open({ target: 'chrome' });
+        request.mockClear();
+        const controller = new AbortController();
+
+        await session.navigate('https://example.com', {
+            timeoutMs: 90_000,
+            signal: controller.signal,
+        });
+
+        expect(request).toHaveBeenCalledWith('/v1/sessions/session/navigate', {
+            method: 'POST',
+            body: JSON.stringify({ url: 'https://example.com', timeoutMs: 90_000 }),
+            timeoutMs: 95_000,
+            signal: controller.signal,
+        });
+    });
+
+    it('rejects invalid wait timeouts before sending a request', async () => {
+        const testbench = new RemoteTestbench();
+        vi.spyOn(testbench, 'request').mockResolvedValue({
+            id: 'session',
+            target: 'chrome',
+            createdAt: new Date().toISOString(),
+            runtime: {},
+        });
+        const session = await testbench.open({ target: 'chrome' });
+
+        await expect(session.waitForElement('#result', { timeoutMs: Infinity })).rejects.toThrow(
+            'positive finite number',
+        );
+    });
+
+    it('lists and closes recoverable sessions', async () => {
+        const testbench = new RemoteTestbench();
+        const request = vi
+            .spyOn(testbench, 'request')
+            .mockResolvedValueOnce([
+                {
+                    id: 'session',
+                    target: 'chrome',
+                    createdAt: new Date().toISOString(),
+                    runtime: {},
+                },
+            ])
+            .mockResolvedValueOnce({ closed: true });
+
+        const [session] = await testbench.sessions();
+        await testbench.closeSession(session!.id);
+
+        expect(session).toMatchObject({ id: 'session', target: 'chrome' });
+        expect(request).toHaveBeenNthCalledWith(1, '/v1/sessions');
+        expect(request).toHaveBeenNthCalledWith(2, '/v1/sessions/session', { method: 'DELETE' });
+    });
+
+    it('closes a remote session only once', async () => {
+        const testbench = new RemoteTestbench();
+        const request = vi
+            .spyOn(testbench, 'request')
+            .mockResolvedValueOnce({
+                id: 'session',
+                target: 'chrome',
+                createdAt: new Date().toISOString(),
+                runtime: {},
+            })
+            .mockResolvedValueOnce({ closed: true });
+        const session = await testbench.open({ target: 'chrome' });
+
+        await Promise.all([session.close(), session.close()]);
+
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(request).toHaveBeenLastCalledWith('/v1/sessions/session', { method: 'DELETE' });
+    });
+
+    it('exposes explicit recording lifecycle calls', async () => {
+        const testbench = new RemoteTestbench();
+        const request = vi.spyOn(testbench, 'request').mockResolvedValue({
+            id: 'session',
+            target: 'chrome-android-device',
+            createdAt: new Date().toISOString(),
+            runtime: {},
+        });
+        const session = await testbench.open({ target: 'chrome-android-device' });
+        request.mockClear();
+
+        await session.recording.start({ outputPath: './export/raw.mp4', scope: 'screen' });
+        await session.recording.stop();
+
+        expect(request).toHaveBeenNthCalledWith(1, '/v1/sessions/session/recording/start', {
+            method: 'POST',
+            body: JSON.stringify({ outputPath: './export/raw.mp4', scope: 'screen' }),
+        });
+        expect(request).toHaveBeenNthCalledWith(
+            2,
+            '/v1/sessions/session/recording/stop',
+            expect.objectContaining({ method: 'POST', timeoutMs: 120_000 }),
+        );
+    });
+
+    it('retries an interrupted artifact download without stopping the recorder twice', async () => {
+        const testbench = new RemoteTestbench();
+        const artifact = {
+            artifactId: 'artifact',
+            id: 'recording',
+            size: 10,
+            sha256: '0'.repeat(64),
+            mimeType: 'video/mp4' as const,
+            container: 'mov',
+            codec: 'h264',
+            width: 1080,
+            height: 1920,
+            durationMs: 1_000,
+            timeBase: '1/90000',
+            averageFrameRate: 30,
+            frameRateMode: 'constant' as const,
+            requestedScope: 'screen' as const,
+            actualScope: 'screen' as const,
+            endedSessionTimeMs: 1_000,
+            marks: [],
+            geometry: { samples: [] },
+        };
+        const request = vi
+            .spyOn(testbench, 'request')
+            .mockResolvedValueOnce({ id: 'session', target: 'chrome-android-device', runtime: {} })
+            .mockResolvedValueOnce({ id: 'recording' })
+            .mockResolvedValueOnce(artifact);
+        const transfer = vi
+            .spyOn(testbench, 'downloadRecording')
+            .mockRejectedValueOnce(new Error('transfer interrupted'))
+            .mockResolvedValueOnce(undefined);
+        const session = await testbench.open({ target: 'chrome-android-device' });
+        await session.recording.start({ outputPath: './export/raw.mp4' });
+
+        await expect(session.recording.stop()).rejects.toThrow('transfer interrupted');
+        await expect(session.recording.stop()).resolves.toMatchObject({
+            path: './export/raw.mp4',
+            id: 'recording',
+        });
+
+        expect(request).toHaveBeenCalledTimes(3);
+        expect(transfer).toHaveBeenCalledTimes(2);
+    });
+
+    it('requests structured screenshot scopes separately from the compatible screenshot API', async () => {
+        const testbench = new RemoteTestbench();
+        const request = vi.spyOn(testbench, 'request').mockResolvedValue({
+            id: 'session',
+            target: 'chrome',
+            createdAt: new Date().toISOString(),
+            runtime: {},
+        });
+        const session = await testbench.open({ target: 'chrome' });
+        request.mockClear();
+
+        await session.captureScreenshot({ scope: 'element', selector: '#price' });
+
+        expect(request).toHaveBeenCalledWith('/v1/sessions/session/screenshots', {
+            method: 'POST',
+            body: JSON.stringify({ scope: 'element', selector: '#price' }),
+        });
+    });
+
+    it('aborts requests after the configured client timeout', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(
+                (_url: string, init: RequestInit) =>
+                    new Promise((_resolve, reject) =>
+                        init.signal?.addEventListener(
+                            'abort',
+                            () => reject(new DOMException('aborted', 'AbortError')),
+                            {
+                                once: true,
+                            },
+                        ),
+                    ),
+            ),
+        );
+        const testbench = new RemoteTestbench({ requestTimeoutMs: 20 });
+
+        await expect(testbench.targets()).rejects.toThrow('timed out after 20 ms');
+    });
+
+    it('distinguishes caller aborts from transport timeouts', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(
+                (_url: string, init: RequestInit) =>
+                    new Promise((_resolve, reject) =>
+                        init.signal?.addEventListener(
+                            'abort',
+                            () => reject(new DOMException('aborted', 'AbortError')),
+                            {
+                                once: true,
+                            },
+                        ),
+                    ),
+            ),
+        );
+        const controller = new AbortController();
+        const request = new RemoteTestbench({ requestTimeoutMs: 10_000 }).request(
+            '/v1/sessions/id/wait',
+            {
+                signal: controller.signal,
             },
-            screenshots: { screen: false, viewport: true, fullPage: false, element: true },
-          },
-        },
-      ],
+        );
+        controller.abort();
+
+        await expect(request).rejects.toMatchObject({
+            code: 'OPERATION_ABORTED',
+            operation: 'wait',
+        });
     });
 
-    const android = await testbench.target("android");
+    it('identifies every request with the exact package version', async () => {
+        const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+            Promise.resolve(
+                new Response('[]', { headers: { 'content-type': 'application/json' } }),
+            ),
+        );
+        vi.stubGlobal('fetch', fetchMock);
 
-    expect(() =>
-      android.require({ localOrigins: { reverse: true }, permissions: { native: ["camera"] } }),
-    ).not.toThrow();
-    expect(() => android.require({ recording: { viewport: true } })).toThrowError(
-      expect.objectContaining({
-        code: "CAPABILITY_UNAVAILABLE",
-        details: expect.objectContaining({ missing: ["recording.viewport"] }),
-      }),
-    );
-  });
+        await new RemoteTestbench().targets();
 
-  it("rejects when no requested target is ready", async () => {
-    const testbench = new RemoteTestbench();
-    vi.spyOn(testbench, "targets").mockResolvedValue([target("chrome", false)]);
-
-    await expect(testbench.availableTargets(["chrome", "missing"])).rejects.toThrow(
-      "None of the requested Browser Testbench targets are ready",
-    );
-  });
-
-  it("allows cold mobile targets enough time to start", async () => {
-    const testbench = new RemoteTestbench();
-    const request = vi.spyOn(testbench, "request").mockResolvedValue({
-      id: "session",
-      target: "chrome-android-pixel-8-16",
-      createdAt: new Date().toISOString(),
-      runtime: {},
+        const init = fetchMock.mock.calls[0]![1]!;
+        expect(new Headers(init.headers).get(ClientVersion.HEADER)).toBe(ClientVersion.CURRENT);
     });
 
-    await testbench.open({ target: "chrome-android-pixel-8-16" });
-    await testbench.verify("safari-ios-iphone-17-pro-26-5");
+    it('preserves structured server errors for callers', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(
+                async () =>
+                    new Response(
+                        JSON.stringify({
+                            code: 'TARGET_BUSY',
+                            message: 'Target is busy.',
+                            operation: 'session.open',
+                            details: { target: 'chrome' },
+                        }),
+                        { status: 409, headers: { 'content-type': 'application/json' } },
+                    ),
+            ),
+        );
 
-    expect(request).toHaveBeenNthCalledWith(1, "/v1/sessions", expect.objectContaining({ timeoutMs: 7 * 60_000 }));
-    expect(request).toHaveBeenNthCalledWith(2, "/v1/verify", expect.objectContaining({ timeoutMs: 7 * 60_000 }));
-  });
+        const error = await new RemoteTestbench().targets().catch((caught) => caught);
 
-  it("keeps the transport alive for caller-defined waits and downloads", async () => {
-    const testbench = new RemoteTestbench();
-    const request = vi.spyOn(testbench, "request").mockResolvedValue({
-      id: "session",
-      target: "chrome",
-      createdAt: new Date().toISOString(),
-      runtime: {},
+        expect(error).toBeInstanceOf(TestbenchError);
+        expect(error).toMatchObject({
+            code: 'TARGET_BUSY',
+            operation: 'session.open',
+            status: 409,
+            details: { target: 'chrome' },
+        });
     });
-    const session = await testbench.open({ target: "chrome" });
-    request.mockClear();
-
-    await session.waitForText("ready", 180_000);
-    await session.waitForDownload("report.pdf", 240_000);
-
-    expect(request).toHaveBeenNthCalledWith(
-      1,
-      "/v1/sessions/session/wait",
-      expect.objectContaining({ timeoutMs: 185_000 }),
-    );
-    expect(request).toHaveBeenNthCalledWith(
-      2,
-      "/v1/sessions/session/browser",
-      expect.objectContaining({ timeoutMs: 245_000 }),
-    );
-  });
-
-  it("supports wait options without breaking positional timeouts", async () => {
-    const testbench = new RemoteTestbench();
-    const request = vi.spyOn(testbench, "request").mockResolvedValue({
-      id: "session",
-      target: "chrome",
-      createdAt: new Date().toISOString(),
-      runtime: {},
-    });
-    const session = await testbench.open({ target: "chrome" });
-    request.mockClear();
-    const controller = new AbortController();
-
-    await session.waitForElement("#result", { timeoutMs: 90_000, signal: controller.signal });
-
-    expect(request).toHaveBeenCalledWith(
-      "/v1/sessions/session/wait",
-      expect.objectContaining({ timeoutMs: 95_000, signal: controller.signal }),
-    );
-  });
-
-  it("applies operation timeout and abort options to navigation", async () => {
-    const testbench = new RemoteTestbench();
-    const request = vi.spyOn(testbench, "request").mockResolvedValue({
-      id: "session",
-      target: "chrome",
-      createdAt: new Date().toISOString(),
-      runtime: {},
-    });
-    const session = await testbench.open({ target: "chrome" });
-    request.mockClear();
-    const controller = new AbortController();
-
-    await session.navigate("https://example.com", { timeoutMs: 90_000, signal: controller.signal });
-
-    expect(request).toHaveBeenCalledWith("/v1/sessions/session/navigate", {
-      method: "POST",
-      body: JSON.stringify({ url: "https://example.com", timeoutMs: 90_000 }),
-      timeoutMs: 95_000,
-      signal: controller.signal,
-    });
-  });
-
-  it("rejects invalid wait timeouts before sending a request", async () => {
-    const testbench = new RemoteTestbench();
-    vi.spyOn(testbench, "request").mockResolvedValue({
-      id: "session",
-      target: "chrome",
-      createdAt: new Date().toISOString(),
-      runtime: {},
-    });
-    const session = await testbench.open({ target: "chrome" });
-
-    await expect(session.waitForElement("#result", { timeoutMs: Infinity })).rejects.toThrow("positive finite number");
-  });
-
-  it("lists and closes recoverable sessions", async () => {
-    const testbench = new RemoteTestbench();
-    const request = vi
-      .spyOn(testbench, "request")
-      .mockResolvedValueOnce([{ id: "session", target: "chrome", createdAt: new Date().toISOString(), runtime: {} }])
-      .mockResolvedValueOnce({ closed: true });
-
-    const [session] = await testbench.sessions();
-    await testbench.closeSession(session!.id);
-
-    expect(session).toMatchObject({ id: "session", target: "chrome" });
-    expect(request).toHaveBeenNthCalledWith(1, "/v1/sessions");
-    expect(request).toHaveBeenNthCalledWith(2, "/v1/sessions/session", { method: "DELETE" });
-  });
-
-  it("closes a remote session only once", async () => {
-    const testbench = new RemoteTestbench();
-    const request = vi
-      .spyOn(testbench, "request")
-      .mockResolvedValueOnce({ id: "session", target: "chrome", createdAt: new Date().toISOString(), runtime: {} })
-      .mockResolvedValueOnce({ closed: true });
-    const session = await testbench.open({ target: "chrome" });
-
-    await Promise.all([session.close(), session.close()]);
-
-    expect(request).toHaveBeenCalledTimes(2);
-    expect(request).toHaveBeenLastCalledWith("/v1/sessions/session", { method: "DELETE" });
-  });
-
-  it("exposes explicit recording lifecycle calls", async () => {
-    const testbench = new RemoteTestbench();
-    const request = vi.spyOn(testbench, "request").mockResolvedValue({
-      id: "session",
-      target: "chrome-android-device",
-      createdAt: new Date().toISOString(),
-      runtime: {},
-    });
-    const session = await testbench.open({ target: "chrome-android-device" });
-    request.mockClear();
-
-    await session.recording.start({ outputPath: "./export/raw.mp4", scope: "screen" });
-    await session.recording.stop();
-
-    expect(request).toHaveBeenNthCalledWith(1, "/v1/sessions/session/recording/start", {
-      method: "POST",
-      body: JSON.stringify({ outputPath: "./export/raw.mp4", scope: "screen" }),
-    });
-    expect(request).toHaveBeenNthCalledWith(
-      2,
-      "/v1/sessions/session/recording/stop",
-      expect.objectContaining({ method: "POST", timeoutMs: 120_000 }),
-    );
-  });
-
-  it("retries an interrupted artifact download without stopping the recorder twice", async () => {
-    const testbench = new RemoteTestbench();
-    const artifact = {
-      artifactId: "artifact",
-      id: "recording",
-      size: 10,
-      sha256: "0".repeat(64),
-      mimeType: "video/mp4" as const,
-      container: "mov",
-      codec: "h264",
-      width: 1080,
-      height: 1920,
-      durationMs: 1_000,
-      timeBase: "1/90000",
-      averageFrameRate: 30,
-      frameRateMode: "constant" as const,
-      requestedScope: "screen" as const,
-      actualScope: "screen" as const,
-      endedSessionTimeMs: 1_000,
-      marks: [],
-      geometry: { samples: [] },
-    };
-    const request = vi
-      .spyOn(testbench, "request")
-      .mockResolvedValueOnce({ id: "session", target: "chrome-android-device", runtime: {} })
-      .mockResolvedValueOnce({ id: "recording" })
-      .mockResolvedValueOnce(artifact);
-    const transfer = vi
-      .spyOn(testbench, "downloadRecording")
-      .mockRejectedValueOnce(new Error("transfer interrupted"))
-      .mockResolvedValueOnce(undefined);
-    const session = await testbench.open({ target: "chrome-android-device" });
-    await session.recording.start({ outputPath: "./export/raw.mp4" });
-
-    await expect(session.recording.stop()).rejects.toThrow("transfer interrupted");
-    await expect(session.recording.stop()).resolves.toMatchObject({ path: "./export/raw.mp4", id: "recording" });
-
-    expect(request).toHaveBeenCalledTimes(3);
-    expect(transfer).toHaveBeenCalledTimes(2);
-  });
-
-  it("requests structured screenshot scopes separately from the compatible screenshot API", async () => {
-    const testbench = new RemoteTestbench();
-    const request = vi.spyOn(testbench, "request").mockResolvedValue({
-      id: "session",
-      target: "chrome",
-      createdAt: new Date().toISOString(),
-      runtime: {},
-    });
-    const session = await testbench.open({ target: "chrome" });
-    request.mockClear();
-
-    await session.captureScreenshot({ scope: "element", selector: "#price" });
-
-    expect(request).toHaveBeenCalledWith("/v1/sessions/session/screenshots", {
-      method: "POST",
-      body: JSON.stringify({ scope: "element", selector: "#price" }),
-    });
-  });
-
-  it("aborts requests after the configured client timeout", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        (_url: string, init: RequestInit) =>
-          new Promise((_resolve, reject) =>
-            init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), {
-              once: true,
-            }),
-          ),
-      ),
-    );
-    const testbench = new RemoteTestbench({ requestTimeoutMs: 20 });
-
-    await expect(testbench.targets()).rejects.toThrow("timed out after 20 ms");
-  });
-
-  it("distinguishes caller aborts from transport timeouts", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        (_url: string, init: RequestInit) =>
-          new Promise((_resolve, reject) =>
-            init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), {
-              once: true,
-            }),
-          ),
-      ),
-    );
-    const controller = new AbortController();
-    const request = new RemoteTestbench({ requestTimeoutMs: 10_000 }).request("/v1/sessions/id/wait", {
-      signal: controller.signal,
-    });
-    controller.abort();
-
-    await expect(request).rejects.toMatchObject({ code: "OPERATION_ABORTED", operation: "wait" });
-  });
-
-  it("identifies every request with the exact package version", async () => {
-    const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
-      Promise.resolve(new Response("[]", { headers: { "content-type": "application/json" } })),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    await new RemoteTestbench().targets();
-
-    const init = fetchMock.mock.calls[0]![1]!;
-    expect(new Headers(init.headers).get(ClientVersion.HEADER)).toBe(ClientVersion.CURRENT);
-  });
-
-  it("preserves structured server errors for callers", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({
-              code: "TARGET_BUSY",
-              message: "Target is busy.",
-              operation: "session.open",
-              details: { target: "chrome" },
-            }),
-            { status: 409, headers: { "content-type": "application/json" } },
-          ),
-      ),
-    );
-
-    const error = await new RemoteTestbench().targets().catch((caught) => caught);
-
-    expect(error).toBeInstanceOf(TestbenchError);
-    expect(error).toMatchObject({
-      code: "TARGET_BUSY",
-      operation: "session.open",
-      status: 409,
-      details: { target: "chrome" },
-    });
-  });
 });
 
 function target(id: string, ready: boolean): TestTargetInfo {
-  return {
-    id,
-    browser: "chrome",
-    label: id,
-    kind: "desktop",
-    status: ready ? "ready" : "blocked",
-    ready,
-    serial: false,
-    detail: id,
-  };
+    return {
+        id,
+        browser: 'chrome',
+        label: id,
+        kind: 'desktop',
+        status: ready ? 'ready' : 'blocked',
+        ready,
+        serial: false,
+        detail: id,
+    };
 }

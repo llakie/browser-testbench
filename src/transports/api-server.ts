@@ -1,857 +1,1134 @@
-import { randomUUID, timingSafeEqual } from "node:crypto";
-import { createServer, type Server } from "node:http";
-import { createReadStream } from "node:fs";
-import type { AddressInfo } from "node:net";
-import { basename, join } from "node:path";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { pipeline } from "node:stream/promises";
-import express, { type NextFunction, type Request, type Response } from "express";
-import { ZodError } from "zod";
-import { SessionManager, SessionNotFoundError } from "../automation/session-manager.js";
-import { InputSchemas } from "../config/input-schemas.js";
-import { DoctorService } from "../setup/doctor-service.js";
-import { SetupService } from "../setup/setup-service.js";
-import { McpIntegrationService } from "../setup/mcp-integration-service.js";
-import { WorkbenchService } from "../setup/workbench-service.js";
-import { TestbenchPaths } from "../infrastructure/paths.js";
-import { UiRenderer } from "../ui/ui-renderer.js";
-import { UiLiveReload } from "../ui/ui-live-reload.js";
-import { TargetCatalogService } from "../setup/target-catalog-service.js";
-import { TargetVerificationService } from "../setup/target-verification-service.js";
-import { AndroidDeviceMonitor } from "../setup/android-device-monitor.js";
-import { IosDeviceMonitor } from "../setup/ios-device-monitor.js";
-import { WorkbenchEvents } from "../setup/workbench-events.js";
-import { WorkbenchEventStream } from "./workbench-event-stream.js";
-import { RemoteHostIdentityStore, AuthorizedRemoteClientStore } from "../remote/remote-client-store.js";
+import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { createServer, type Server } from 'node:http';
+import { createReadStream } from 'node:fs';
+import type { AddressInfo } from 'node:net';
+import { basename, join } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { pipeline } from 'node:stream/promises';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import { ZodError } from 'zod';
+import { SessionManager, SessionNotFoundError } from '../automation/session-manager.js';
+import { InputSchemas } from '../config/input-schemas.js';
+import { DoctorService } from '../setup/doctor-service.js';
+import { SetupService } from '../setup/setup-service.js';
+import { McpIntegrationService } from '../setup/mcp-integration-service.js';
+import { WorkbenchService } from '../setup/workbench-service.js';
+import { TestbenchPaths } from '../infrastructure/paths.js';
+import { UiRenderer } from '../ui/ui-renderer.js';
+import { UiLiveReload } from '../ui/ui-live-reload.js';
+import { TargetCatalogService } from '../setup/target-catalog-service.js';
+import { TargetVerificationService } from '../setup/target-verification-service.js';
+import { AndroidDeviceMonitor } from '../setup/android-device-monitor.js';
+import { IosDeviceMonitor } from '../setup/ios-device-monitor.js';
+import { WorkbenchEvents } from '../setup/workbench-events.js';
+import { WorkbenchEventStream } from './workbench-event-stream.js';
 import {
-  RemotePairingService,
-  PairingNotFoundError,
-  PairingRejectedError,
-  PairingRateLimitError,
-} from "../remote/remote-pairing-service.js";
-import { RemoteRequestAuthentication } from "../remote/remote-request-authentication.js";
-import { RemoteDiscoveryBrowser, RemoteDiscoveryPublisher } from "../remote/remote-discovery-service.js";
-import { RemoteConnectionService } from "../remote/remote-connection-service.js";
-import { TestbenchDefaults } from "../config/defaults.js";
-import { RemoteLoopbackUrlError } from "../remote/remote-url-guard.js";
-import { RemoteApiError } from "../remote/remote-api-client.js";
-import { RemoteArtifactHost } from "../remote/remote-artifact-transfer.js";
-import { RemoteApiController } from "../remote/remote-api-controller.js";
-import { RemoteSessionPolicy, RemoteSessionPolicyError } from "../remote/remote-session-policy.js";
-import { IosPhysicalLoopbackUrlError } from "../automation/ios-physical-url-guard.js";
-import { ClientVersion } from "../config/client-version.js";
-import { LocalizedError, Translator, type MessageDescriptor } from "../i18n/translator.js";
-import { RequestAbort } from "./request-abort.js";
-import { ErrorResponse } from "../i18n/error-response.js";
-import { TestbenchError } from "../errors/testbench-error.js";
-import { NetworkUrl } from "../infrastructure/network-url.js";
-import { SessionAssetManager } from "../automation/session-asset-manager.js";
-import type { AssetReference } from "../automation/session-asset-manager.js";
+    RemoteHostIdentityStore,
+    AuthorizedRemoteClientStore,
+} from '../remote/remote-client-store.js';
+import {
+    RemotePairingService,
+    PairingNotFoundError,
+    PairingRejectedError,
+    PairingRateLimitError,
+} from '../remote/remote-pairing-service.js';
+import { RemoteRequestAuthentication } from '../remote/remote-request-authentication.js';
+import {
+    RemoteDiscoveryBrowser,
+    RemoteDiscoveryPublisher,
+} from '../remote/remote-discovery-service.js';
+import { RemoteConnectionService } from '../remote/remote-connection-service.js';
+import { TestbenchDefaults } from '../config/defaults.js';
+import { RemoteLoopbackUrlError } from '../remote/remote-url-guard.js';
+import { RemoteApiError } from '../remote/remote-api-client.js';
+import { RemoteArtifactHost } from '../remote/remote-artifact-transfer.js';
+import { RemoteApiController } from '../remote/remote-api-controller.js';
+import { RemoteSessionPolicy, RemoteSessionPolicyError } from '../remote/remote-session-policy.js';
+import { IosPhysicalLoopbackUrlError } from '../automation/ios-physical-url-guard.js';
+import { ClientVersion } from '../config/client-version.js';
+import { LocalizedError, Translator, type MessageDescriptor } from '../i18n/translator.js';
+import { RequestAbort } from './request-abort.js';
+import { ErrorResponse } from '../i18n/error-response.js';
+import { TestbenchError } from '../errors/testbench-error.js';
+import { NetworkUrl } from '../infrastructure/network-url.js';
+import { SessionAssetManager } from '../automation/session-asset-manager.js';
+import type { AssetReference } from '../automation/session-asset-manager.js';
 
-const english = new Translator("en");
+const english = new Translator('en');
 
 export interface ApiServerOptions {
-  host: string;
-  port: number;
-  token?: string;
-  liveReload?: boolean;
-  remote?: boolean;
+    host: string;
+    port: number;
+    token?: string;
+    liveReload?: boolean;
+    remote?: boolean;
 }
 
 export interface ApiServerDependencies {
-  sessions?: SessionManager;
-  events?: WorkbenchEvents;
-  androidMonitor?: AndroidDeviceMonitor;
-  iosMonitor?: IosDeviceMonitor;
-  identity?: RemoteHostIdentityStore;
-  clients?: AuthorizedRemoteClientStore;
-  pairing?: RemotePairingService;
-  remoteAuthentication?: RemoteRequestAuthentication;
-  discovery?: Pick<RemoteDiscoveryBrowser, "discover">;
-  publisher?: Pick<RemoteDiscoveryPublisher, "start" | "stop">;
-  connections?: RemoteConnectionService;
+    sessions?: SessionManager;
+    events?: WorkbenchEvents;
+    androidMonitor?: AndroidDeviceMonitor;
+    iosMonitor?: IosDeviceMonitor;
+    identity?: RemoteHostIdentityStore;
+    clients?: AuthorizedRemoteClientStore;
+    pairing?: RemotePairingService;
+    remoteAuthentication?: RemoteRequestAuthentication;
+    discovery?: Pick<RemoteDiscoveryBrowser, 'discover'>;
+    publisher?: Pick<RemoteDiscoveryPublisher, 'start' | 'stop'>;
+    connections?: RemoteConnectionService;
 }
 
 export class ApiServer {
-  private readonly sessions: SessionManager;
-  private readonly app = express();
-  private readonly server: Server;
-  private readonly workbench = new WorkbenchService();
-  private readonly liveReload?: UiLiveReload;
-  private readonly liveReloadResponses = new Set<Response>();
-  private readonly events: WorkbenchEvents;
-  private readonly eventStream: WorkbenchEventStream;
-  private readonly androidMonitor: AndroidDeviceMonitor;
-  private readonly iosMonitor: IosDeviceMonitor;
-  private readonly identity: RemoteHostIdentityStore;
-  private readonly clients: AuthorizedRemoteClientStore;
-  private readonly pairing: RemotePairingService;
-  private readonly remoteAuthentication: RemoteRequestAuthentication;
-  private readonly discovery: Pick<RemoteDiscoveryBrowser, "discover">;
-  private readonly publisher: Pick<RemoteDiscoveryPublisher, "start" | "stop">;
-  private readonly connections: RemoteConnectionService;
-  private readonly clientLeases = new Map<string, NodeJS.Timeout>();
-  private readonly artifactHost = new RemoteArtifactHost();
-  private readonly sessionAssets = new SessionAssetManager();
-  private readonly remoteApi: RemoteApiController;
-  private readonly recordingDirectories = new Map<string, string>();
-  private readonly explicitRecordingSessions = new Set<string>();
-  private readonly recordingArtifacts = new Map<
-    string,
-    {
-      ownerId: string;
-      sessionId: string;
-      directory: string;
-      result: Awaited<ReturnType<SessionManager["stopRecording"]>>;
-    }
-  >();
+    private readonly sessions: SessionManager;
+    private readonly app = express();
+    private readonly server: Server;
+    private readonly workbench = new WorkbenchService();
+    private readonly liveReload?: UiLiveReload;
+    private readonly liveReloadResponses = new Set<Response>();
+    private readonly events: WorkbenchEvents;
+    private readonly eventStream: WorkbenchEventStream;
+    private readonly androidMonitor: AndroidDeviceMonitor;
+    private readonly iosMonitor: IosDeviceMonitor;
+    private readonly identity: RemoteHostIdentityStore;
+    private readonly clients: AuthorizedRemoteClientStore;
+    private readonly pairing: RemotePairingService;
+    private readonly remoteAuthentication: RemoteRequestAuthentication;
+    private readonly discovery: Pick<RemoteDiscoveryBrowser, 'discover'>;
+    private readonly publisher: Pick<RemoteDiscoveryPublisher, 'start' | 'stop'>;
+    private readonly connections: RemoteConnectionService;
+    private readonly clientLeases = new Map<string, NodeJS.Timeout>();
+    private readonly artifactHost = new RemoteArtifactHost();
+    private readonly sessionAssets = new SessionAssetManager();
+    private readonly remoteApi: RemoteApiController;
+    private readonly recordingDirectories = new Map<string, string>();
+    private readonly explicitRecordingSessions = new Set<string>();
+    private readonly recordingArtifacts = new Map<
+        string,
+        {
+            ownerId: string;
+            sessionId: string;
+            directory: string;
+            result: Awaited<ReturnType<SessionManager['stopRecording']>>;
+        }
+    >();
 
-  constructor(
-    private readonly options: ApiServerOptions,
-    dependencies: ApiServerDependencies = {},
-  ) {
-    this.sessions = dependencies.sessions ?? new SessionManager();
-    this.events = dependencies.events ?? new WorkbenchEvents();
-    this.identity = dependencies.identity ?? new RemoteHostIdentityStore();
-    this.clients = dependencies.clients ?? new AuthorizedRemoteClientStore();
-    this.pairing = dependencies.pairing ?? new RemotePairingService(this.clients);
-    this.remoteAuthentication = dependencies.remoteAuthentication ?? new RemoteRequestAuthentication(this.clients);
-    this.discovery = dependencies.discovery ?? new RemoteDiscoveryBrowser();
-    this.publisher = dependencies.publisher ?? new RemoteDiscoveryPublisher(this.identity);
-    this.connections = dependencies.connections ?? new RemoteConnectionService();
-    this.remoteApi = new RemoteApiController({
-      remote: Boolean(options.remote),
-      identity: this.identity,
-      clients: this.clients,
-      pairing: this.pairing,
-      authentication: this.remoteAuthentication,
-      discovery: this.discovery,
-      connections: this.connections,
-      notifyConnectionChanged: () => this.notifyConnectionChanged(),
-      closeOwned: (ownerId) => this.closeOwnedAndCleanup(ownerId),
-      isClientConnected: (clientId) => this.clientLeases.has(clientId),
-    });
-    this.eventStream = new WorkbenchEventStream(this.events);
-    this.androidMonitor =
-      dependencies.androidMonitor ?? new AndroidDeviceMonitor(() => this.notifyEnvironmentChanged("android"));
-    this.iosMonitor = dependencies.iosMonitor ?? new IosDeviceMonitor(() => this.notifyEnvironmentChanged("ios"));
-    this.remoteAuthentication.onActivity((clientId) => this.refreshClientLease(clientId));
-    this.connections.onEvent((type) =>
-      this.events.publish({ type, source: "remote", occurredAt: new Date().toISOString() }),
-    );
-    if (options.liveReload) {
-      this.liveReload = new UiLiveReload([
-        join(TestbenchPaths.projectRoot, "templates", "ui"),
-        join(TestbenchPaths.projectRoot, "public", "ui"),
-        join(TestbenchPaths.projectRoot, "dist", "public", "ui"),
-      ]);
-    }
-    this.app.disable("x-powered-by");
-    this.app.use((request, response, next) => this.requireExpectedHost(request, response, next));
-    this.registerPublicRoutes();
-    this.app.use(express.json({ limit: "1mb" }));
-    this.app.use((request, response, next) => this.requireCompatibleClient(request, response, next));
-    this.remoteApi.registerPairingRoutes(this.app);
-    this.app.use((request, response, next) =>
-      options.remote
-        ? this.remoteAuthentication.middleware(request, response, next)
-        : this.authorize(request, response, next),
-    );
-    this.remoteApi.registerConnectionRoutes(this.app);
-    this.app.use((request, response, next) => this.remoteApi.proxy(request, response, next));
-    this.app.use("/v1/sessions/:id", (request, response, next) => {
-      const finish = this.sessions.beginOperation(
-        request.params.id,
-        `${request.method} ${request.originalUrl.split("?")[0]}`,
-        this.ownerId(request),
-      );
-      if (finish) {
-        let completed = false;
-        const complete = (): void => {
-          if (completed) return;
-          completed = true;
-          finish(response.statusCode);
-        };
-        response.once("finish", complete);
-        response.once("close", complete);
-      }
-      next();
-    });
-    this.registerRoutes();
-    this.app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
-      if (response.headersSent) {
-        next(error);
-        return;
-      }
-      if (error instanceof ZodError) {
-        response.status(400).json({ error: "Invalid request", issues: error.issues });
-        return;
-      }
-      if (error instanceof TestbenchError) {
-        response.status(error.status).json(error.toPayload());
-        return;
-      }
-      if (ApiServer.isPayloadTooLarge(error)) {
-        const actualBytes = ApiServer.errorNumber(error, "length");
-        const limitBytes = ApiServer.errorNumber(error, "limit") ?? TestbenchDefaults.REQUEST_BODY_LIMIT_BYTES;
-        const structured = new TestbenchError(
-          "PAYLOAD_TOO_LARGE",
-          `Request payload exceeds the ${limitBytes}-byte JSON limit. Upload large binary data as a session asset.`,
-          {
-            operation: "request.parse",
-            status: 413,
-            details: {
-              ...(actualBytes === undefined ? {} : { actualBytes }),
-              limitBytes,
-              suggestion: "session.assets.upload",
-            },
-          },
-        );
-        response.status(structured.status).json(structured.toPayload());
-        return;
-      }
-      if (error instanceof LocalizedError) {
-        response.status(error.status).json({ message: error.descriptor });
-        return;
-      }
-      if (error instanceof SessionNotFoundError || error instanceof PairingNotFoundError) {
-        response.status(404).json({ error: error.message });
-        return;
-      }
-      if (error instanceof PairingRejectedError) {
-        response.status(403).json({ error: error.message });
-        return;
-      }
-      if (error instanceof PairingRateLimitError) {
-        response.status(429).json({ error: error.message });
-        return;
-      }
-      if (error instanceof RemoteLoopbackUrlError) {
-        response.status(400).json({ error: error.message });
-        return;
-      }
-      if (error instanceof IosPhysicalLoopbackUrlError) {
-        response.status(400).json({ error: error.message });
-        return;
-      }
-      if (error instanceof RemoteApiError) {
-        response.status(error.status).json({ error: error.message });
-        return;
-      }
-      if (error instanceof RemoteSessionPolicyError) {
-        response.status(error.status).json({ error: error.message });
-        return;
-      }
-      response.status(500).json({ error: ErrorResponse.describe(error) });
-    });
-    this.server = createServer(this.app);
-  }
-
-  private static isPayloadTooLarge(error: unknown): boolean {
-    return (
-      typeof error === "object" &&
-      error !== null &&
-      (("type" in error && error.type === "entity.too.large") || ("status" in error && error.status === 413))
-    );
-  }
-
-  private static errorNumber(error: unknown, key: string): number | undefined {
-    const value =
-      typeof error === "object" && error !== null && key in error ? (error as Record<string, unknown>)[key] : undefined;
-    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-  }
-
-  private registerPublicRoutes(): void {
-    this.app.get("/", (_request, response) => response.redirect("/setup"));
-    this.app.get("/setup", (request, response) =>
-      this.sendUi(response, UiRenderer.setup(this.options.liveReload, request.headers["accept-language"])),
-    );
-    this.app.get("/targets", (request, response) =>
-      this.sendUi(response, UiRenderer.targets(this.options.liveReload, request.headers["accept-language"])),
-    );
-    this.app.get("/docs", (request, response) =>
-      this.sendUi(
-        response,
-        UiRenderer.documentation(
-          this.options.liveReload,
-          Boolean(this.options.remote) || this.connections.status().mode === "remote",
-          request.headers["accept-language"],
-        ),
-      ),
-    );
-    this.app.get("/LICENSE.txt", (_request, response) =>
-      response.sendFile(join(TestbenchPaths.projectRoot, "LICENSE.txt")),
-    );
-    this.app.get("/THIRD_PARTY_LICENSES.txt", (_request, response) =>
-      response.sendFile(join(TestbenchPaths.projectRoot, "THIRD_PARTY_LICENSES.txt")),
-    );
-    if (this.liveReload) this.app.get("/ui-live-reload", (_request, response) => this.connectLiveReload(response));
-    this.app.use("/ui-assets", express.static(join(TestbenchPaths.projectRoot, "dist", "public", "ui")));
-    this.app.use(
-      "/ui-assets",
-      express.static(join(TestbenchPaths.projectRoot, "public", "ui"), {
-        etag: !this.options.liveReload,
-        lastModified: !this.options.liveReload,
-        setHeaders: (response) => {
-          if (this.options.liveReload) response.setHeader("Cache-Control", "no-store");
-        },
-      }),
-    );
-    this.app.use("/fontawesome", express.static(TestbenchPaths.packageDirectory("@fortawesome/fontawesome-free")));
-  }
-
-  private requireExpectedHost(request: Request, response: Response, next: NextFunction): void {
-    const loopbackBinding = this.options.host !== "0.0.0.0" && NetworkUrl.isLoopbackHostname(this.options.host);
-    if (!loopbackBinding || NetworkUrl.isLoopbackHostname(request.hostname)) {
-      next();
-      return;
-    }
-    response.status(421).json({ error: "The request host is not allowed for this loopback Testbench." });
-  }
-
-  private requireCompatibleClient(request: Request, response: Response, next: NextFunction): void {
-    if (!request.path.startsWith("/v1/") || request.path === "/v1/remote/identity") {
-      next();
-      return;
-    }
-    const actualVersion = request.header(ClientVersion.HEADER);
-    if (actualVersion === ClientVersion.CURRENT) {
-      next();
-      return;
-    }
-    const missing = !actualVersion;
-    const message: MessageDescriptor = missing
-      ? { key: "errors.clientVersionMissing", parameters: { expectedVersion: ClientVersion.CURRENT } }
-      : {
-          key: "errors.clientVersionMismatch",
-          parameters: { actualVersion, expectedVersion: ClientVersion.CURRENT },
-        };
-    response.status(409).json({
-      error: english.message(message, ""),
-      message,
-      code: missing ? "client_version_missing" : "client_version_mismatch",
-      expectedVersion: ClientVersion.CURRENT,
-      ...(actualVersion ? { actualVersion } : {}),
-    });
-  }
-
-  async start(): Promise<{ host: string; port: number }> {
-    await new Promise<void>((resolve, reject) => {
-      this.server.once("error", reject);
-      this.server.listen(this.options.port, this.options.host, resolve);
-    });
-    this.liveReload?.start();
-    this.androidMonitor.start();
-    this.iosMonitor.start();
-    const address = this.server.address() as AddressInfo;
-    try {
-      if (this.options.remote) await this.publisher.start(address.port);
-    } catch (error) {
-      await this.stop();
-      throw error;
-    }
-    return { host: this.options.host, port: address.port };
-  }
-
-  async stop(): Promise<void> {
-    this.liveReload?.stop();
-    this.androidMonitor.stop();
-    this.iosMonitor.stop();
-    for (const response of this.liveReloadResponses) response.end();
-    this.liveReloadResponses.clear();
-    this.eventStream.close();
-    for (const lease of this.clientLeases.values()) clearTimeout(lease);
-    this.clientLeases.clear();
-    this.remoteApi.artifacts.clear();
-    const cleanup = await Promise.allSettled([
-      this.publisher.stop(),
-      this.connections.disconnect(),
-      this.sessions.closeAll(),
-      this.artifactHost.cleanup(),
-      this.sessionAssets.cleanup(),
-      this.cleanupRecordings(),
-    ]);
-    await new Promise<void>((resolve) => this.server.close(() => resolve()));
-    const failure = cleanup.find((result): result is PromiseRejectedResult => result.status === "rejected");
-    if (failure) throw failure.reason;
-  }
-
-  private sendUi(response: Response, html: string): void {
-    if (this.options.liveReload) response.setHeader("Cache-Control", "no-store");
-    response.type("html").send(html);
-  }
-
-  private connectLiveReload(response: Response): void {
-    response.set({
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "Content-Type": "text/event-stream",
-    });
-    response.flushHeaders();
-    response.write("event: connected\ndata: ready\n\n");
-    this.liveReloadResponses.add(response);
-    const unsubscribe = this.liveReload!.subscribe(() => response.write("data: reload\n\n"));
-    response.on("close", () => {
-      unsubscribe();
-      this.liveReloadResponses.delete(response);
-    });
-  }
-
-  private registerRoutes(): void {
-    this.app.get("/health", (_request, response) => response.json({ status: "ok" }));
-    this.app.get("/v1/events", (_request, response) => this.eventStream.connect(response));
-    this.app.get("/v1/targets", async (request, response) =>
-      response.json(
-        this.remoteApi.visibleHostDetails(
-          request,
-          (await TargetCatalogService.publicList()).map((target) => ({
-            ...target,
-            busy: target.serial && this.sessions.isTargetBusy(target.id),
-          })),
-        ),
-      ),
-    );
-    this.app.get("/v1/doctor", async (request, response) =>
-      response.json(this.remoteApi.visibleHostDetails(request, await DoctorService.inspect())),
-    );
-    this.app.get("/v1/capabilities", async (request, response) =>
-      response.json(this.remoteApi.visibleHostDetails(request, await this.workbench.capabilities())),
-    );
-    this.app.post("/v1/verify", async (request, response) => {
-      const result = await TargetVerificationService.run(
-        this.sessions,
-        InputSchemas.verification.parse(request.body),
-        this.ownerId(request),
-      );
-      this.notifyWorkbenchChanged("session");
-      response.json(result);
-    });
-    this.app.get("/v1/workbench", async (request, response) => {
-      const state = await this.workbench.state();
-      response.json(
-        this.remoteApi.visibleHostDetails(request, {
-          ...state,
-          testTargets: state.testTargets.map((target) => ({
-            ...target,
-            busy: target.serial && this.sessions.isTargetBusy(target.id),
-          })),
-          ...(await this.remoteApi.workbenchContext(request)),
-        }),
-      );
-    });
-    this.app.post("/v1/workbench/setup", async (request, response) => {
-      if (!this.requireAdmin(request, response)) return;
-      const input = InputSchemas.setup.parse(request.body);
-      const result = await SetupService.install(input.targets);
-      this.notifyWorkbenchChanged("setup");
-      response.json(result);
-    });
-    this.app.post("/v1/workbench/plan", async (request, response) => {
-      const input = InputSchemas.setup.parse(request.body);
-      response.json(this.remoteApi.visibleHostDetails(request, await SetupService.plan(input.targets)));
-    });
-    this.app.post("/v1/workbench/mcp", async (request, response) => {
-      if (!this.requireAdmin(request, response)) return;
-      const input = InputSchemas.mcpIntegration.parse(request.body);
-      const result = await McpIntegrationService.register(input.client);
-      this.notifyWorkbenchChanged("mcp");
-      response.json(result);
-    });
-    this.app.get("/v1/sessions", (request, response) => response.json(this.sessions.list(this.ownerId(request))));
-    this.app.post("/v1/assets", async (request, response) => {
-      response.status(201).json(await this.receiveAsset(request, response));
-    });
-    this.app.post("/v1/sessions/:id/assets", async (request, response) => {
-      this.sessions.touch(request.params.id, this.ownerId(request));
-      response.status(201).json(await this.receiveAsset(request, response, request.params.id));
-    });
-    this.app.post("/v1/sessions/:id/lease", (request, response) =>
-      response.json(this.sessions.touch(request.params.id, this.ownerId(request))),
-    );
-    this.app.post("/v1/sessions/:id/marks", (request, response) => {
-      const input = InputSchemas.mark.parse(request.body);
-      response.status(201).json(this.sessions.mark(request.params.id, input.name, input.data, this.ownerId(request)));
-    });
-    this.app.post("/v1/sessions/:id/recording/start", async (request, response) => {
-      const input = InputSchemas.recordingStart.parse(request.body);
-      const directory = await mkdtemp(join(tmpdir(), "browser-testbench-recording-"));
-      try {
-        const result = await this.sessions.startRecording(
-          request.params.id,
-          { ...input, outputPath: join(directory, basename(input.outputPath.replaceAll("\\", "/"))) },
-          this.ownerId(request),
-        );
-        this.recordingDirectories.set(request.params.id, directory);
-        this.explicitRecordingSessions.add(request.params.id);
-        response.status(201).json(result);
-      } catch (error) {
-        await rm(directory, { recursive: true, force: true });
-        throw error;
-      }
-    });
-    this.app.post("/v1/sessions/:id/recording/stop", async (request, response) => {
-      const ownerId = this.ownerId(request);
-      const existing = [...this.recordingArtifacts.entries()].find(
-        ([, artifact]) => artifact.sessionId === request.params.id && artifact.ownerId === ownerId,
-      );
-      if (existing) {
-        const [artifactId, artifact] = existing;
-        response.json({ ...ApiServer.publicRecordingResult(artifact.result), artifactId });
-        return;
-      }
-      const result = await this.sessions.stopRecording(
-        request.params.id,
-        ownerId,
-        RequestAbort.signal(request, response),
-      );
-      const directory = this.recordingDirectories.get(request.params.id);
-      if (!directory) {
-        response.json(ApiServer.publicRecordingResult(result));
-        return;
-      }
-      const artifactId = randomUUID();
-      this.recordingDirectories.delete(request.params.id);
-      this.recordingArtifacts.set(artifactId, { ownerId, sessionId: request.params.id, directory, result });
-      const { path: _serverPath, ...publicResult } = result;
-      response.json({ ...publicResult, artifactId });
-    });
-    this.app.get("/v1/sessions/:id/recording/artifacts/:artifactId", async (request, response) => {
-      const artifact = this.recordingArtifacts.get(request.params.artifactId);
-      if (!artifact || artifact.sessionId !== request.params.id || artifact.ownerId !== this.ownerId(request))
-        throw new SessionNotFoundError("Recording artifact was not found.");
-      await this.sendArtifact(response, {
-        path: artifact.result.path,
-        size: artifact.result.size,
-        name: basename(artifact.result.path),
-      });
-      this.recordingArtifacts.delete(request.params.artifactId);
-      await rm(artifact.directory, { recursive: true, force: true });
-    });
-    this.app.post("/v1/sessions", async (request, response) => {
-      const raw = { ...(request.body as Record<string, unknown>) };
-      const transferArtifacts = raw.transferArtifacts === true;
-      delete raw.transferArtifacts;
-      const input = InputSchemas.startSession.parse(raw);
-      RemoteSessionPolicy.assertStart(
-        input,
-        transferArtifacts,
-        Boolean(this.options.remote),
-        this.remoteAuthentication.principal(request),
-      );
-      const prepared = await this.artifactHost.prepareSession(input, transferArtifacts);
-      const ownerId = this.ownerId(request);
-      const cameraImage = input.media?.camera.source
-        ? this.sessionAssets.resource(input.media.camera.source, ownerId)
-        : undefined;
-      let startedSessionId: string | undefined;
-      try {
-        const session = await this.sessions.start(prepared.input, ownerId, RequestAbort.signal(request, response), {
-          cameraImage,
+    constructor(
+        private readonly options: ApiServerOptions,
+        dependencies: ApiServerDependencies = {},
+    ) {
+        this.sessions = dependencies.sessions ?? new SessionManager();
+        this.events = dependencies.events ?? new WorkbenchEvents();
+        this.identity = dependencies.identity ?? new RemoteHostIdentityStore();
+        this.clients = dependencies.clients ?? new AuthorizedRemoteClientStore();
+        this.pairing = dependencies.pairing ?? new RemotePairingService(this.clients);
+        this.remoteAuthentication =
+            dependencies.remoteAuthentication ?? new RemoteRequestAuthentication(this.clients);
+        this.discovery = dependencies.discovery ?? new RemoteDiscoveryBrowser();
+        this.publisher = dependencies.publisher ?? new RemoteDiscoveryPublisher(this.identity);
+        this.connections = dependencies.connections ?? new RemoteConnectionService();
+        this.remoteApi = new RemoteApiController({
+            remote: Boolean(options.remote),
+            identity: this.identity,
+            clients: this.clients,
+            pairing: this.pairing,
+            authentication: this.remoteAuthentication,
+            discovery: this.discovery,
+            connections: this.connections,
+            notifyConnectionChanged: () => this.notifyConnectionChanged(),
+            closeOwned: (ownerId) => this.closeOwnedAndCleanup(ownerId),
+            isClientConnected: (clientId) => this.clientLeases.has(clientId),
         });
-        startedSessionId = session.id;
-        if (cameraImage) this.sessionAssets.bind(cameraImage.reference, ownerId, session.id);
-        this.artifactHost.track(session.id, prepared.directory);
-        this.notifyWorkbenchChanged("session");
-        response.status(201).json(session);
-      } catch (error) {
-        if (prepared.directory) await this.artifactHost.discard(prepared.directory);
-        if (startedSessionId) {
-          try {
-            await this.sessions.close(startedSessionId, ownerId);
-          } catch (cleanupError) {
-            throw new AggregateError([error, cleanupError], "Session setup failed and cleanup also failed.", {
-              cause: error,
-            });
-          }
-        }
-        throw error;
-      }
-    });
-    this.app.delete("/v1/sessions/:id", async (request, response) => {
-      let result: { videoPath?: string };
-      try {
-        result = await this.sessions.close(request.params.id, this.ownerId(request));
-      } catch (error) {
-        await this.artifactHost.discardSession(request.params.id);
-        await this.sessionAssets.cleanupSession(request.params.id);
-        await this.cleanupRecordingSession(request.params.id);
-        throw error;
-      }
-      await this.sessionAssets.cleanupSession(request.params.id);
-      const explicitRecording = this.explicitRecordingSessions.has(request.params.id);
-      await this.cleanupRecordingSession(request.params.id);
-      const publicResult = explicitRecording ? {} : result;
-      const artifact = await this.artifactHost.completeSession(request.params.id, publicResult);
-      this.notifyWorkbenchChanged("session");
-      if ("path" in artifact) {
-        try {
-          await this.sendArtifact(response, artifact);
-        } finally {
-          if (artifact.directory) await this.artifactHost.discard(artifact.directory);
-        }
-      } else {
-        if (artifact.directory) await this.artifactHost.discard(artifact.directory);
-        response.json({ closed: true, ...publicResult });
-      }
-    });
-    this.app.get("/v1/sessions/:id/inspect", async (request, response) => {
-      const { limit } = InputSchemas.inspect.parse(request.query);
-      response.json(
-        await this.sessions.run(request.params.id, (session) => session.inspect(limit), this.ownerId(request)),
-      );
-    });
-    this.app.get("/v1/sessions/:id/source", async (request, response) => {
-      const { maxCharacters } = InputSchemas.pageSource.parse(request.query);
-      response.json(
-        await this.sessions.run(request.params.id, (session) => session.source(maxCharacters), this.ownerId(request)),
-      );
-    });
-    this.app.post("/v1/sessions/:id/navigate", async (request, response) => {
-      const { url, timeoutMs } = InputSchemas.navigate.parse(request.body);
-      const signal = RequestAbort.signal(request, response);
-      response.json(
-        await this.sessions.run(
-          request.params.id,
-          (session) => session.navigate(url, { timeoutMs, signal }),
-          this.ownerId(request),
-        ),
-      );
-    });
-    this.app.post("/v1/sessions/:id/click", async (request, response) => {
-      const { selector } = InputSchemas.click.parse(request.body);
-      await this.sessions.run(request.params.id, (session) => session.click(selector), this.ownerId(request));
-      response.json({ clicked: selector });
-    });
-    this.app.post("/v1/sessions/:id/type", async (request, response) => {
-      const { selector, value, clear } = InputSchemas.type.parse(request.body);
-      await this.sessions.run(
-        request.params.id,
-        (session) => session.type(selector, value, clear),
-        this.ownerId(request),
-      );
-      response.json({ typed: selector });
-    });
-    this.app.post("/v1/sessions/:id/element", async (request, response) => {
-      const input = InputSchemas.elementAction.parse(request.body);
-      RemoteSessionPolicy.assertElement(
-        input,
-        Boolean(this.options.remote),
-        this.remoteAuthentication.principal(request),
-      );
-      response.json(
-        await this.sessions.run(request.params.id, (session) => session.elementAction(input), this.ownerId(request)),
-      );
-    });
-    this.app.post("/v1/sessions/:id/upload", async (request, response) => {
-      if (!request.is("application/octet-stream")) {
-        response.status(415).json({ error: "Remote uploads require application/octet-stream." });
-        return;
-      }
-      await this.sessions.run(
-        request.params.id,
-        (session) =>
-          this.artifactHost.upload(session, request, request.header("x-browser-testbench-body-sha256") ?? ""),
-        this.ownerId(request),
-      );
-      response.json({ uploaded: true });
-    });
-    this.app.post("/v1/sessions/:id/browser", async (request, response) => {
-      const input = InputSchemas.browserAction.parse(request.body);
-      const result = await this.sessions.run(
-        request.params.id,
-        (session) => session.browserAction(input),
-        this.ownerId(request),
-      );
-      if (input.action === "waitDownload") {
-        const artifact = await this.artifactHost.download(request.params.id, result);
-        if (artifact) {
-          await this.sendArtifact(response, artifact);
-          return;
-        }
-      }
-      response.json(result);
-    });
-    this.app.post("/v1/sessions/:id/screenshot", async (request, response) => {
-      const { fullPage } = InputSchemas.screenshot.parse(request.body);
-      response.json({
-        base64: await this.sessions.run(
-          request.params.id,
-          (session) => session.captureScreenshot(fullPage),
-          this.ownerId(request),
-        ),
-      });
-    });
-    this.app.post("/v1/sessions/:id/screenshots", async (request, response) => {
-      const input = InputSchemas.structuredScreenshot.parse(request.body);
-      response.json(
-        await this.sessions.run(
-          request.params.id,
-          (session) => session.captureStructuredScreenshot(input.scope, input.selector),
-          this.ownerId(request),
-        ),
-      );
-    });
-    this.app.post("/v1/sessions/:id/gesture", async (request, response) => {
-      const input = InputSchemas.gesture.parse(request.body);
-      response.json(
-        await this.sessions.run(request.params.id, (session) => session.gesture(input), this.ownerId(request)),
-      );
-    });
-    this.app.post("/v1/sessions/:id/wait", async (request, response) => {
-      const signal = RequestAbort.signal(request, response);
-      await this.sessions.run(
-        request.params.id,
-        (session) => session.wait(InputSchemas.wait.parse(request.body), signal),
-        this.ownerId(request),
-      );
-      response.json({ ready: true });
-    });
-    this.app.get("/v1/sessions/:id/diagnostics", async (request, response) => {
-      response.json(
-        await this.sessions.run(request.params.id, (session) => session.diagnostics(), this.ownerId(request)),
-      );
-    });
-    this.app.get("/v1/sessions/:id/diagnostics/bundle", async (request, response) => {
-      response.json(await this.sessions.diagnosticBundle(request.params.id, this.ownerId(request)));
-    });
-    this.app.delete("/v1/sessions/:id/diagnostics", (request, response) => {
-      this.sessions.get(request.params.id, this.ownerId(request)).clearDiagnostics();
-      response.json({ cleared: true });
-    });
-    this.app.get("/v1/sessions/:id/devtools", async (request, response) => {
-      response.json(
-        await this.sessions.run(request.params.id, (session) => session.debugTools(), this.ownerId(request)),
-      );
-    });
-    this.app.use((_request, response) => response.status(404).json({ error: "Not found" }));
-  }
-
-  private notifyEnvironmentChanged(source: "android" | "ios"): void {
-    TargetCatalogService.invalidate();
-    this.events.publish({ type: "environment.changed", source, occurredAt: new Date().toISOString() });
-  }
-
-  private async receiveAsset(request: Request, response: Response, sessionId?: string): Promise<AssetReference> {
-    if (!request.is("application/octet-stream")) {
-      throw new TestbenchError("ASSET_CONTENT_TYPE_UNSUPPORTED", "Asset uploads require application/octet-stream.", {
-        operation: "asset.upload",
-        status: 415,
-      });
-    }
-    const encodedName = request.header("x-browser-testbench-asset-name") ?? "";
-    const name = decodeURIComponent(encodedName);
-    const size = Number(request.header("x-browser-testbench-asset-size"));
-    const sha256 = request.header("x-browser-testbench-asset-sha256") ?? "";
-    const contentType = request.header("x-browser-testbench-asset-content-type") ?? "application/octet-stream";
-    return this.sessionAssets.upload(
-      this.ownerId(request),
-      sessionId,
-      request,
-      { name, size, sha256, contentType },
-      RequestAbort.signal(request, response),
-    );
-  }
-
-  private notifyConnectionChanged(): void {
-    this.events.publish({ type: "connection.changed", source: "remote", occurredAt: new Date().toISOString() });
-  }
-
-  private notifyWorkbenchChanged(source: "session" | "setup" | "mcp"): void {
-    this.events.publish({ type: "workbench.changed", source, occurredAt: new Date().toISOString() });
-  }
-
-  private ownerId(request: Request): string {
-    return this.remoteApi.ownerId(request);
-  }
-
-  private requireAdmin(request: Request, response: Response): boolean {
-    return this.remoteApi.requireAdmin(request, response);
-  }
-
-  private authorize(request: Request, response: Response, next: NextFunction): void {
-    if (!this.options.token) return next();
-    const supplied = request.headers.authorization?.replace(/^Bearer\s+/i, "") ?? "";
-    const expected = Buffer.from(this.options.token);
-    const received = Buffer.from(supplied);
-    if (expected.length === received.length && timingSafeEqual(expected, received)) return next();
-    response.status(401).json({ error: "Unauthorized" });
-  }
-
-  private refreshClientLease(clientId: string): void {
-    const connected = this.clientLeases.has(clientId);
-    clearTimeout(this.clientLeases.get(clientId));
-    const lease = setTimeout(() => {
-      this.clientLeases.delete(clientId);
-      this.notifyConnectionChanged();
-      void this.closeOwnedAndCleanup(clientId)
-        .then(() => this.notifyWorkbenchChanged("session"))
-        .catch((error) =>
-          console.error(`Remote client cleanup failed: ${error instanceof Error ? error.message : error}`),
+        this.eventStream = new WorkbenchEventStream(this.events);
+        this.androidMonitor =
+            dependencies.androidMonitor ??
+            new AndroidDeviceMonitor(() => this.notifyEnvironmentChanged('android'));
+        this.iosMonitor =
+            dependencies.iosMonitor ??
+            new IosDeviceMonitor(() => this.notifyEnvironmentChanged('ios'));
+        this.remoteAuthentication.onActivity((clientId) => this.refreshClientLease(clientId));
+        this.connections.onEvent((type) =>
+            this.events.publish({ type, source: 'remote', occurredAt: new Date().toISOString() }),
         );
-    }, TestbenchDefaults.REMOTE_LEASE_TIMEOUT_MS);
-    lease.unref();
-    this.clientLeases.set(clientId, lease);
-    if (!connected) this.notifyConnectionChanged();
-  }
 
-  private async closeOwnedAndCleanup(ownerId: string): Promise<void> {
-    const sessionIds = this.sessions.list(ownerId).map((session) => session.id);
-    let closeError: unknown;
-    try {
-      await this.sessions.closeOwned(ownerId);
-    } catch (error) {
-      closeError = error;
+        if (options.liveReload) {
+            this.liveReload = new UiLiveReload([
+                join(TestbenchPaths.projectRoot, 'templates', 'ui'),
+                join(TestbenchPaths.projectRoot, 'public', 'ui'),
+                join(TestbenchPaths.projectRoot, 'dist', 'public', 'ui'),
+            ]);
+        }
+
+        this.app.disable('x-powered-by');
+        this.app.use((request, response, next) =>
+            this.requireExpectedHost(request, response, next),
+        );
+        this.registerPublicRoutes();
+        this.app.use(express.json({ limit: '1mb' }));
+        this.app.use((request, response, next) =>
+            this.requireCompatibleClient(request, response, next),
+        );
+        this.remoteApi.registerPairingRoutes(this.app);
+        this.app.use((request, response, next) =>
+            options.remote
+                ? this.remoteAuthentication.middleware(request, response, next)
+                : this.authorize(request, response, next),
+        );
+        this.remoteApi.registerConnectionRoutes(this.app);
+        this.app.use((request, response, next) => this.remoteApi.proxy(request, response, next));
+        this.app.use('/v1/sessions/:id', (request, response, next) => {
+            const finish = this.sessions.beginOperation(
+                request.params.id,
+                `${request.method} ${request.originalUrl.split('?')[0]}`,
+                this.ownerId(request),
+            );
+
+            if (finish) {
+                let completed = false;
+                const complete = (): void => {
+                    if (completed) {
+                        return;
+                    }
+
+                    completed = true;
+                    finish(response.statusCode);
+                };
+                response.once('finish', complete);
+                response.once('close', complete);
+            }
+
+            next();
+        });
+        this.registerRoutes();
+        this.app.use(
+            (error: unknown, _request: Request, response: Response, next: NextFunction) => {
+                if (response.headersSent) {
+                    next(error);
+                    return;
+                }
+
+                if (error instanceof ZodError) {
+                    response.status(400).json({ error: 'Invalid request', issues: error.issues });
+                    return;
+                }
+
+                if (error instanceof TestbenchError) {
+                    response.status(error.status).json(error.toPayload());
+                    return;
+                }
+
+                if (ApiServer.isPayloadTooLarge(error)) {
+                    const actualBytes = ApiServer.errorNumber(error, 'length');
+                    const limitBytes =
+                        ApiServer.errorNumber(error, 'limit') ??
+                        TestbenchDefaults.REQUEST_BODY_LIMIT_BYTES;
+                    const structured = new TestbenchError(
+                        'PAYLOAD_TOO_LARGE',
+                        `Request payload exceeds the ${limitBytes}-byte JSON limit. Upload large binary data as a session asset.`,
+                        {
+                            operation: 'request.parse',
+                            status: 413,
+                            details: {
+                                ...(actualBytes === undefined ? {} : { actualBytes }),
+                                limitBytes,
+                                suggestion: 'session.assets.upload',
+                            },
+                        },
+                    );
+                    response.status(structured.status).json(structured.toPayload());
+                    return;
+                }
+
+                if (error instanceof LocalizedError) {
+                    response.status(error.status).json({ message: error.descriptor });
+                    return;
+                }
+
+                if (
+                    error instanceof SessionNotFoundError ||
+                    error instanceof PairingNotFoundError
+                ) {
+                    response.status(404).json({ error: error.message });
+                    return;
+                }
+
+                if (error instanceof PairingRejectedError) {
+                    response.status(403).json({ error: error.message });
+                    return;
+                }
+
+                if (error instanceof PairingRateLimitError) {
+                    response.status(429).json({ error: error.message });
+                    return;
+                }
+
+                if (error instanceof RemoteLoopbackUrlError) {
+                    response.status(400).json({ error: error.message });
+                    return;
+                }
+
+                if (error instanceof IosPhysicalLoopbackUrlError) {
+                    response.status(400).json({ error: error.message });
+                    return;
+                }
+
+                if (error instanceof RemoteApiError) {
+                    response.status(error.status).json({ error: error.message });
+                    return;
+                }
+
+                if (error instanceof RemoteSessionPolicyError) {
+                    response.status(error.status).json({ error: error.message });
+                    return;
+                }
+
+                response.status(500).json({ error: ErrorResponse.describe(error) });
+            },
+        );
+        this.server = createServer(this.app);
     }
-    const cleanup = await Promise.allSettled(
-      sessionIds.flatMap((sessionId) => [
-        this.artifactHost.discardSession(sessionId),
-        this.cleanupRecordingSession(sessionId),
-      ]),
-    );
-    if (closeError) throw closeError;
-    const failure = cleanup.find((result): result is PromiseRejectedResult => result.status === "rejected");
-    if (failure) throw failure.reason;
-  }
 
-  private async sendArtifact(
-    response: Response,
-    artifact: { path: string; size: number; name: string },
-  ): Promise<void> {
-    response.status(200).set({
-      "Content-Length": String(artifact.size),
-      "Content-Type": "application/octet-stream",
-      "X-Browser-Testbench-Artifact-Name": encodeURIComponent(artifact.name),
-    });
-    await pipeline(createReadStream(artifact.path), response);
-  }
-
-  private async cleanupRecordingSession(sessionId: string): Promise<void> {
-    const directories = new Set<string>();
-    const active = this.recordingDirectories.get(sessionId);
-    if (active) directories.add(active);
-    this.recordingDirectories.delete(sessionId);
-    this.explicitRecordingSessions.delete(sessionId);
-    for (const [artifactId, artifact] of this.recordingArtifacts) {
-      if (artifact.sessionId !== sessionId) continue;
-      directories.add(artifact.directory);
-      this.recordingArtifacts.delete(artifactId);
+    private static isPayloadTooLarge(error: unknown): boolean {
+        return (
+            typeof error === 'object' &&
+            error !== null &&
+            (('type' in error && error.type === 'entity.too.large') ||
+                ('status' in error && error.status === 413))
+        );
     }
-    await Promise.all([...directories].map((directory) => rm(directory, { recursive: true, force: true })));
-  }
 
-  private async cleanupRecordings(): Promise<void> {
-    const sessionIds = new Set([
-      ...this.recordingDirectories.keys(),
-      ...[...this.recordingArtifacts.values()].map((artifact) => artifact.sessionId),
-    ]);
-    await Promise.all([...sessionIds].map((sessionId) => this.cleanupRecordingSession(sessionId)));
-  }
+    private static errorNumber(error: unknown, key: string): number | undefined {
+        const value =
+            typeof error === 'object' && error !== null && key in error
+                ? (error as Record<string, unknown>)[key]
+                : undefined;
+        return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+    }
 
-  private static publicRecordingResult(
-    result: Awaited<ReturnType<SessionManager["stopRecording"]>>,
-  ): Omit<Awaited<ReturnType<SessionManager["stopRecording"]>>, "path"> {
-    const { path: _serverPath, ...publicResult } = result;
-    return publicResult;
-  }
+    private registerPublicRoutes(): void {
+        this.app.get('/', (_request, response) => response.redirect('/setup'));
+        this.app.get('/setup', (request, response) =>
+            this.sendUi(
+                response,
+                UiRenderer.setup(this.options.liveReload, request.headers['accept-language']),
+            ),
+        );
+        this.app.get('/targets', (request, response) =>
+            this.sendUi(
+                response,
+                UiRenderer.targets(this.options.liveReload, request.headers['accept-language']),
+            ),
+        );
+        this.app.get('/docs', (request, response) =>
+            this.sendUi(
+                response,
+                UiRenderer.documentation(
+                    this.options.liveReload,
+                    Boolean(this.options.remote) || this.connections.status().mode === 'remote',
+                    request.headers['accept-language'],
+                ),
+            ),
+        );
+        this.app.get('/LICENSE.txt', (_request, response) =>
+            response.sendFile(join(TestbenchPaths.projectRoot, 'LICENSE.txt')),
+        );
+        this.app.get('/THIRD_PARTY_LICENSES.txt', (_request, response) =>
+            response.sendFile(join(TestbenchPaths.projectRoot, 'THIRD_PARTY_LICENSES.txt')),
+        );
+
+        if (this.liveReload) {
+            this.app.get('/ui-live-reload', (_request, response) =>
+                this.connectLiveReload(response),
+            );
+        }
+
+        this.app.use(
+            '/ui-assets',
+            express.static(join(TestbenchPaths.projectRoot, 'dist', 'public', 'ui')),
+        );
+        this.app.use(
+            '/ui-assets',
+            express.static(join(TestbenchPaths.projectRoot, 'public', 'ui'), {
+                etag: !this.options.liveReload,
+                lastModified: !this.options.liveReload,
+                setHeaders: (response) => {
+                    if (this.options.liveReload) {
+                        response.setHeader('Cache-Control', 'no-store');
+                    }
+                },
+            }),
+        );
+        this.app.use(
+            '/fontawesome',
+            express.static(TestbenchPaths.packageDirectory('@fortawesome/fontawesome-free')),
+        );
+    }
+
+    private requireExpectedHost(request: Request, response: Response, next: NextFunction): void {
+        const loopbackBinding =
+            this.options.host !== '0.0.0.0' && NetworkUrl.isLoopbackHostname(this.options.host);
+
+        if (!loopbackBinding || NetworkUrl.isLoopbackHostname(request.hostname)) {
+            next();
+            return;
+        }
+
+        response
+            .status(421)
+            .json({ error: 'The request host is not allowed for this loopback Testbench.' });
+    }
+
+    private requireCompatibleClient(
+        request: Request,
+        response: Response,
+        next: NextFunction,
+    ): void {
+        if (!request.path.startsWith('/v1/') || request.path === '/v1/remote/identity') {
+            next();
+            return;
+        }
+
+        const actualVersion = request.header(ClientVersion.HEADER);
+
+        if (actualVersion === ClientVersion.CURRENT) {
+            next();
+            return;
+        }
+
+        const missing = !actualVersion;
+        const message: MessageDescriptor = missing
+            ? {
+                  key: 'errors.clientVersionMissing',
+                  parameters: { expectedVersion: ClientVersion.CURRENT },
+              }
+            : {
+                  key: 'errors.clientVersionMismatch',
+                  parameters: { actualVersion, expectedVersion: ClientVersion.CURRENT },
+              };
+        response.status(409).json({
+            error: english.message(message, ''),
+            message,
+            code: missing ? 'client_version_missing' : 'client_version_mismatch',
+            expectedVersion: ClientVersion.CURRENT,
+            ...(actualVersion ? { actualVersion } : {}),
+        });
+    }
+
+    async start(): Promise<{ host: string; port: number }> {
+        await new Promise<void>((resolve, reject) => {
+            this.server.once('error', reject);
+            this.server.listen(this.options.port, this.options.host, resolve);
+        });
+        this.liveReload?.start();
+        this.androidMonitor.start();
+        this.iosMonitor.start();
+        const address = this.server.address() as AddressInfo;
+
+        try {
+            if (this.options.remote) {
+                await this.publisher.start(address.port);
+            }
+        } catch (error) {
+            await this.stop();
+            throw error;
+        }
+
+        return { host: this.options.host, port: address.port };
+    }
+
+    async stop(): Promise<void> {
+        this.liveReload?.stop();
+        this.androidMonitor.stop();
+        this.iosMonitor.stop();
+
+        for (const response of this.liveReloadResponses) {
+            response.end();
+        }
+
+        this.liveReloadResponses.clear();
+        this.eventStream.close();
+
+        for (const lease of this.clientLeases.values()) {
+            clearTimeout(lease);
+        }
+
+        this.clientLeases.clear();
+        this.remoteApi.artifacts.clear();
+        const cleanup = await Promise.allSettled([
+            this.publisher.stop(),
+            this.connections.disconnect(),
+            this.sessions.closeAll(),
+            this.artifactHost.cleanup(),
+            this.sessionAssets.cleanup(),
+            this.cleanupRecordings(),
+        ]);
+        await new Promise<void>((resolve) => this.server.close(() => resolve()));
+        const failure = cleanup.find(
+            (result): result is PromiseRejectedResult => result.status === 'rejected',
+        );
+
+        if (failure) {
+            throw failure.reason;
+        }
+    }
+
+    private sendUi(response: Response, html: string): void {
+        if (this.options.liveReload) {
+            response.setHeader('Cache-Control', 'no-store');
+        }
+
+        response.type('html').send(html);
+    }
+
+    private connectLiveReload(response: Response): void {
+        response.set({
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+            'Content-Type': 'text/event-stream',
+        });
+        response.flushHeaders();
+        response.write('event: connected\ndata: ready\n\n');
+        this.liveReloadResponses.add(response);
+        const unsubscribe = this.liveReload!.subscribe(() => response.write('data: reload\n\n'));
+        response.on('close', () => {
+            unsubscribe();
+            this.liveReloadResponses.delete(response);
+        });
+    }
+
+    private registerRoutes(): void {
+        this.app.get('/health', (_request, response) => response.json({ status: 'ok' }));
+        this.app.get('/v1/events', (_request, response) => this.eventStream.connect(response));
+        this.app.get('/v1/targets', async (request, response) =>
+            response.json(
+                this.remoteApi.visibleHostDetails(
+                    request,
+                    (await TargetCatalogService.publicList()).map((target) => ({
+                        ...target,
+                        busy: target.serial && this.sessions.isTargetBusy(target.id),
+                    })),
+                ),
+            ),
+        );
+        this.app.get('/v1/doctor', async (request, response) =>
+            response.json(
+                this.remoteApi.visibleHostDetails(request, await DoctorService.inspect()),
+            ),
+        );
+        this.app.get('/v1/capabilities', async (request, response) =>
+            response.json(
+                this.remoteApi.visibleHostDetails(request, await this.workbench.capabilities()),
+            ),
+        );
+        this.app.post('/v1/verify', async (request, response) => {
+            const result = await TargetVerificationService.run(
+                this.sessions,
+                InputSchemas.verification.parse(request.body),
+                this.ownerId(request),
+            );
+            this.notifyWorkbenchChanged('session');
+            response.json(result);
+        });
+        this.app.get('/v1/workbench', async (request, response) => {
+            const state = await this.workbench.state();
+            response.json(
+                this.remoteApi.visibleHostDetails(request, {
+                    ...state,
+                    testTargets: state.testTargets.map((target) => ({
+                        ...target,
+                        busy: target.serial && this.sessions.isTargetBusy(target.id),
+                    })),
+                    ...(await this.remoteApi.workbenchContext(request)),
+                }),
+            );
+        });
+        this.app.post('/v1/workbench/setup', async (request, response) => {
+            if (!this.requireAdmin(request, response)) {
+                return;
+            }
+
+            const input = InputSchemas.setup.parse(request.body);
+            const result = await SetupService.install(input.targets);
+            this.notifyWorkbenchChanged('setup');
+            response.json(result);
+        });
+        this.app.post('/v1/workbench/plan', async (request, response) => {
+            const input = InputSchemas.setup.parse(request.body);
+            response.json(
+                this.remoteApi.visibleHostDetails(request, await SetupService.plan(input.targets)),
+            );
+        });
+        this.app.post('/v1/workbench/mcp', async (request, response) => {
+            if (!this.requireAdmin(request, response)) {
+                return;
+            }
+
+            const input = InputSchemas.mcpIntegration.parse(request.body);
+            const result = await McpIntegrationService.register(input.client);
+            this.notifyWorkbenchChanged('mcp');
+            response.json(result);
+        });
+        this.app.get('/v1/sessions', (request, response) =>
+            response.json(this.sessions.list(this.ownerId(request))),
+        );
+        this.app.post('/v1/assets', async (request, response) => {
+            response.status(201).json(await this.receiveAsset(request, response));
+        });
+        this.app.post('/v1/sessions/:id/assets', async (request, response) => {
+            this.sessions.touch(request.params.id, this.ownerId(request));
+            response
+                .status(201)
+                .json(await this.receiveAsset(request, response, request.params.id));
+        });
+        this.app.post('/v1/sessions/:id/lease', (request, response) =>
+            response.json(this.sessions.touch(request.params.id, this.ownerId(request))),
+        );
+        this.app.post('/v1/sessions/:id/marks', (request, response) => {
+            const input = InputSchemas.mark.parse(request.body);
+            response
+                .status(201)
+                .json(
+                    this.sessions.mark(
+                        request.params.id,
+                        input.name,
+                        input.data,
+                        this.ownerId(request),
+                    ),
+                );
+        });
+        this.app.post('/v1/sessions/:id/recording/start', async (request, response) => {
+            const input = InputSchemas.recordingStart.parse(request.body);
+            const directory = await mkdtemp(join(tmpdir(), 'browser-testbench-recording-'));
+
+            try {
+                const result = await this.sessions.startRecording(
+                    request.params.id,
+                    {
+                        ...input,
+                        outputPath: join(
+                            directory,
+                            basename(input.outputPath.replaceAll('\\', '/')),
+                        ),
+                    },
+                    this.ownerId(request),
+                );
+                this.recordingDirectories.set(request.params.id, directory);
+                this.explicitRecordingSessions.add(request.params.id);
+                response.status(201).json(result);
+            } catch (error) {
+                await rm(directory, { recursive: true, force: true });
+                throw error;
+            }
+        });
+        this.app.post('/v1/sessions/:id/recording/stop', async (request, response) => {
+            const ownerId = this.ownerId(request);
+            const existing = [...this.recordingArtifacts.entries()].find(
+                ([, artifact]) =>
+                    artifact.sessionId === request.params.id && artifact.ownerId === ownerId,
+            );
+
+            if (existing) {
+                const [artifactId, artifact] = existing;
+                response.json({ ...ApiServer.publicRecordingResult(artifact.result), artifactId });
+                return;
+            }
+
+            const result = await this.sessions.stopRecording(
+                request.params.id,
+                ownerId,
+                RequestAbort.signal(request, response),
+            );
+            const directory = this.recordingDirectories.get(request.params.id);
+
+            if (!directory) {
+                response.json(ApiServer.publicRecordingResult(result));
+                return;
+            }
+
+            const artifactId = randomUUID();
+            this.recordingDirectories.delete(request.params.id);
+            this.recordingArtifacts.set(artifactId, {
+                ownerId,
+                sessionId: request.params.id,
+                directory,
+                result,
+            });
+            const { path: _serverPath, ...publicResult } = result;
+            response.json({ ...publicResult, artifactId });
+        });
+        this.app.get(
+            '/v1/sessions/:id/recording/artifacts/:artifactId',
+            async (request, response) => {
+                const artifact = this.recordingArtifacts.get(request.params.artifactId);
+
+                if (
+                    !artifact ||
+                    artifact.sessionId !== request.params.id ||
+                    artifact.ownerId !== this.ownerId(request)
+                ) {
+                    throw new SessionNotFoundError('Recording artifact was not found.');
+                }
+
+                await this.sendArtifact(response, {
+                    path: artifact.result.path,
+                    size: artifact.result.size,
+                    name: basename(artifact.result.path),
+                });
+                this.recordingArtifacts.delete(request.params.artifactId);
+                await rm(artifact.directory, { recursive: true, force: true });
+            },
+        );
+        this.app.post('/v1/sessions', async (request, response) => {
+            const raw = { ...(request.body as Record<string, unknown>) };
+            const transferArtifacts = raw.transferArtifacts === true;
+            delete raw.transferArtifacts;
+            const input = InputSchemas.startSession.parse(raw);
+            RemoteSessionPolicy.assertStart(
+                input,
+                transferArtifacts,
+                Boolean(this.options.remote),
+                this.remoteAuthentication.principal(request),
+            );
+            const prepared = await this.artifactHost.prepareSession(input, transferArtifacts);
+            const ownerId = this.ownerId(request);
+            const cameraImage = input.media?.camera.source
+                ? this.sessionAssets.resource(input.media.camera.source, ownerId)
+                : undefined;
+            let startedSessionId: string | undefined;
+
+            try {
+                const session = await this.sessions.start(
+                    prepared.input,
+                    ownerId,
+                    RequestAbort.signal(request, response),
+                    {
+                        cameraImage,
+                    },
+                );
+                startedSessionId = session.id;
+
+                if (cameraImage) {
+                    this.sessionAssets.bind(cameraImage.reference, ownerId, session.id);
+                }
+
+                this.artifactHost.track(session.id, prepared.directory);
+                this.notifyWorkbenchChanged('session');
+                response.status(201).json(session);
+            } catch (error) {
+                if (prepared.directory) {
+                    await this.artifactHost.discard(prepared.directory);
+                }
+
+                if (startedSessionId) {
+                    try {
+                        await this.sessions.close(startedSessionId, ownerId);
+                    } catch (cleanupError) {
+                        throw new AggregateError(
+                            [error, cleanupError],
+                            'Session setup failed and cleanup also failed.',
+                            {
+                                cause: error,
+                            },
+                        );
+                    }
+                }
+
+                throw error;
+            }
+        });
+        this.app.delete('/v1/sessions/:id', async (request, response) => {
+            let result: { videoPath?: string };
+
+            try {
+                result = await this.sessions.close(request.params.id, this.ownerId(request));
+            } catch (error) {
+                await this.artifactHost.discardSession(request.params.id);
+                await this.sessionAssets.cleanupSession(request.params.id);
+                await this.cleanupRecordingSession(request.params.id);
+                throw error;
+            }
+
+            await this.sessionAssets.cleanupSession(request.params.id);
+            const explicitRecording = this.explicitRecordingSessions.has(request.params.id);
+            await this.cleanupRecordingSession(request.params.id);
+            const publicResult = explicitRecording ? {} : result;
+            const artifact = await this.artifactHost.completeSession(
+                request.params.id,
+                publicResult,
+            );
+            this.notifyWorkbenchChanged('session');
+
+            if ('path' in artifact) {
+                try {
+                    await this.sendArtifact(response, artifact);
+                } finally {
+                    if (artifact.directory) {
+                        await this.artifactHost.discard(artifact.directory);
+                    }
+                }
+            } else {
+                if (artifact.directory) {
+                    await this.artifactHost.discard(artifact.directory);
+                }
+
+                response.json({ closed: true, ...publicResult });
+            }
+        });
+        this.app.get('/v1/sessions/:id/inspect', async (request, response) => {
+            const { limit } = InputSchemas.inspect.parse(request.query);
+            response.json(
+                await this.sessions.run(
+                    request.params.id,
+                    (session) => session.inspect(limit),
+                    this.ownerId(request),
+                ),
+            );
+        });
+        this.app.get('/v1/sessions/:id/source', async (request, response) => {
+            const { maxCharacters } = InputSchemas.pageSource.parse(request.query);
+            response.json(
+                await this.sessions.run(
+                    request.params.id,
+                    (session) => session.source(maxCharacters),
+                    this.ownerId(request),
+                ),
+            );
+        });
+        this.app.post('/v1/sessions/:id/navigate', async (request, response) => {
+            const { url, timeoutMs } = InputSchemas.navigate.parse(request.body);
+            const signal = RequestAbort.signal(request, response);
+            response.json(
+                await this.sessions.run(
+                    request.params.id,
+                    (session) => session.navigate(url, { timeoutMs, signal }),
+                    this.ownerId(request),
+                ),
+            );
+        });
+        this.app.post('/v1/sessions/:id/click', async (request, response) => {
+            const { selector } = InputSchemas.click.parse(request.body);
+            await this.sessions.run(
+                request.params.id,
+                (session) => session.click(selector),
+                this.ownerId(request),
+            );
+            response.json({ clicked: selector });
+        });
+        this.app.post('/v1/sessions/:id/type', async (request, response) => {
+            const { selector, value, clear } = InputSchemas.type.parse(request.body);
+            await this.sessions.run(
+                request.params.id,
+                (session) => session.type(selector, value, clear),
+                this.ownerId(request),
+            );
+            response.json({ typed: selector });
+        });
+        this.app.post('/v1/sessions/:id/element', async (request, response) => {
+            const input = InputSchemas.elementAction.parse(request.body);
+            RemoteSessionPolicy.assertElement(
+                input,
+                Boolean(this.options.remote),
+                this.remoteAuthentication.principal(request),
+            );
+            response.json(
+                await this.sessions.run(
+                    request.params.id,
+                    (session) => session.elementAction(input),
+                    this.ownerId(request),
+                ),
+            );
+        });
+        this.app.post('/v1/sessions/:id/upload', async (request, response) => {
+            if (!request.is('application/octet-stream')) {
+                response
+                    .status(415)
+                    .json({ error: 'Remote uploads require application/octet-stream.' });
+                return;
+            }
+
+            await this.sessions.run(
+                request.params.id,
+                (session) =>
+                    this.artifactHost.upload(
+                        session,
+                        request,
+                        request.header('x-browser-testbench-body-sha256') ?? '',
+                    ),
+                this.ownerId(request),
+            );
+            response.json({ uploaded: true });
+        });
+        this.app.post('/v1/sessions/:id/browser', async (request, response) => {
+            const input = InputSchemas.browserAction.parse(request.body);
+            const result = await this.sessions.run(
+                request.params.id,
+                (session) => session.browserAction(input),
+                this.ownerId(request),
+            );
+
+            if (input.action === 'waitDownload') {
+                const artifact = await this.artifactHost.download(request.params.id, result);
+
+                if (artifact) {
+                    await this.sendArtifact(response, artifact);
+                    return;
+                }
+            }
+
+            response.json(result);
+        });
+        this.app.post('/v1/sessions/:id/screenshot', async (request, response) => {
+            const { fullPage } = InputSchemas.screenshot.parse(request.body);
+            response.json({
+                base64: await this.sessions.run(
+                    request.params.id,
+                    (session) => session.captureScreenshot(fullPage),
+                    this.ownerId(request),
+                ),
+            });
+        });
+        this.app.post('/v1/sessions/:id/screenshots', async (request, response) => {
+            const input = InputSchemas.structuredScreenshot.parse(request.body);
+            response.json(
+                await this.sessions.run(
+                    request.params.id,
+                    (session) => session.captureStructuredScreenshot(input.scope, input.selector),
+                    this.ownerId(request),
+                ),
+            );
+        });
+        this.app.post('/v1/sessions/:id/gesture', async (request, response) => {
+            const input = InputSchemas.gesture.parse(request.body);
+            response.json(
+                await this.sessions.run(
+                    request.params.id,
+                    (session) => session.gesture(input),
+                    this.ownerId(request),
+                ),
+            );
+        });
+        this.app.post('/v1/sessions/:id/wait', async (request, response) => {
+            const signal = RequestAbort.signal(request, response);
+            await this.sessions.run(
+                request.params.id,
+                (session) => session.wait(InputSchemas.wait.parse(request.body), signal),
+                this.ownerId(request),
+            );
+            response.json({ ready: true });
+        });
+        this.app.get('/v1/sessions/:id/diagnostics', async (request, response) => {
+            response.json(
+                await this.sessions.run(
+                    request.params.id,
+                    (session) => session.diagnostics(),
+                    this.ownerId(request),
+                ),
+            );
+        });
+        this.app.get('/v1/sessions/:id/diagnostics/bundle', async (request, response) => {
+            response.json(
+                await this.sessions.diagnosticBundle(request.params.id, this.ownerId(request)),
+            );
+        });
+        this.app.delete('/v1/sessions/:id/diagnostics', (request, response) => {
+            this.sessions.get(request.params.id, this.ownerId(request)).clearDiagnostics();
+            response.json({ cleared: true });
+        });
+        this.app.get('/v1/sessions/:id/devtools', async (request, response) => {
+            response.json(
+                await this.sessions.run(
+                    request.params.id,
+                    (session) => session.debugTools(),
+                    this.ownerId(request),
+                ),
+            );
+        });
+        this.app.use((_request, response) => response.status(404).json({ error: 'Not found' }));
+    }
+
+    private notifyEnvironmentChanged(source: 'android' | 'ios'): void {
+        TargetCatalogService.invalidate();
+        this.events.publish({
+            type: 'environment.changed',
+            source,
+            occurredAt: new Date().toISOString(),
+        });
+    }
+
+    private async receiveAsset(
+        request: Request,
+        response: Response,
+        sessionId?: string,
+    ): Promise<AssetReference> {
+        if (!request.is('application/octet-stream')) {
+            throw new TestbenchError(
+                'ASSET_CONTENT_TYPE_UNSUPPORTED',
+                'Asset uploads require application/octet-stream.',
+                {
+                    operation: 'asset.upload',
+                    status: 415,
+                },
+            );
+        }
+
+        const encodedName = request.header('x-browser-testbench-asset-name') ?? '';
+        const name = decodeURIComponent(encodedName);
+        const size = Number(request.header('x-browser-testbench-asset-size'));
+        const sha256 = request.header('x-browser-testbench-asset-sha256') ?? '';
+        const contentType =
+            request.header('x-browser-testbench-asset-content-type') ?? 'application/octet-stream';
+        return this.sessionAssets.upload(
+            this.ownerId(request),
+            sessionId,
+            request,
+            { name, size, sha256, contentType },
+            RequestAbort.signal(request, response),
+        );
+    }
+
+    private notifyConnectionChanged(): void {
+        this.events.publish({
+            type: 'connection.changed',
+            source: 'remote',
+            occurredAt: new Date().toISOString(),
+        });
+    }
+
+    private notifyWorkbenchChanged(source: 'session' | 'setup' | 'mcp'): void {
+        this.events.publish({
+            type: 'workbench.changed',
+            source,
+            occurredAt: new Date().toISOString(),
+        });
+    }
+
+    private ownerId(request: Request): string {
+        return this.remoteApi.ownerId(request);
+    }
+
+    private requireAdmin(request: Request, response: Response): boolean {
+        return this.remoteApi.requireAdmin(request, response);
+    }
+
+    private authorize(request: Request, response: Response, next: NextFunction): void {
+        if (!this.options.token) {
+            return next();
+        }
+
+        const supplied = request.headers.authorization?.replace(/^Bearer\s+/i, '') ?? '';
+        const expected = Buffer.from(this.options.token);
+        const received = Buffer.from(supplied);
+
+        if (expected.length === received.length && timingSafeEqual(expected, received)) {
+            return next();
+        }
+
+        response.status(401).json({ error: 'Unauthorized' });
+    }
+
+    private refreshClientLease(clientId: string): void {
+        const connected = this.clientLeases.has(clientId);
+        clearTimeout(this.clientLeases.get(clientId));
+        const lease = setTimeout(() => {
+            this.clientLeases.delete(clientId);
+            this.notifyConnectionChanged();
+            void this.closeOwnedAndCleanup(clientId)
+                .then(() => this.notifyWorkbenchChanged('session'))
+                .catch((error) =>
+                    console.error(
+                        `Remote client cleanup failed: ${error instanceof Error ? error.message : error}`,
+                    ),
+                );
+        }, TestbenchDefaults.REMOTE_LEASE_TIMEOUT_MS);
+        lease.unref();
+        this.clientLeases.set(clientId, lease);
+
+        if (!connected) {
+            this.notifyConnectionChanged();
+        }
+    }
+
+    private async closeOwnedAndCleanup(ownerId: string): Promise<void> {
+        const sessionIds = this.sessions.list(ownerId).map((session) => session.id);
+        let closeError: unknown;
+
+        try {
+            await this.sessions.closeOwned(ownerId);
+        } catch (error) {
+            closeError = error;
+        }
+
+        const cleanup = await Promise.allSettled(
+            sessionIds.flatMap((sessionId) => [
+                this.artifactHost.discardSession(sessionId),
+                this.cleanupRecordingSession(sessionId),
+            ]),
+        );
+
+        if (closeError) {
+            throw closeError;
+        }
+
+        const failure = cleanup.find(
+            (result): result is PromiseRejectedResult => result.status === 'rejected',
+        );
+
+        if (failure) {
+            throw failure.reason;
+        }
+    }
+
+    private async sendArtifact(
+        response: Response,
+        artifact: { path: string; size: number; name: string },
+    ): Promise<void> {
+        response.status(200).set({
+            'Content-Length': String(artifact.size),
+            'Content-Type': 'application/octet-stream',
+            'X-Browser-Testbench-Artifact-Name': encodeURIComponent(artifact.name),
+        });
+        await pipeline(createReadStream(artifact.path), response);
+    }
+
+    private async cleanupRecordingSession(sessionId: string): Promise<void> {
+        const directories = new Set<string>();
+        const active = this.recordingDirectories.get(sessionId);
+
+        if (active) {
+            directories.add(active);
+        }
+
+        this.recordingDirectories.delete(sessionId);
+        this.explicitRecordingSessions.delete(sessionId);
+
+        for (const [artifactId, artifact] of this.recordingArtifacts) {
+            if (artifact.sessionId !== sessionId) {
+                continue;
+            }
+
+            directories.add(artifact.directory);
+            this.recordingArtifacts.delete(artifactId);
+        }
+
+        await Promise.all(
+            [...directories].map((directory) => rm(directory, { recursive: true, force: true })),
+        );
+    }
+
+    private async cleanupRecordings(): Promise<void> {
+        const sessionIds = new Set([
+            ...this.recordingDirectories.keys(),
+            ...[...this.recordingArtifacts.values()].map((artifact) => artifact.sessionId),
+        ]);
+        await Promise.all(
+            [...sessionIds].map((sessionId) => this.cleanupRecordingSession(sessionId)),
+        );
+    }
+
+    private static publicRecordingResult(
+        result: Awaited<ReturnType<SessionManager['stopRecording']>>,
+    ): Omit<Awaited<ReturnType<SessionManager['stopRecording']>>, 'path'> {
+        const { path: _serverPath, ...publicResult } = result;
+        return publicResult;
+    }
 }

@@ -1,4 +1,7 @@
 {
-  "plugins": ["prettier-plugin-eta"],
-  "printWidth": 120
+    "plugins": ["prettier-plugin-eta"],
+    "printWidth": 100,
+    "tabWidth": 4,
+    "useTabs": false,
+    "singleQuote": true
 }

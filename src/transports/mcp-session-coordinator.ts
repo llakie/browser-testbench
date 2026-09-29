@@ -1,55 +1,68 @@
-import type { RemoteSession } from "./testbench-client.js";
+import type { RemoteSession } from './testbench-client.js';
 
 export class McpSessionCoordinator {
-  private current?: RemoteSession;
-  private operations: Promise<void> = Promise.resolve();
+    private current?: RemoteSession;
+    private operations: Promise<void> = Promise.resolve();
 
-  active(): RemoteSession {
-    if (!this.current) throw new Error("No interactive session is active.");
-    return this.current;
-  }
+    active(): RemoteSession {
+        if (!this.current) {
+            throw new Error('No interactive session is active.');
+        }
 
-  activeId(): string | undefined {
-    return this.current?.id;
-  }
+        return this.current;
+    }
 
-  replace(start: () => Promise<RemoteSession>): Promise<RemoteSession> {
-    return this.exclusive(async () => {
-      await this.closeCurrent();
-      this.current = await start();
-      return this.current;
-    });
-  }
+    activeId(): string | undefined {
+        return this.current?.id;
+    }
 
-  close(): Promise<{ videoPath?: string }> {
-    return this.exclusive(() => this.closeCurrent());
-  }
+    replace(start: () => Promise<RemoteSession>): Promise<RemoteSession> {
+        return this.exclusive(async () => {
+            await this.closeCurrent();
+            this.current = await start();
+            return this.current;
+        });
+    }
 
-  transition<T>(operation: () => Promise<T>, options: { onCloseError?: (error: unknown) => void } = {}): Promise<T> {
-    return this.exclusive(async () => {
-      try {
-        await this.closeCurrent();
-      } catch (error) {
-        if (!options.onCloseError) throw error;
-        options.onCloseError(error);
-      }
-      return operation();
-    });
-  }
+    close(): Promise<{ videoPath?: string }> {
+        return this.exclusive(() => this.closeCurrent());
+    }
 
-  private exclusive<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.operations.then(operation, operation);
-    this.operations = result.then(
-      () => undefined,
-      () => undefined,
-    );
-    return result;
-  }
+    transition<T>(
+        operation: () => Promise<T>,
+        options: { onCloseError?: (error: unknown) => void } = {},
+    ): Promise<T> {
+        return this.exclusive(async () => {
+            try {
+                await this.closeCurrent();
+            } catch (error) {
+                if (!options.onCloseError) {
+                    throw error;
+                }
 
-  private async closeCurrent(): Promise<{ videoPath?: string }> {
-    if (!this.current) return {};
-    const session = this.current;
-    this.current = undefined;
-    return session.close();
-  }
+                options.onCloseError(error);
+            }
+
+            return operation();
+        });
+    }
+
+    private exclusive<T>(operation: () => Promise<T>): Promise<T> {
+        const result = this.operations.then(operation, operation);
+        this.operations = result.then(
+            () => undefined,
+            () => undefined,
+        );
+        return result;
+    }
+
+    private async closeCurrent(): Promise<{ videoPath?: string }> {
+        if (!this.current) {
+            return {};
+        }
+
+        const session = this.current;
+        this.current = undefined;
+        return session.close();
+    }
 }
