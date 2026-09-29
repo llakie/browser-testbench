@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-29
+
+### Added
+
+- Chrome, Edge, and Firefox desktop targets can record the browser viewport as an MP4 through the existing explicit
+  recording lifecycle.
+
 ## [0.5.1] - 2026-09-27
 
 ### Fixed

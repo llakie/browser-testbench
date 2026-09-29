@@ -10,11 +10,13 @@ import { CommandRunner } from "../infrastructure/command-runner.js";
 import { ProcessTerminator } from "../infrastructure/process-terminator.js";
 import { MediaTooling } from "../infrastructure/media-tooling.js";
 import { AndroidDeviceUtilities } from "./android-device-utilities.js";
+import type { BrowserHandle } from "./browser-session.js";
 
 const ADB_COMMAND_TIMEOUT_MS = 5_000;
 const RECORDER_STOP_TIMEOUT_MS = 10_000;
 const VIDEO_PULL_TIMEOUT_MS = 60_000;
 const RECORDER_START_GRACE_PERIOD_MS = 300;
+const DESKTOP_CAPTURE_INTERVAL_MS = 50;
 
 export interface RecordingArtifact {
   path: string;
@@ -45,6 +47,7 @@ interface ProbeOutput {
 
 export class VideoRecorder {
   private stopResult?: Promise<RecordingArtifact>;
+  private desktopCapture?: { active: boolean; completed: Promise<void> };
 
   private constructor(
     private readonly child: ChildProcess,
@@ -56,6 +59,7 @@ export class VideoRecorder {
     target: TargetConfig,
     outputPath: string,
     capabilities: Record<string, unknown>,
+    browser?: BrowserHandle,
   ): Promise<VideoRecorder> {
     if (!MediaTooling.isAvailable()) throw this.unsupported(target, "FFmpeg and ffprobe are required for recording.");
     await mkdir(dirname(outputPath), { recursive: true });
@@ -86,6 +90,42 @@ export class VideoRecorder {
       await this.ensureStarted(child, "Android video recorder");
       return new VideoRecorder(child, outputPath, { adb, serial, remotePath });
     }
+    if (["chrome", "edge", "firefox"].includes(target.name)) {
+      if (!browser) throw this.unsupported(target, "An active browser is required for viewport recording.");
+      const child = spawn(
+        "ffmpeg",
+        [
+          "-y",
+          "-loglevel",
+          "error",
+          "-use_wallclock_as_timestamps",
+          "1",
+          "-f",
+          "image2pipe",
+          "-vcodec",
+          "png",
+          "-i",
+          "pipe:0",
+          "-vf",
+          "format=yuv444p,fps=30",
+          "-an",
+          "-c:v",
+          "libx264",
+          "-preset",
+          "veryfast",
+          "-pix_fmt",
+          "yuv444p",
+          "-movflags",
+          "+faststart",
+          outputPath,
+        ],
+        { stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
+      );
+      await this.ensureStarted(child, "Desktop viewport recorder");
+      const recorder = new VideoRecorder(child, outputPath);
+      await recorder.startDesktopCapture(browser);
+      return recorder;
+    }
     throw this.unsupported(target, `Video recording is not supported for '${target.name}'.`);
   }
 
@@ -109,7 +149,14 @@ export class VideoRecorder {
 
   private async finalize(): Promise<RecordingArtifact> {
     try {
-      if (this.android) {
+      if (this.desktopCapture) {
+        this.desktopCapture.active = false;
+        await this.desktopCapture.completed;
+        this.child.stdin?.end();
+        if (!(await ProcessTerminator.wait(this.child, RECORDER_STOP_TIMEOUT_MS))) {
+          await ProcessTerminator.stop(this.child, { graceMs: RECORDER_STOP_TIMEOUT_MS });
+        }
+      } else if (this.android) {
         await CommandRunner.run(this.android.adb, ["-s", this.android.serial, "shell", "pkill", "-2", "screenrecord"], {
           timeoutMs: ADB_COMMAND_TIMEOUT_MS,
         });
@@ -131,6 +178,41 @@ export class VideoRecorder {
         },
       });
     }
+  }
+
+  private async startDesktopCapture(browser: BrowserHandle): Promise<void> {
+    const state = { active: true, completed: Promise.resolve() };
+    const firstFrame = await browser.takeScreenshot();
+    await this.writeFrame(Buffer.from(firstFrame, "base64"));
+    state.completed = (async () => {
+      while (state.active) {
+        const startedAt = performance.now();
+        const frame = await browser.takeScreenshot();
+        if (!state.active) break;
+        await this.writeFrame(Buffer.from(frame, "base64"));
+        const remaining = DESKTOP_CAPTURE_INTERVAL_MS - (performance.now() - startedAt);
+        if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+      }
+    })();
+    this.desktopCapture = state;
+  }
+
+  private async writeFrame(frame: Buffer): Promise<void> {
+    const input = this.child.stdin;
+    if (!input || input.destroyed) throw new Error("Desktop viewport recorder is not accepting frames.");
+    if (input.write(frame)) return;
+    await new Promise<void>((resolve, reject) => {
+      const complete = (error?: Error): void => {
+        input.off("drain", onDrain);
+        input.off("error", onError);
+        if (error) reject(error);
+        else resolve();
+      };
+      const onDrain = (): void => complete();
+      const onError = (error: Error): void => complete(error);
+      input.once("drain", onDrain);
+      input.once("error", onError);
+    });
   }
 
   private async finalizeAndroid(): Promise<void> {

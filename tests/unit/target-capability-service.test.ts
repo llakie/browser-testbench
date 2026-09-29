@@ -39,12 +39,24 @@ describe("TargetCapabilityService", () => {
     expect(simulator.recording.screen).toBe(MediaTooling.isAvailable());
   });
 
+  it("advertises viewport recording for supported desktop browsers", () => {
+    for (const browser of ["chrome", "edge", "firefox"] as const) {
+      expect(TargetCapabilityService.for({ browser, kind: "desktop" })).toMatchObject({
+        recording: { screen: false, viewport: true, explicitLifecycle: true, geometry: true },
+      });
+    }
+  });
+
   it("keeps all screenshot scopes available without FFmpeg", () => {
     vi.mocked(MediaTooling.isAvailable).mockReturnValue(false);
 
     expect(android()).toMatchObject({
       recording: { screen: false, viewport: false },
       screenshots: { screen: true, viewport: true, element: true },
+    });
+    expect(TargetCapabilityService.for({ browser: "chrome", kind: "desktop" })).toMatchObject({
+      recording: { screen: false, viewport: false },
+      screenshots: { viewport: true, fullPage: true },
     });
   });
 
