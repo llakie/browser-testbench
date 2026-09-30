@@ -257,14 +257,19 @@ describe('RemoteTestbench.availableTargets', () => {
         request.mockClear();
 
         await session.recording.start({ outputPath: './export/raw.mp4', scope: 'screen' });
+        await session.recording.clock();
         await session.recording.stop();
 
         expect(request).toHaveBeenNthCalledWith(1, '/v1/sessions/session/recording/start', {
             method: 'POST',
             body: JSON.stringify({ outputPath: './export/raw.mp4', scope: 'screen' }),
         });
+        expect(request).toHaveBeenNthCalledWith(2, '/v1/sessions/session/recording/clock', {
+            method: 'POST',
+            body: '{}',
+        });
         expect(request).toHaveBeenNthCalledWith(
-            2,
+            3,
             '/v1/sessions/session/recording/stop',
             expect.objectContaining({ method: 'POST', timeoutMs: 120_000 }),
         );

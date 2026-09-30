@@ -20,12 +20,12 @@ import { IosPhysicalSafariNavigator } from './ios-physical-safari-navigator.js';
 import { IosSessionCleanup } from './ios-session-cleanup.js';
 import { MobileGestures, type GestureExecution } from './mobile-gestures.js';
 import { PageInspectionScript } from './page-inspection-script.js';
-import { RecordingProbe, VideoRecorder, type RecordingArtifact } from './video-recorder.js';
+import { VideoRecorder, type RecordingArtifact } from './video-recorder.js';
 import { randomUUID } from 'node:crypto';
 import { AndroidCameraUtilities } from './android-camera-utilities.js';
+import { AndroidBrowserUi } from './android-browser-ui.js';
 import { TestbenchError } from '../errors/testbench-error.js';
 import { ImageDimensions, RecordingGeometry, type GeometrySample } from './recording-geometry.js';
-import { VideoUtilities } from './video-utilities.js';
 import {
     ScreenshotUtilities,
     type ScreenshotResult,
@@ -33,6 +33,8 @@ import {
 } from './screenshot-utilities.js';
 import { AbortableOperation } from './abortable-operation.js';
 import { AndroidDeviceUtilities } from './android-device-utilities.js';
+import { ObsCapture, type PreparedObsCapture } from './obs-capture.js';
+import { LocalizedError } from '../i18n/translator.js';
 
 export interface PageInspection {
     url: string;
@@ -89,6 +91,7 @@ export class InteractiveController {
     private readonly session = new BrowserSession();
     private appium?: { process: ManagedProcess; port: number };
     private target?: TargetConfig;
+    private preparedCapture?: PreparedObsCapture;
     private video?: {
         id: string;
         recorder: VideoRecorder;
@@ -155,6 +158,23 @@ export class InteractiveController {
             let browserStarted = false;
 
             try {
+                const recording = options.require?.recording as
+                    | { viewport?: boolean; screen?: boolean; explicitLifecycle?: boolean }
+                    | undefined;
+
+                if (
+                    target.name === 'safari-ios' &&
+                    target.deviceKind === 'physical' &&
+                    (options.videoPath ||
+                        recording?.viewport ||
+                        recording?.screen ||
+                        recording?.explicitLifecycle)
+                ) {
+                    // USB screen capture can reconnect the device. Initialize it before
+                    // Appium establishes its Safari and XCTest connections.
+                    this.preparedCapture = await ObsCapture.prepareIosSession(target);
+                }
+
                 if (TargetRegistry.definitions[options.target].kind === 'mobile') {
                     this.appium = await ServiceManager.startAppium();
                 }
@@ -550,7 +570,9 @@ export class InteractiveController {
 
     async startRecording(options: { outputPath: string; scope?: 'screen' | 'viewport' }): Promise<{
         id: string;
+        capturesAudio: boolean;
         startedAt: string;
+        startedAtMonotonicMs: number;
         requestedScope: 'screen' | 'viewport';
         actualScope: 'screen' | 'viewport';
         geometry: { samples: GeometrySample[] };
@@ -571,6 +593,21 @@ export class InteractiveController {
             throw new Error('No interactive target is active.');
         }
 
+        if (
+            this.target.name === 'safari-ios' &&
+            this.target.deviceKind === 'physical' &&
+            !this.preparedCapture
+        ) {
+            throw new LocalizedError({ key: 'recording.errors.iosSession' }, 409);
+        }
+
+        if (this.target.name === 'chrome-android' && this.appium) {
+            await AndroidBrowserUi.dismissTransientPrompts(
+                this.appium.port,
+                this.session.active.sessionId,
+            );
+        }
+
         const id = randomUUID();
         const scope = options.scope ?? 'screen';
         const geometry = [
@@ -579,8 +616,10 @@ export class InteractiveController {
         const recorder = await VideoRecorder.start(
             this.target,
             options.outputPath,
-            this.session.active.capabilities,
             this.session.active,
+            geometry[0]!,
+            scope,
+            this.preparedCapture,
         );
         this.video = {
             id,
@@ -588,12 +627,14 @@ export class InteractiveController {
             path: options.outputPath,
             scope,
             geometry,
-            startedAtMs: performance.now(),
+            startedAtMs: recorder.startedAtMonotonicMs,
         };
         this.lastRecording = undefined;
         return {
             id,
             startedAt: new Date().toISOString(),
+            startedAtMonotonicMs: recorder.startedAtMonotonicMs,
+            capturesAudio: recorder.capturesAudio,
             requestedScope: scope,
             actualScope: scope,
             geometry: { samples: geometry },
@@ -634,59 +675,75 @@ export class InteractiveController {
             video.geometry.push(endingGeometry);
         }
 
-        const recordedDurationMs = Math.max(1, Math.round(performance.now() - video.startedAtMs));
-        let artifact = await video.recorder.stop(signal);
-        const expectedVideo = video.geometry[0]!.video;
+        const artifact = await video.recorder.stop(signal);
+        this.video = undefined;
 
-        if (artifact.width !== expectedVideo.width || artifact.height !== expectedVideo.height) {
+        if (video.geometry.length !== 1) {
             throw new TestbenchError(
                 'RECORDING_GEOMETRY_CHANGED',
-                'Recording and screen geometry do not have the same bounds.',
+                'Viewport geometry changed during recording.',
+                {
+                    operation: 'recording.stop',
+                    status: 409,
+                    details: { partialArtifact: artifact },
+                },
+            );
+        }
+
+        const sample = video.geometry[0]!;
+        const expectedVideo = video.scope === 'viewport' ? sample.viewportInVideo : sample.video;
+
+        // Encoders may align odd dimensions, but a wrong screen/capture must not pass.
+        if (
+            Math.abs(artifact.width - expectedVideo.width) > 3 ||
+            Math.abs(artifact.height - expectedVideo.height) > 1
+        ) {
+            throw new TestbenchError(
+                'RECORDING_GEOMETRY_CHANGED',
+                'Recording and requested geometry do not have the same bounds.',
                 {
                     operation: 'recording.stop',
                     status: 409,
                     details: {
                         recording: { width: artifact.width, height: artifact.height },
-                        screenshot: expectedVideo,
+                        screenshot: { width: expectedVideo.width, height: expectedVideo.height },
+                        partialArtifact: artifact,
                     },
                 },
             );
         }
 
-        const repairDuration =
-            artifact.durationMs + 100 < recordedDurationMs ? recordedDurationMs : undefined;
-
-        if (video.scope === 'viewport') {
-            if (video.geometry.length !== 1) {
-                throw new TestbenchError(
-                    'RECORDING_GEOMETRY_CHANGED',
-                    'Viewport geometry changed during recording.',
-                    {
-                        operation: 'recording.stop',
-                        status: 409,
-                        details: { partialArtifact: artifact, samples: video.geometry },
-                    },
-                );
-            }
-
-            await VideoUtilities.crop(
-                artifact.path,
-                video.geometry[0]!.viewportInVideo,
-                repairDuration,
-            );
-            artifact = await RecordingProbe.inspect(artifact.path);
-        } else if (repairDuration) {
-            await VideoUtilities.normalizeDuration(artifact.path, repairDuration);
-            artifact = await RecordingProbe.inspect(artifact.path);
-        }
-
-        this.video = undefined;
+        const viewport =
+            video.scope === 'viewport'
+                ? {
+                      ...sample.viewportInVideo,
+                      x: 0,
+                      y: 0,
+                      width: artifact.width,
+                      height: artifact.height,
+                  }
+                : sample.viewportInVideo;
         this.lastRecording = {
             ...artifact,
             id: video.id,
             requestedScope: video.scope,
             actualScope: video.scope,
-            geometry: { samples: video.geometry },
+            geometry: {
+                samples: [
+                    {
+                        ...sample,
+                        video: { width: artifact.width, height: artifact.height },
+                        viewportInVideo: viewport,
+                        insets: {
+                            ...sample.insets,
+                            top: viewport.y,
+                            left: viewport.x,
+                            right: artifact.width - viewport.x - viewport.width,
+                            bottom: artifact.height - viewport.y - viewport.height,
+                        },
+                    },
+                ],
+            },
         };
         return this.lastRecording;
     }
@@ -1321,6 +1378,8 @@ export class InteractiveController {
         }
 
         await IosSessionCleanup.run(target).catch((error) => failures.push(error));
+        await this.preparedCapture?.workspace.close().catch((error) => failures.push(error));
+        this.preparedCapture = undefined;
 
         if (failures.length > 0) {
             throw new AggregateError(failures, 'Session cleanup failed.');

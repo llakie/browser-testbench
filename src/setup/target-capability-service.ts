@@ -31,11 +31,11 @@ export class TargetCapabilityService {
         const mobileRecording =
             mobile &&
             mediaTooling &&
-            !(target.browser === 'safari-ios' && target.deviceKind === 'physical');
+            (target.browser !== 'safari-ios' || process.platform === 'darwin');
         const desktopViewportRecording =
             target.kind === 'desktop' &&
             mediaTooling &&
-            ['chrome', 'edge', 'firefox'].includes(target.browser ?? '');
+            ['chrome', 'edge', 'firefox', 'safari'].includes(target.browser ?? '');
         return {
             limits: {
                 requestBytes: TestbenchDefaults.REQUEST_BODY_LIMIT_BYTES,

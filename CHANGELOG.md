@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- OBS connection checks and a bilingual setup guide in the web UI.
+- Per-device audio synchronization settings on Overview and Test targets, including USB source selection for
+  physical iPhones on macOS. Remote configuration requires administrative access.
+
+### Changed
+
+- Video recording now uses OBS Studio for desktop browsers, simulators, and connected mobile devices. OBS and
+  FFmpeg are required; physical Android capture additionally uses scrcpy. The previous recording backends have
+  been removed.
+- Physical iPhone recording sessions prepare USB capture before connecting Safari. Request recording when opening
+  the session and close it afterwards to release OBS. Saved audio offsets are applied before source activation.
+
+### Fixed
+
+- Viewport detection excludes Safari's translucent browser bars, including on iOS simulators.
+- Android emulator capture selects the window by its AVD name.
+- Emulator audio calibration stays attached to the AVD across restarts and changing runtime serials.
+- Element actions recognize Chrome's detached-document error and retry once with a fresh element reference.
+
 ## [0.6.1] - 2026-09-29
 
 ### Added

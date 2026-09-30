@@ -18,6 +18,9 @@ import { TestbenchPaths } from '../infrastructure/paths.js';
 import { UiRenderer } from '../ui/ui-renderer.js';
 import { UiLiveReload } from '../ui/ui-live-reload.js';
 import { TargetCatalogService } from '../setup/target-catalog-service.js';
+import { RecordingSettingsStore } from '../setup/recording-settings-store.js';
+import { recordingSettingsSchema } from '../config/recording-settings.js';
+import { ObsIosCapture } from '../automation/obs-ios-capture.js';
 import { TargetVerificationService } from '../setup/target-verification-service.js';
 import { AndroidDeviceMonitor } from '../setup/android-device-monitor.js';
 import { IosDeviceMonitor } from '../setup/ios-device-monitor.js';
@@ -515,6 +518,27 @@ export class ApiServer {
                 this.remoteApi.visibleHostDetails(request, await DoctorService.inspect()),
             ),
         );
+        this.app.get('/v1/targets/:target/recording', async (request, response) => {
+            const target = await TargetCatalogService.resolve(request.params.target);
+            response.json(await RecordingSettingsStore.read(target.config));
+        });
+        this.app.post('/v1/recording/ios-devices', async (request, response) => {
+            if (!this.requireAdmin(request, response)) {
+                return;
+            }
+
+            response.json(await ObsIosCapture.discover());
+        });
+        this.app.put('/v1/targets/:target/recording', async (request, response) => {
+            if (!this.requireAdmin(request, response)) {
+                return;
+            }
+
+            const target = await TargetCatalogService.resolve(request.params.target);
+            const settings = recordingSettingsSchema.parse(request.body);
+            response.json(await RecordingSettingsStore.write(target.config, settings));
+            this.notifyWorkbenchChanged('setup');
+        });
         this.app.get('/v1/capabilities', async (request, response) =>
             response.json(
                 this.remoteApi.visibleHostDetails(request, await this.workbench.capabilities()),
@@ -619,6 +643,9 @@ export class ApiServer {
                 await rm(directory, { recursive: true, force: true });
                 throw error;
             }
+        });
+        this.app.post('/v1/sessions/:id/recording/clock', (request, response) => {
+            response.json(this.sessions.recordingClock(request.params.id, this.ownerId(request)));
         });
         this.app.post('/v1/sessions/:id/recording/stop', async (request, response) => {
             const ownerId = this.ownerId(request);

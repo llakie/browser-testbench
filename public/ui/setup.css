@@ -40,12 +40,14 @@
     --font-size-detail: 0.8rem;
     --font-size-secondary: 0.82rem;
     --font-size-summary: 0.85rem;
+    --font-size-field-label: 0.84rem;
     --icon-size-compact: 1.6rem;
     --icon-size-step: 2rem;
     --checkbox-size: 1rem;
     --docs-scroll-offset: 6rem;
     --content-flow-space: var(--space-3);
     --control-size: 2.75rem;
+    --dialog-width: 34rem;
     --sidebar-width: 17rem;
     --sidebar-collapsed-width: 4.75rem;
     --sidebar-icon-width: 1.4rem;
@@ -69,6 +71,60 @@
 
 * {
     box-sizing: border-box;
+}
+
+.recording-dialog {
+    width: min(var(--dialog-width), calc(100% - var(--space-4)));
+    max-height: calc(100dvh - var(--space-4));
+    padding: var(--space-4);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-medium);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-panel);
+}
+
+.button.button--icon {
+    flex: 0 0 var(--control-size);
+    width: var(--control-size);
+    height: var(--control-size);
+    padding: 0;
+    color: var(--color-ink-muted);
+}
+
+.recording-dialog::backdrop {
+    background: var(--color-backdrop);
+    backdrop-filter: blur(var(--space-1));
+}
+
+.recording-dialog__form {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.recording-dialog__form p {
+    margin: 0;
+    color: var(--color-ink-muted);
+}
+
+.recording-dialog__form .field-hint {
+    display: block;
+    margin-top: var(--space-1);
+    color: var(--color-ink-muted);
+    font-size: var(--font-size-field-label);
+}
+
+.recording-dialog__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.recording-dialog__source {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
 }
 
 [v-cloak] {
@@ -910,6 +966,10 @@ h3 {
     border-bottom: 0;
 }
 
+.docs-content section:has(> .docs-accordion:last-child) + section {
+    margin-top: var(--space-3);
+}
+
 .docs-accordion > summary {
     display: flex;
     width: 100%;
@@ -1258,13 +1318,28 @@ pre code {
     gap: var(--space-2);
 }
 
-.device-option__heading span {
+.check-card__name,
+.test-target__name,
+.device-option__name {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.check-card__name > span,
+.test-target__name strong,
+.device-option__name strong {
+    overflow-wrap: anywhere;
+}
+
+.device-option__heading > span {
     color: var(--color-success);
     font-size: 0.7rem;
     font-weight: 750;
 }
 
-.device-option.is-incompatible .device-option__heading span {
+.device-option.is-incompatible .device-option__heading > span {
     color: var(--color-warning);
 }
 
@@ -1444,7 +1519,7 @@ pre code {
 label > span {
     display: block;
     margin-bottom: var(--space-1);
-    font-size: 0.84rem;
+    font-size: var(--font-size-field-label);
     font-weight: 700;
 }
 
@@ -1522,13 +1597,9 @@ select:focus {
 
 .test-target__heading {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
-}
-
-.test-target__heading > strong {
-    min-width: 0;
 }
 
 .test-target__status {
@@ -1642,6 +1713,16 @@ select:focus {
     border-color: var(--color-line);
     color: var(--color-ink);
     background: var(--color-surface);
+}
+
+.button--ghost {
+    border-color: transparent;
+    color: var(--color-ink-muted);
+    background: transparent;
+}
+
+.button--ghost:hover:not(:disabled) {
+    background: var(--color-line);
 }
 
 .button.setup-action__status {

@@ -1,0 +1,101 @@
+<template id="recording-settings-template">
+    <button
+        :class="['button', 'button--icon', ghost ? 'button--ghost' : 'button--secondary']"
+        type="button"
+        @click="open"
+        :disabled="!store.workbench?.permissions.configure"
+        :aria-label="t('recording.openFor', { target: label })"
+        :title="t('recording.openFor', { target: label })"
+    >
+        <i class="fa-solid fa-gear" aria-hidden="true"></i>
+    </button>
+    <dialog ref="dialog" class="recording-dialog" :aria-labelledby="titleId" @click="backdrop">
+        <form class="recording-dialog__form" @submit.prevent="save">
+            <header class="section-heading">
+                <div>
+                    <h2 :id="titleId">{{ t('recording.deviceSettings') }}</h2>
+                    <p>{{ label }}</p>
+                </div>
+                <button
+                    class="button button--ghost button--icon"
+                    type="button"
+                    @click="dialog().close()"
+                    :aria-label="t('recording.close')"
+                >
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </header>
+            <h3>{{ t('recording.recordingSettings') }}</h3>
+            <label>
+                <span>{{ t('recording.offset') }}</span>
+                <input
+                    v-model.number="settings.audioSyncOffsetMs"
+                    type="number"
+                    min="-950"
+                    max="20000"
+                    step="1"
+                    required
+                    :disabled="loading || saving"
+                    :aria-describedby="hintId"
+                />
+                <small :id="hintId" class="field-hint">{{ t('recording.offsetHelp') }}</small>
+            </label>
+            <template v-if="usbCapture">
+                <div>
+                    <label :for="sourceId"><span>{{ t('recording.usbSource') }}</span></label>
+                    <div class="recording-dialog__source">
+                        <span class="select-control"
+                            ><select
+                                :id="sourceId"
+                                v-model="settings.captureDeviceId"
+                                :disabled="loading || saving"
+                            >
+                                <option :value="undefined">
+                                    {{ t('recording.chooseSource') }}
+                                </option>
+                                <option
+                                    v-if="settings.captureDeviceId && !devices.some(device => device.id === settings.captureDeviceId)"
+                                    :value="settings.captureDeviceId"
+                                >
+                                    {{ t('recording.savedSource') }}
+                                </option>
+                                <option
+                                    v-for="device in devices"
+                                    :key="device.id"
+                                    :value="device.id"
+                                >
+                                    {{ device.label }}
+                                </option></select
+                            ><i class="fa-solid fa-chevron-down" aria-hidden="true"></i
+                        ></span>
+                        <button
+                            class="button button--secondary button--icon"
+                            type="button"
+                            @click="discoverDevices"
+                            :disabled="loading || saving"
+                            :aria-label="t('recording.findSources')"
+                            :title="t('recording.findSources')"
+                        >
+                            <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <small class="field-hint">{{ t('recording.usbHelp') }}</small>
+                </div>
+            </template>
+            <p v-if="loading" role="status">
+                <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> {{
+                t('common.pleaseWait') }}
+            </p>
+            <p v-if="error" class="notice is-error" role="alert">{{ error }}</p>
+            <footer class="recording-dialog__actions">
+                <button class="button" type="submit" :disabled="!loaded || loading || saving">
+                    <i
+                        :class="['fa-solid', saving ? 'fa-spinner fa-spin' : 'fa-floppy-disk']"
+                        aria-hidden="true"
+                    ></i
+                    >{{ t('recording.save') }}
+                </button>
+            </footer>
+        </form>
+    </dialog>
+</template>

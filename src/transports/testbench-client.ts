@@ -88,11 +88,17 @@ export interface RecordingStartOptions {
 
 export interface RecordingStartResult {
     id: string;
+    capturesAudio: boolean;
     startedAt: string;
     sessionTimeMs: number;
     requestedScope: 'screen' | 'viewport';
     actualScope: 'screen' | 'viewport';
     geometry: { samples: GeometrySample[] };
+}
+
+export interface RecordingClock {
+    sessionTimeMs: number;
+    recordingTimeMs: number;
 }
 
 export interface RecordingResult extends RecordingArtifact {
@@ -1287,6 +1293,13 @@ export class RemoteRecording {
         this.outputPath = options.outputPath;
         this.stopResult = undefined;
         return result;
+    }
+
+    clock(): Promise<RecordingClock> {
+        return this.testbench.request<RecordingClock>(
+            `/v1/sessions/${this.sessionId}/recording/clock`,
+            { method: 'POST', body: '{}' },
+        );
     }
 
     stop(options: { signal?: AbortSignal } = {}): Promise<RecordingResult> {

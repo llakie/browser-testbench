@@ -5,13 +5,9 @@ import { IosPhysicalSafariNavigator } from '../../src/automation/ios-physical-sa
 import { ServiceManager } from '../../src/infrastructure/process-manager.js';
 import { TargetRegistry } from '../../src/config/target-registry.js';
 import { TestbenchDefaults } from '../../src/config/defaults.js';
-import {
-    RecordingProbe,
-    VideoRecorder,
-    type RecordingArtifact,
-} from '../../src/automation/video-recorder.js';
+import { VideoRecorder, type RecordingArtifact } from '../../src/automation/video-recorder.js';
 import { RecordingGeometry, type GeometrySample } from '../../src/automation/recording-geometry.js';
-import { VideoUtilities } from '../../src/automation/video-utilities.js';
+import { ObsCapture } from '../../src/automation/obs-capture.js';
 
 describe('InteractiveController', () => {
     afterEach(() => {
@@ -153,6 +149,87 @@ describe('InteractiveController', () => {
         expect(close).toHaveBeenCalledTimes(2);
         expect(stop).toHaveBeenCalledOnce();
     });
+
+    it.each([false, true])(
+        'reserves iPhone USB capture only for recording sessions (%s)',
+        async (recording) => {
+            vi.spyOn(TargetRegistry, 'isSupported').mockReturnValue(true);
+            const order: string[] = [];
+            const controller = new InteractiveController();
+            const browser = { sessionId: 'session-id', capabilities: {} };
+            const release = vi.fn(async () => {
+                order.push('release');
+            });
+            const capture = { workspace: { close: release }, source: 'iPhone', sceneItemId: 1 };
+            const prepare = vi
+                .spyOn(ObsCapture, 'prepareIosSession')
+                .mockImplementation(async () => {
+                    order.push('capture');
+                    return capture as never;
+                });
+            vi.spyOn(ServiceManager, 'startAppium').mockImplementation(async () => {
+                order.push('appium');
+                return {
+                    process: {
+                        stop: async () => {
+                            order.push('appium-stop');
+                        },
+                    },
+                    port: 1,
+                } as never;
+            });
+            vi.spyOn(IosSessionCleanup, 'run').mockResolvedValue(undefined);
+            Object.assign(controller, {
+                session: {
+                    start: vi.fn(async () => {
+                        order.push('browser');
+                        return browser;
+                    }),
+                    close: vi.fn(async () => {
+                        order.push('browser-close');
+                    }),
+                    active: browser,
+                },
+            });
+
+            await controller.start({
+                target: 'safari-ios',
+                targetId: 'physical-ios',
+                deviceKind: 'physical',
+                require: recording ? { recording: { viewport: true } } : undefined,
+            });
+
+            if (recording) {
+                expect(prepare).toHaveBeenCalledOnce();
+                expect(order.indexOf('capture')).toBeLessThan(order.indexOf('appium'));
+                expect(order.indexOf('appium')).toBeLessThan(order.indexOf('browser'));
+                vi.spyOn(RecordingGeometry, 'capture').mockResolvedValue(recordingGeometry());
+                const start = vi.spyOn(VideoRecorder, 'start').mockResolvedValue({
+                    startedAtMonotonicMs: performance.now(),
+                    stop: vi.fn().mockResolvedValue(recordingArtifact()),
+                } as never);
+                await controller.startRecording({ outputPath: 'video.mp4' });
+                await controller.stopRecording();
+                expect(start.mock.calls[0]?.[5]).toBe(capture);
+                expect(release).not.toHaveBeenCalled();
+            } else {
+                expect(prepare).not.toHaveBeenCalled();
+                await expect(
+                    controller.startRecording({ outputPath: 'video.mp4' }),
+                ).rejects.toMatchObject({
+                    status: 409,
+                    descriptor: { key: 'recording.errors.iosSession' },
+                });
+            }
+
+            await controller.close();
+            expect(release).toHaveBeenCalledTimes(recording ? 1 : 0);
+
+            if (recording) {
+                expect(order.slice(-3)).toEqual(['browser-close', 'appium-stop', 'release']);
+            }
+        },
+    );
 
     it('uses native Safari navigation for physical iOS sessions', async () => {
         const controller = new InteractiveController();
@@ -424,7 +501,10 @@ describe('InteractiveController', () => {
         const controller = new InteractiveController();
         const artifact = recordingArtifact();
         const stop = vi.fn().mockResolvedValue(artifact);
-        const start = vi.spyOn(VideoRecorder, 'start').mockResolvedValue({ stop } as never);
+        const start = vi.spyOn(VideoRecorder, 'start').mockResolvedValue({
+            startedAtMonotonicMs: performance.now(),
+            stop,
+        } as never);
         vi.spyOn(RecordingGeometry, 'capture').mockResolvedValue(recordingGeometry());
         const browser = { capabilities: {} };
         Object.assign(controller, {
@@ -448,8 +528,10 @@ describe('InteractiveController', () => {
         expect(start).toHaveBeenCalledWith(
             { name: 'chrome-android', deviceKind: 'emulator', udid: 'emulator-5554' },
             'video.mp4',
-            browser.capabilities,
             browser,
+            recordingGeometry(),
+            'screen',
+            undefined,
         );
         expect(stop).toHaveBeenCalledOnce();
     });
@@ -458,6 +540,7 @@ describe('InteractiveController', () => {
         const order: string[] = [];
         const controller = new InteractiveController();
         vi.spyOn(VideoRecorder, 'start').mockResolvedValue({
+            startedAtMonotonicMs: performance.now(),
             stop: vi.fn(async () => {
                 order.push('recording');
                 return recordingArtifact();
@@ -478,18 +561,13 @@ describe('InteractiveController', () => {
         expect(order).toEqual(['recording', 'browser']);
     });
 
-    it('crops viewport recordings with stable native geometry', async () => {
+    it('preserves the already cropped OBS viewport and reports its actual geometry', async () => {
         const controller = new InteractiveController();
         vi.spyOn(VideoRecorder, 'start').mockResolvedValue({
-            stop: vi.fn().mockResolvedValue(recordingArtifact()),
+            startedAtMonotonicMs: performance.now(),
+            stop: vi.fn().mockResolvedValue({ ...recordingArtifact(), height: 2064 }),
         } as never);
         vi.spyOn(RecordingGeometry, 'capture').mockResolvedValue(recordingGeometry());
-        const crop = vi.spyOn(VideoUtilities, 'crop').mockResolvedValue(undefined);
-        vi.spyOn(RecordingProbe, 'inspect').mockResolvedValue({
-            ...recordingArtifact(),
-            width: 1080,
-            height: 2063,
-        });
         Object.assign(controller, {
             target: { name: 'chrome-android', deviceKind: 'emulator', udid: 'emulator-5554' },
             session: { active: { capabilities: {} } },
@@ -498,21 +576,18 @@ describe('InteractiveController', () => {
         await controller.startRecording({ outputPath: 'viewport.mp4', scope: 'viewport' });
         const result = await controller.stopRecording();
 
-        expect(crop).toHaveBeenCalledWith(
-            'video.mp4',
-            recordingGeometry().viewportInVideo,
-            undefined,
-        );
         expect(result).toMatchObject({
             requestedScope: 'viewport',
             actualScope: 'viewport',
-            height: 2063,
+            height: 2064,
+            geometry: { samples: [{ viewportInVideo: { x: 0, y: 0, width: 1080, height: 2064 } }] },
         });
     });
 
     it('rejects a recording whose pixels do not match the measured screen', async () => {
         const controller = new InteractiveController();
         vi.spyOn(VideoRecorder, 'start').mockResolvedValue({
+            startedAtMonotonicMs: performance.now(),
             stop: vi.fn().mockResolvedValue({ ...recordingArtifact(), width: 720 }),
         } as never);
         vi.spyOn(RecordingGeometry, 'capture').mockResolvedValue(recordingGeometry());

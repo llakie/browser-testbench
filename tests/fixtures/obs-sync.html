@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OBS AV Sync Probe</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            background: black;
+            color: white;
+        }
+        button {
+            margin: 20px;
+            padding: 20px;
+        }
+        #motion {
+            position: fixed;
+            bottom: 0;
+            width: 10px;
+            height: 20px;
+            background: red;
+        }
+    </style>
+    <button id="start">START</button>
+    <div id="motion"></div>
+    <script>
+        document.querySelector('#start').addEventListener('click', async () => {
+            document.querySelector('#start').hidden = true;
+
+            if (navigator.audioSession) {
+                navigator.audioSession.type = 'playback';
+            }
+
+            const context = new AudioContext();
+            await context.resume();
+            const origin = context.currentTime + 1;
+            const events = [0, 2, 4, 6, 8];
+
+            for (const offset of events) {
+                const oscillator = context.createOscillator();
+                const gain = context.createGain();
+                const start = origin + offset;
+                oscillator.frequency.value = 1200;
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(0.25, start + 0.005);
+                gain.gain.setValueAtTime(0.25, start + 0.095);
+                gain.gain.linearRampToValueAtTime(0, start + 0.1);
+                oscillator.connect(gain).connect(context.destination);
+                oscillator.start(start);
+                oscillator.stop(start + 0.1);
+            }
+
+            function frame() {
+                const elapsed = context.currentTime - origin;
+                const flash = events.some((offset) => elapsed >= offset && elapsed < offset + 0.15);
+                document.body.style.background = flash ? 'white' : 'black';
+                document.querySelector('#motion').style.left =
+                    `${((elapsed + 1) * 100) % innerWidth}px`;
+
+                if (elapsed < 9) {
+                    requestAnimationFrame(frame);
+                    return;
+                }
+
+                context.close();
+                document.body.dataset.complete = 'true';
+            }
+
+            requestAnimationFrame(frame);
+        });
+    </script>
+</html>

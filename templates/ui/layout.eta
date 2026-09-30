@@ -212,5 +212,6 @@ it.t(
                 <% } %>
             </div>
         </div>
+        <%~ include('./components/recording-settings', it) %>
     </body>
 </html>

@@ -223,7 +223,17 @@
                                 :class="['check-card', `is-${check.status}`, { 'check-card--device': ['safari-ios', 'chrome-android'].includes(check.id) }]"
                             >
                                 <div class="check-card__title">
-                                    {{ localized(check, 'label') }}<span class="status-icon"
+                                    <div class="check-card__name">
+                                        <span>{{ localized(check, 'label') }}</span>
+                                        <recording-settings
+                                            v-for="target in recordingTargets(check.id)"
+                                            :key="target.id"
+                                            :target-id="target.id"
+                                            :label="localized(target, 'label')"
+                                            ghost
+                                        ></recording-settings>
+                                    </div>
+                                    <span class="status-icon"
                                         ><i
                                             :class="['fa-solid', statusIcon(check.status)]"
                                             aria-hidden="true"
@@ -236,6 +246,9 @@
                                 <p class="check-card__action" v-if="check.action">
                                     {{ localized(check, 'action') }}
                                 </p>
+                                <a v-if="check.id === 'obs'" href="/docs#recording"
+                                    >{{ t('recording.guide') }}</a
+                                >
                                 <p
                                     class="check-card__action"
                                     v-if="physicalDeviceDocumentation(check.id)"
@@ -266,8 +279,18 @@
                                             :class="['device-option', { 'is-incompatible': !device.compatible }]"
                                         >
                                             <div class="device-option__heading">
-                                                <strong>{{ device.name }}</strong
-                                                ><span
+                                                <div class="device-option__name">
+                                                    <strong>{{ device.name }}</strong>
+                                                    <recording-settings
+                                                        v-for="target in recordingTargets(check.id, device.id)"
+                                                        :key="target.id"
+                                                        :target-id="target.id"
+                                                        :label="localized(target, 'label')"
+                                                        :usb-capture="target.browser === 'safari-ios' && target.deviceKind === 'physical'"
+                                                        ghost
+                                                    ></recording-settings>
+                                                </div>
+                                                <span
                                                     >{{ t(device.compatible ? 'overview.page.ready'
                                                     : 'overview.page.needsAttention') }}</span
                                                 >
@@ -281,7 +304,8 @@
                                                 v-if="device.documentationUrl"
                                                 :href="device.documentationUrl"
                                                 >{{ t('overview.page.openSigningGuide') }}</a
-                                            ><command-block
+                                            >
+                                            <command-block
                                                 v-if="device.compatible"
                                                 :value="deviceConfig(device)"
                                             ></command-block>

@@ -48,8 +48,16 @@
                     >
                         <div class="test-target__content">
                             <div class="test-target__heading">
-                                <strong>{{ localized(target, 'label') }}</strong
-                                ><span :class="['test-target__status', `is-${target.status}`]"
+                                <div class="test-target__name">
+                                    <strong>{{ localized(target, 'label') }}</strong>
+                                    <recording-settings
+                                        :target-id="target.id"
+                                        :label="localized(target, 'label')"
+                                        :usb-capture="target.browser === 'safari-ios' && target.deviceKind === 'physical'"
+                                        ghost
+                                    ></recording-settings>
+                                </div>
+                                <span :class="['test-target__status', `is-${target.status}`]"
                                     ><i
                                         :class="['fa-solid', statusIcon(target.status)]"
                                         aria-hidden="true"
@@ -72,6 +80,7 @@
                             <command-block :value="target.id" copy-label="targetId"></command-block
                             ><button
                                 v-if="target.ready"
+                                data-action="verify-target"
                                 class="button button--secondary"
                                 type="button"
                                 :disabled="store.busy || target.busy || verification(target)?.status === 'running'"

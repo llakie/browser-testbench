@@ -55,7 +55,7 @@ export class FreshElementAction {
             return false;
         }
 
-        return /stale element reference|element does not exist in cache|element is no longer attached/iu.test(
+        return /stale element reference|element does not exist in cache|element is no longer attached|node with given id does not belong to the document/iu.test(
             `${error.name} ${error.message}`,
         );
     }

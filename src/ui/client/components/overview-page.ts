@@ -4,6 +4,7 @@ import type { McpIntegrationStatus } from '../../../setup/mcp-integration-servic
 import type { SetupAction } from '../../../setup/setup-types.js';
 import type {
     AuthorizedRemoteClientView,
+    WorkbenchTestTarget,
     RemoteDiscoveryResult,
     WorkbenchState,
 } from '../../../setup/workbench-types.js';
@@ -128,6 +129,13 @@ export const OverviewPage = defineComponent({
     methods: {
         t: translator.t.bind(translator),
         localized,
+        recordingTargets(checkId: string, deviceId?: string): WorkbenchTestTarget[] {
+            return (
+                this.workbench?.testTargets.filter(
+                    (target) => target.browser === checkId && target.deviceId === deviceId,
+                ) ?? []
+            );
+        },
         mcpLabel(client: McpIntegrationStatus): string {
             return translator.text(client.label);
         },

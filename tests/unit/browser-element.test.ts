@@ -3,8 +3,11 @@ import { BrowserElement } from '../../src/automation/browser-session.js';
 import { TestbenchError } from '../../src/errors/testbench-error.js';
 
 describe('BrowserElement', () => {
-    it('resolves a selector again exactly once after a stale element action', async () => {
-        const first = { click: vi.fn().mockRejectedValue(new Error('stale element reference')) };
+    it.each([
+        'stale element reference',
+        'unknown error: unhandled inspector error: {"code":-32000,"message":"Node with given id does not belong to the document"}',
+    ])('resolves a selector again exactly once after %s', async (message) => {
+        const first = { click: vi.fn().mockRejectedValue(new Error(message)) };
         const second = { click: vi.fn().mockResolvedValue(undefined) };
         const findElement = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
         const element = new BrowserElement({ findElement } as never, '#dynamic', 'chrome');

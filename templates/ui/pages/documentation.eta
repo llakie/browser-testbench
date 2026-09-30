@@ -33,7 +33,8 @@ it.t(
                 it.t(
                     'documentation.content.quick.step2Before',
                 )
-                %> <a href="/setup"><%=
+                %>
+                <a href="/setup"><%=
 it.t(
     'documentation.content.quick.step2Link',
 )
@@ -728,6 +729,99 @@ it.t(
                         </p>
                     </div>
                 </details>
+            </div>
+        </details>
+    </section>
+
+    <section id="recording">
+        <p class="eyebrow"><%= it.t('recording.eyebrow') %></p>
+        <h2><%= it.t('recording.guide') %></h2>
+        <p><%= it.t('recording.guideIntro') %></p>
+        <details class="docs-accordion" id="recording-installation" name="recording-setup">
+            <summary>
+                <%= it.t('recording.installationTitle') %>
+                <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+            </summary>
+            <div class="docs-accordion__content">
+                <ol>
+                    <li>
+                        <%= it.t('recording.installObs') %>
+                        <a href="https://obsproject.com/download" target="_blank" rel="noopener"
+                            >obsproject.com/download</a
+                        >
+                    </li>
+                    <li><%= it.t('recording.installMedia') %></li>
+                </ol>
+            </div>
+        </details>
+        <details class="docs-accordion" id="recording-connection" name="recording-setup">
+            <summary>
+                <%= it.t('recording.connectionTitle') %>
+                <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+            </summary>
+            <div class="docs-accordion__content">
+                <ol>
+                    <li><%= it.t('recording.firstRun') %></li>
+                    <li><%= it.t('recording.websocket') %></li>
+                    <li><%= it.t('recording.permissions') %></li>
+                    <li><%= it.t('recording.verifySetup') %></li>
+                    <li>
+                        <%
+                        const [beforeOpenIcon, afterOpenIcon] = it
+                            .t('recording.openRecordingSettings', { settingsIcon: '{settingsIcon}' })
+                            .split('{settingsIcon}');
+                        %>
+                        <%= beforeOpenIcon %><i
+                            class="fa-solid fa-gear"
+                            role="img"
+                            aria-label="<%= it.t('recording.recordingSettings') %>"
+                        ></i
+                        ><%= afterOpenIcon %>
+                    </li>
+                </ol>
+            </div>
+        </details>
+        <details class="docs-accordion" id="recording-devices" name="recording-setup">
+            <summary>
+                <%= it.t('recording.devicesTitle') %>
+                <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+            </summary>
+            <div class="docs-accordion__content">
+                <p><%= it.t('recording.beforeRecording') %></p>
+                <ul>
+                    <li><%= it.t('recording.desktopGuide') %></li>
+                    <li>
+                        <%= it.t('recording.androidGuide') %>
+                        <a
+                            href="https://github.com/Genymobile/scrcpy#readme"
+                            target="_blank"
+                            rel="noopener"
+                            >scrcpy</a
+                        >
+                    </li>
+                    <li><%= it.t('recording.iosGuide') %></li>
+                </ul>
+            </div>
+        </details>
+        <details class="docs-accordion" id="recording-sync" name="recording-setup">
+            <summary>
+                <%= it.t('recording.calibrationTitle') %>
+                <i class="fa-solid fa-chevron-down docs-accordion__chevron" aria-hidden="true"></i>
+            </summary>
+            <div class="docs-accordion__content">
+                <p>
+                    <%
+                    const [beforeSettingsIcon, afterSettingsIcon] = it
+                        .t('recording.calibrationGuide', { settingsIcon: '{settingsIcon}' })
+                        .split('{settingsIcon}');
+                    %>
+                    <%= beforeSettingsIcon %><i
+                        class="fa-solid fa-gear"
+                        role="img"
+                        aria-label="<%= it.t('recording.deviceSettings') %>"
+                    ></i
+                    ><%= afterSettingsIcon %>
+                </p>
             </div>
         </details>
     </section>

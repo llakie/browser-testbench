@@ -48,7 +48,7 @@ describe('TargetCapabilityService', () => {
         }
     });
 
-    it('does not advertise simulator recording for a physical iOS device', () => {
+    it('advertises iPhone USB recording only on macOS', () => {
         const physical = TargetCapabilityService.for({
             browser: 'safari-ios',
             kind: 'mobile',
@@ -61,11 +61,11 @@ describe('TargetCapabilityService', () => {
         });
 
         expect(physical.recording).toMatchObject({
-            screen: false,
-            viewport: false,
-            explicitLifecycle: false,
+            screen: process.platform === 'darwin',
+            viewport: process.platform === 'darwin',
+            explicitLifecycle: process.platform === 'darwin',
         });
-        expect(simulator.recording.screen).toBe(MediaTooling.isAvailable());
+        expect(simulator.recording.screen).toBe(process.platform === 'darwin');
     });
 
     it('advertises viewport recording for supported desktop browsers', () => {

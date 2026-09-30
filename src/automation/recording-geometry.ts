@@ -70,6 +70,7 @@ export class RecordingGeometry {
         const rect = await this.nativeWebViewRect(
             browser,
             browserGeometry,
+            video,
             target,
             appiumPort,
         ).catch((error) => {
@@ -134,6 +135,7 @@ export class RecordingGeometry {
     private static async nativeWebViewRect(
         browser: BrowserHandle,
         browserGeometry: BrowserGeometry,
+        video: { width: number; height: number },
         target: TargetConfig,
         appiumPort?: number,
     ): Promise<{ x: number; y: number; width: number; height: number }> {
@@ -168,8 +170,8 @@ export class RecordingGeometry {
                 height: number;
             }>(`element/${encodeURIComponent(id)}/rect`);
 
-            if (target.name !== 'chrome-android') {
-                return rect;
+            if (target.name === 'safari-ios') {
+                return this.iosVideoRect(rect, browserGeometry, video);
             }
 
             const width = Math.min(
@@ -180,10 +182,40 @@ export class RecordingGeometry {
                 rect.height,
                 Math.round(browserGeometry.height * browserGeometry.dpr),
             );
-            return { x: rect.x, y: rect.y + rect.height - height, width, height };
+            const videoWidth = this.evenDimension(width);
+            const videoHeight = this.evenDimension(height);
+            return {
+                x: rect.x,
+                y: rect.y + rect.height - videoHeight,
+                width: videoWidth,
+                height: videoHeight,
+            };
         } finally {
             await client.request('context', 'POST', { name: original });
         }
+    }
+
+    private static iosVideoRect(
+        rect: { x: number; y: number; width: number; height: number },
+        browser: BrowserGeometry,
+        video: { width: number; height: number },
+    ): { x: number; y: number; width: number; height: number } {
+        const rectUsesPoints = rect.width <= browser.width * 1.5;
+        const scale = rectUsesPoints ? browser.dpr : 1;
+        const x = Math.max(0, Math.round(rect.x * scale));
+        const y = Math.max(0, Math.round(rect.y * scale));
+        const viewportWidth = Math.round(browser.width * browser.dpr);
+        const viewportHeight = Math.round(browser.height * browser.dpr);
+        return {
+            x,
+            y,
+            width: Math.min(video.width - x, Math.round(rect.width * scale), viewportWidth),
+            height: Math.min(video.height - y, Math.round(rect.height * scale), viewportHeight),
+        };
+    }
+
+    private static evenDimension(value: number): number {
+        return Math.max(2, Math.floor(value / 2) * 2);
     }
 }
 

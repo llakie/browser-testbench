@@ -374,7 +374,10 @@ export class RemoteApiController {
                 '/v1/workbench/setup',
                 '/v1/workbench/plan',
                 '/v1/sessions',
-            ].includes(path) || path.startsWith('/v1/sessions/')
+            ].includes(path) ||
+            path.startsWith('/v1/sessions/') ||
+            path.startsWith('/v1/targets/') ||
+            path.startsWith('/v1/recording/')
         );
     }
 
