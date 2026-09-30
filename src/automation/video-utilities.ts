@@ -13,7 +13,7 @@ export class VideoUtilities {
             `crop=${bounds.width}:${bounds.height}:${bounds.x}:${bounds.y}`,
             ...(durationSeconds
                 ? [
-                      'setpts=N/(30*TB)',
+                      'setpts=PTS-STARTPTS',
                       'fps=30',
                       `tpad=stop_mode=clone:stop_duration=${durationSeconds}`,
                   ]
@@ -26,7 +26,7 @@ export class VideoUtilities {
         const durationSeconds = (durationMs / 1_000).toFixed(3);
         await this.transform(
             path,
-            `setpts=N/(30*TB),fps=30,tpad=stop_mode=clone:stop_duration=${durationSeconds}`,
+            `setpts=PTS-STARTPTS,fps=30,tpad=stop_mode=clone:stop_duration=${durationSeconds}`,
             durationSeconds,
         );
     }
