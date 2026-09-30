@@ -34,7 +34,11 @@ describe('ObsConnection configuration', () => {
         mocks.off.mockReset();
     });
 
-    afterEach(() => vi.unstubAllGlobals());
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
 
     it.each([
         ['darwin', '/test-home/Library/Application Support'],
@@ -105,6 +109,20 @@ describe('ObsConnection configuration', () => {
         mocks.call.mockRejectedValue(new Error('Encoder unavailable'));
         const connection = await ObsConnection.connect();
         await expect(connection.startRecording()).rejects.toThrow('Encoder unavailable');
+        expect(mocks.off).toHaveBeenCalledWith('RecordStateChanged', mocks.on.mock.calls[0]![1]);
+        await connection.close();
+    });
+
+    it('stops an accepted recording if its start event never arrives', async () => {
+        vi.useFakeTimers();
+        mocks.readFile.mockResolvedValue('{}');
+        mocks.call.mockResolvedValue({});
+        const connection = await ObsConnection.connect();
+        const stop = vi.spyOn(connection, 'stopRecording').mockResolvedValue('/tmp/partial.mkv');
+        const failure = expect(connection.startRecording()).rejects.toThrow('timed out');
+        await vi.advanceTimersByTimeAsync(10_001);
+        await failure;
+        expect(stop).toHaveBeenCalledOnce();
         expect(mocks.off).toHaveBeenCalledWith('RecordStateChanged', mocks.on.mock.calls[0]![1]);
         await connection.close();
     });

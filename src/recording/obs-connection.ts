@@ -126,7 +126,13 @@ export class ObsConnection {
 
         try {
             await this.call('StartRecord');
-            return await this.timeout(epoch, REQUEST_TIMEOUT_MS);
+
+            try {
+                return await this.timeout(epoch, REQUEST_TIMEOUT_MS);
+            } catch (error) {
+                await this.stopRecording();
+                throw error;
+            }
         } finally {
             this.socket.off('RecordStateChanged', started);
         }
