@@ -143,6 +143,8 @@ export class TargetRegistry {
                     'appium:automationName': 'XCUITest',
                     'appium:deviceName': target.deviceName ?? 'iPhone 16',
                     'appium:skipLogCapture': true,
+                    'appium:webviewConnectTimeout':
+                        TestbenchDefaults.IOS_WEBVIEW_CONNECT_TIMEOUT_MS,
                     ...(target.platformVersion
                         ? { 'appium:platformVersion': target.platformVersion }
                         : {}),

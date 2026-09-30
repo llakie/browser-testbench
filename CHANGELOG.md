@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-30
+
 ### Added
 
 - OBS connection checks and a bilingual setup guide in the web UI.
@@ -29,6 +31,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Emulator audio calibration stays attached to the AVD across restarts and changing runtime serials.
 - Element actions recognize Chrome's detached-document error and retry once with a fresh element reference.
 - Server shutdown finishes closing sessions before removing their recording and asset directories.
+- iOS Safari discovery allows up to 20 seconds for the Web Inspector connection instead of relying on the shorter
+  driver default. Custom `appium:webviewConnectTimeout` values remain supported.
+
+### Migration
+
+- Recording now requires OBS Studio and FFmpeg on the Testbench host. Linux recording requires X11; physical Android
+  capture requires Android 11+ and scrcpy 3+. Physical iPhone capture requires macOS and USB.
+- Keep desktop and simulator windows visible. Their audio source is system audio, not an isolated browser tab.
+- See [Browser Testbench 0.7.0](docs/releases/0.7.0.md) for setup, compatibility, and playback limitations.
 
 ## [0.6.1] - 2026-09-29
 
@@ -289,7 +300,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Dynamic Android AVD discovery and provisioning without fixed API levels or Pixel profiles.
 - Automated CI for macOS, Windows, and Linux and npm publishing through GitHub Actions.
 
-[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/llakie/browser-testbench/compare/v0.6.1...v0.7.0
+[0.6.1]: https://github.com/llakie/browser-testbench/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/llakie/browser-testbench/compare/v0.5.1...v0.6.0
+[0.5.1]: https://github.com/llakie/browser-testbench/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/llakie/browser-testbench/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/llakie/browser-testbench/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/llakie/browser-testbench/compare/v0.3.0...v0.3.1

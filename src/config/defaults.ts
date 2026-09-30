@@ -48,6 +48,7 @@ export class TestbenchDefaults {
     static readonly IOS_WDA_LAUNCH_TIMEOUT_MS = 120_000;
     static readonly IOS_SAFARI_BOOTSTRAP_URL = 'http://127.0.0.1:8100/health';
     static readonly IOS_WEBVIEW_ATOM_TIMEOUT_MS = 30_000;
+    static readonly IOS_WEBVIEW_CONNECT_TIMEOUT_MS = 20_000;
     static readonly IOS_NATIVE_NAVIGATION_TIMEOUT_MS = 15_000;
     static readonly IOS_SESSION_START_ATTEMPTS = 2;
     static readonly IOS_STARTUP_DIAGNOSTIC_TIMEOUT_MS = 10_000;

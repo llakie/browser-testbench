@@ -5,6 +5,21 @@ import { TargetRegistry } from '../../src/config/target-registry.js';
 import { TestbenchPaths } from '../../src/infrastructure/paths.js';
 
 describe('TargetRegistry', () => {
+    it('gives Safari discovery time to finish on both iOS simulators and devices', () => {
+        for (const deviceKind of ['simulator', 'physical'] as const) {
+            expect(TargetRegistry.capabilities({ name: 'safari-ios', deviceKind })).toHaveProperty(
+                'appium:webviewConnectTimeout',
+                20_000,
+            );
+            expect(
+                TargetRegistry.capabilities({
+                    name: 'safari-ios',
+                    deviceKind,
+                    capabilities: { 'appium:webviewConnectTimeout': 45_000 },
+                }),
+            ).toHaveProperty('appium:webviewConnectTimeout', 45_000);
+        }
+    });
     it('provides a CLI command using the canonical executable', () => {
         const command = TestbenchPaths.cliCommand('doctor');
         expect(command).toBe('browser-testbench doctor');
