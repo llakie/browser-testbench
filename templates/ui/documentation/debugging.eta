@@ -1,0 +1,18 @@
+<section id="debugging">
+    <p class="eyebrow"><%=
+it.t(
+    'documentation.content.debugging.eyebrow',
+)
+%></p>
+    <h2><%=
+it.t(
+    'documentation.content.debugging.title',
+)
+%></h2>
+    <p><%=
+it.t(
+    'documentation.content.debugging.intro',
+)
+%></p>
+    <pre><code>browser-testbench open --target chrome --url http://127.0.0.1:3000</code></pre>
+</section>

@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-30
+
+### Added
+
+- OBS connection checks and a bilingual setup guide in the web UI.
+- Per-device audio synchronization settings on Overview and Test targets, including USB source selection for
+  physical iPhones on macOS. Remote configuration requires administrative access.
+
+### Changed
+
+- Video recording now uses OBS Studio for desktop browsers, simulators, and connected mobile devices. OBS and
+  FFmpeg are required; physical Android capture additionally uses scrcpy. The previous recording backends have
+  been removed.
+- Physical iPhone recording sessions prepare USB capture before connecting Safari. Request recording when opening
+  the session and close it afterwards to release OBS. Saved audio offsets are applied before source activation.
+- Recording services and settings now share one module. Browser diagnostics, permission handling, and recording
+  artifacts have dedicated owners; UI styles and documentation are split into component files.
+
+### Fixed
+
+- Viewport detection excludes Safari's translucent browser bars, including on iOS simulators.
+- Android emulator capture selects the window by its AVD name.
+- Emulator audio calibration stays attached to the AVD across restarts and changing runtime serials.
+- Element actions recognize Chrome's detached-document error and retry once with a fresh element reference.
+- Server shutdown finishes closing sessions before removing their recording and asset directories.
+- iOS Safari discovery allows up to 20 seconds for the Web Inspector connection instead of relying on the shorter
+  driver default. Custom `appium:webviewConnectTimeout` values remain supported.
+
+### Migration
+
+- Recording now requires OBS Studio and FFmpeg on the Testbench host. Linux recording requires X11; physical Android
+  capture requires Android 11+ and scrcpy 3+. Physical iPhone capture requires macOS and USB.
+- Keep desktop and simulator windows visible. Their audio source is system audio, not an isolated browser tab.
+- See [Browser Testbench 0.7.0](docs/releases/0.7.0.md) for setup, compatibility, and playback limitations.
+
 ## [0.6.1] - 2026-09-29
 
 ### Added
@@ -265,7 +300,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Dynamic Android AVD discovery and provisioning without fixed API levels or Pixel profiles.
 - Automated CI for macOS, Windows, and Linux and npm publishing through GitHub Actions.
 
-[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/llakie/browser-testbench/compare/v0.6.1...v0.7.0
+[0.6.1]: https://github.com/llakie/browser-testbench/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/llakie/browser-testbench/compare/v0.5.1...v0.6.0
+[0.5.1]: https://github.com/llakie/browser-testbench/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/llakie/browser-testbench/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/llakie/browser-testbench/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/llakie/browser-testbench/compare/v0.3.0...v0.3.1

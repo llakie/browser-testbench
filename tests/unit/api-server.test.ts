@@ -20,6 +20,7 @@ import { ApiServer } from '../../src/transports/api-server.js';
 import { ClientVersion } from '../../src/config/client-version.js';
 import { UiRenderer } from '../../src/ui/ui-renderer.js';
 import { RemoteTestbench } from '../../src/transports/testbench-client.js';
+import { RecordingArtifacts } from '../../src/recording/artifacts.js';
 
 describe('ApiServer', () => {
     let server: ApiServer | undefined;
@@ -68,6 +69,57 @@ describe('ApiServer', () => {
         expect((await targets.json()) as Array<{ id: string }>).toEqual(
             expect.arrayContaining([expect.objectContaining({ id: 'chrome' })]),
         );
+    });
+
+    it('finishes closing sessions before cleaning their recording directories', async () => {
+        const sessions = new SessionManager();
+        let finishClosing!: () => void;
+        const closing = new Promise<void>((resolve) => {
+            finishClosing = resolve;
+        });
+        vi.spyOn(sessions, 'closeAll').mockReturnValue(closing);
+        const cleanup = vi.spyOn(RecordingArtifacts.prototype, 'cleanup').mockResolvedValue();
+        server = new ApiServer({ host: '127.0.0.1', port: 0 }, { sessions });
+        await server.start();
+        const stopping = server.stop();
+
+        try {
+            await Promise.resolve();
+            expect(cleanup).not.toHaveBeenCalled();
+        } finally {
+            finishClosing();
+            await stopping;
+        }
+
+        expect(cleanup).toHaveBeenCalledOnce();
+    });
+
+    it('serves every component stylesheet referenced by the UI entrypoint', async () => {
+        server = new ApiServer({ host: '127.0.0.1', port: 0 });
+        const address = await server.start();
+        const entryUrl = `http://${address.host}:${address.port}/ui-assets/setup.css`;
+        const css = await (await fetch(entryUrl)).text();
+        const imports = [...css.matchAll(/@import url\('([^']+)'\)/gu)];
+        expect(imports.length).toBeGreaterThan(0);
+
+        for (const [, relativeUrl] of imports) {
+            const response = await fetch(new URL(relativeUrl!, entryUrl));
+            expect(response.status).toBe(200);
+            expect(response.headers.get('content-type')).toContain('text/css');
+            expect(await response.text()).not.toBe('');
+        }
+    });
+
+    it('still cleans recording directories when closing a session fails', async () => {
+        const sessions = new SessionManager();
+        vi.spyOn(sessions, 'closeAll').mockRejectedValue(new Error('Session close failed'));
+        const cleanup = vi.spyOn(RecordingArtifacts.prototype, 'cleanup').mockResolvedValue();
+        const failingServer = new ApiServer({ host: '127.0.0.1', port: 0 }, { sessions });
+        await failingServer.start();
+
+        await expect(failingServer.stop()).rejects.toThrow('Session close failed');
+
+        expect(cleanup).toHaveBeenCalledOnce();
     });
 
     it('rejects foreign host headers on a loopback Testbench', async () => {

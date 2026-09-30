@@ -6,7 +6,7 @@ import { TargetLockManager } from './target-lock-manager.js';
 import { TestbenchDefaults } from '../config/defaults.js';
 import { TestbenchError } from '../errors/testbench-error.js';
 import { AndroidMediaUtilities, type CameraImageResource } from './android-media-utilities.js';
-import type { RecordingArtifact } from './video-recorder.js';
+import type { RecordingArtifact } from '../recording/video-recorder.js';
 
 export interface ManagedSession {
     id: string;
@@ -317,15 +317,41 @@ export class SessionManager {
         options: { outputPath: string; scope: 'screen' | 'viewport' },
         ownerId?: string,
     ): Promise<
-        Awaited<ReturnType<InteractiveController['startRecording']>> & { sessionTimeMs: number }
+        Omit<
+            Awaited<ReturnType<InteractiveController['startRecording']>>,
+            'startedAtMonotonicMs'
+        > & { sessionTimeMs: number }
     > {
         const session = this.managed(id, ownerId);
         this.refreshLease(session);
-        const result = await session.controller.startRecording(options);
-        const sessionTimeMs = this.sessionTime(session);
+        const { startedAtMonotonicMs, ...result } =
+            await session.controller.startRecording(options);
+        const sessionTimeMs = Math.max(0, startedAtMonotonicMs - session.monotonicStartedAt);
         result.geometry.samples[0]!.sessionTimeMs = sessionTimeMs;
         session.recording = { id: result.id, startedSessionTimeMs: sessionTimeMs };
         return { ...result, sessionTimeMs };
+    }
+
+    recordingClock(
+        id: string,
+        ownerId?: string,
+    ): { sessionTimeMs: number; recordingTimeMs: number } {
+        const session = this.managed(id, ownerId);
+        this.refreshLease(session);
+
+        if (!session.recording) {
+            throw new TestbenchError(
+                'RECORDING_NOT_ACTIVE',
+                'This session has no active recording.',
+                { operation: 'recording.clock', status: 409 },
+            );
+        }
+
+        const sessionTimeMs = this.sessionTime(session);
+        return {
+            sessionTimeMs,
+            recordingTimeMs: Math.max(0, sessionTimeMs - session.recording.startedSessionTimeMs),
+        };
     }
 
     async stopRecording(

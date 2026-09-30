@@ -1,0 +1,17 @@
+<section id="targets">
+    <p class="eyebrow"><%=
+it.t(
+    'documentation.content.targetIds.eyebrow',
+)
+%></p>
+    <h2><%=
+it.t(
+    'documentation.content.targetIds.title',
+)
+%></h2>
+    <p><%=
+it.t(
+    'documentation.content.targetIds.intro',
+)
+%></p>
+</section>

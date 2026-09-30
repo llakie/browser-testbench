@@ -1,0 +1,69 @@
+<section id="start">
+    <p class="eyebrow"><%=
+it.t(
+    'documentation.content.quick.eyebrow',
+)
+%></p>
+    <h2><%=
+it.t(
+    'documentation.content.quick.title',
+)
+%></h2>
+    <ol>
+        <li><%=
+it.t(
+    'documentation.content.quick.step1',
+)
+%></li>
+        <li>
+            <%=
+            it.t(
+                'documentation.content.quick.step2Before',
+            )
+            %>
+            <a href="/setup"><%=
+it.t(
+    'documentation.content.quick.step2Link',
+)
+%></a><%=
+it.t(
+    'documentation.content.quick.step2After',
+)
+%>
+        </li>
+        <li><%=
+it.t(
+    'documentation.content.quick.step3',
+)
+%></li>
+        <li>
+            <%=
+            it.t(
+                'documentation.content.quick.step4Before',
+            )
+            %>
+            <a href="/targets"><%=
+it.t(
+    'documentation.content.quick.step4Link',
+)
+%></a><%=
+it.t(
+    'documentation.content.quick.step4After',
+)
+%>
+        </li>
+        <li><%=
+it.t(
+    'documentation.content.quick.step5',
+)
+%></li>
+    </ol>
+    <pre><code>npm install --global browser-testbench
+browser-testbench start</code></pre>
+    <p><%=
+it.t(
+    'documentation.content.quick.projectCommand',
+)
+%></p>
+    <pre><code>npm install --save-dev browser-testbench</code></pre>
+</section>

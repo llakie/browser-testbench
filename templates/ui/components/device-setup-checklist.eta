@@ -1,0 +1,90 @@
+<script type="text/x-template" id="device-setup-checklist-template">
+    <div class="setup-checklist" :id="elementId" aria-live="polite">
+      <div class="setup-checklist__heading">
+        <div>
+          <p class="eyebrow">{{ t('checklist.eyebrow') }}</p>
+          <h3>{{ heading }}</h3>
+          <p>{{ intro }}</p>
+        </div>
+        <button class="button button--secondary" type="button" :disabled="store.loading" @click="refresh">
+          <i :class="['fa-solid', store.loading ? 'fa-spinner fa-spin' : 'fa-rotate']" aria-hidden="true"></i>
+          {{ store.loading ? t('common.actions.checking') : t('common.actions.checkAgain') }}
+        </button>
+      </div>
+      <label class="setup-checklist__device-picker" v-if="physicalDevices.length > 1">
+        <span>{{ t('checklist.deviceLabel') }}</span>
+        <select v-model="selectedDeviceId">
+          <option v-for="deviceOption in physicalDevices" :key="deviceOption.id" :value="deviceOption.id">
+            {{ deviceOption.name }}{{ deviceOption.platformVersion ? ` · ${deviceOption.platformVersion}` : '' }}
+          </option>
+        </select>
+      </label>
+      <div class="setup-checklist__steps" v-if="workbench">
+        <details class="setup-checklist__group is-complete" v-if="completedSteps.length">
+          <summary>
+            <span class="setup-checklist__icon"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
+            <strong>{{ t('checklist.completed', { count: completedSteps.length }, completedSteps.length) }}</strong>
+            <i class="fa-solid fa-chevron-down setup-checklist__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="setup-checklist__compact-list">
+            <div
+              class="setup-checklist__compact-step is-complete"
+              v-for="step in completedSteps"
+              :key="step.id"
+              :data-step-id="step.id"
+            >
+              <i class="fa-solid fa-check" aria-hidden="true"></i>
+              <span>{{ stepNumber(step) }}. {{ step.label }}</span>
+            </div>
+          </div>
+        </details>
+        <article
+          class="setup-checklist__step setup-checklist__current"
+          v-if="currentStep"
+          :data-step-id="currentStep.id"
+          :class="`is-${status(currentStep)}`"
+        >
+          <span class="setup-checklist__icon">
+            <i :class="['fa-solid', statusIcon(status(currentStep))]" aria-hidden="true"></i>
+          </span>
+          <div class="setup-checklist__copy">
+            <div class="setup-checklist__title">
+              <strong>{{ stepNumber(currentStep) }}. {{ currentStep.label }}</strong>
+              <span>{{ statusLabel(status(currentStep)) }}</span>
+            </div>
+            <p>{{ currentStep.detail }}</p>
+            <label class="setup-checklist__confirmation" v-if="currentStep.manual">
+              <input type="checkbox" @change="confirmManualStep($event.target.checked)" />
+              <span>{{ t('checklist.confirmation') }}</span>
+            </label>
+            <details class="setup-checklist__troubleshooting" v-if="currentStep.troubleshooting?.length">
+              <summary>{{ t('checklist.troubleshooting') }}</summary>
+              <ul>
+                <li v-for="hint in currentStep.troubleshooting" :key="hint.text">
+                  {{ hint.text }}
+                  <a v-if="hint.href" :href="hint.href">{{ hint.linkLabel ?? t('checklist.openHelp') }}</a>
+                </li>
+              </ul>
+            </details>
+            <a :href="currentStep.href" @click="openInstructions(currentStep.href)">{{ t('checklist.openInstructions') }}</a>
+          </div>
+        </article>
+        <p class="setup-checklist__complete" v-else>
+          <i class="fa-solid fa-circle-check" aria-hidden="true"></i> {{ completionText }}
+        </p>
+        <details class="setup-checklist__group" v-if="laterSteps.length">
+          <summary>
+            <span class="setup-checklist__icon"><i class="fa-solid fa-clock" aria-hidden="true"></i></span>
+            <strong>{{ t('checklist.later', { count: laterSteps.length }, laterSteps.length) }}</strong>
+            <i class="fa-solid fa-chevron-down setup-checklist__chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="setup-checklist__compact-list">
+            <div class="setup-checklist__compact-step" v-for="step in laterSteps" :key="step.id" :data-step-id="step.id">
+              <i class="fa-solid fa-clock" aria-hidden="true"></i>
+              <span>{{ stepNumber(step) }}. {{ step.label }}</span>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+</script>

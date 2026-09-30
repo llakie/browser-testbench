@@ -14,18 +14,19 @@ import { TargetRegistry } from '../config/target-registry.js';
 import type { TargetConfig, TargetName } from '../config/types.js';
 import { ServiceManager, type ManagedProcess } from '../infrastructure/process-manager.js';
 import { BrowserSession } from './browser-session.js';
+import { BrowserDiagnostics, type DiagnosticEvent } from './browser-diagnostics.js';
 import { AppiumSessionClient } from './appium-session-client.js';
 import { IosPhysicalStartupError } from './ios-physical-startup-error.js';
 import { IosPhysicalSafariNavigator } from './ios-physical-safari-navigator.js';
 import { IosSessionCleanup } from './ios-session-cleanup.js';
 import { MobileGestures, type GestureExecution } from './mobile-gestures.js';
 import { PageInspectionScript } from './page-inspection-script.js';
-import { RecordingProbe, VideoRecorder, type RecordingArtifact } from './video-recorder.js';
+import { VideoRecorder, type RecordingArtifact } from '../recording/video-recorder.js';
 import { randomUUID } from 'node:crypto';
-import { AndroidCameraUtilities } from './android-camera-utilities.js';
+import { SessionPermissions } from './session-permissions.js';
+import { AndroidBrowserUi } from './android-browser-ui.js';
 import { TestbenchError } from '../errors/testbench-error.js';
-import { ImageDimensions, RecordingGeometry, type GeometrySample } from './recording-geometry.js';
-import { VideoUtilities } from './video-utilities.js';
+import { ImageDimensions, RecordingGeometry, type GeometrySample } from '../recording/geometry.js';
 import {
     ScreenshotUtilities,
     type ScreenshotResult,
@@ -33,6 +34,8 @@ import {
 } from './screenshot-utilities.js';
 import { AbortableOperation } from './abortable-operation.js';
 import { AndroidDeviceUtilities } from './android-device-utilities.js';
+import { ObsCapture, type PreparedObsCapture } from '../recording/obs-capture.js';
+import { LocalizedError } from '../i18n/translator.js';
 
 export interface PageInspection {
     url: string;
@@ -48,26 +51,6 @@ export interface PageInspection {
         disabled: boolean;
         checked?: boolean;
     }>;
-}
-
-export interface DiagnosticEvent {
-    type: 'console' | 'request' | 'response' | 'requestFailed' | 'webSocket' | 'webSocketFrame';
-    timestamp: string;
-    level?: string;
-    message?: string;
-    requestId?: string;
-    method?: string;
-    url?: string;
-    status?: number;
-    statusText?: string;
-    mimeType?: string;
-    headers?: Record<string, unknown>;
-    body?: string;
-    error?: string;
-    durationMs?: number;
-    phase?: 'created' | 'handshakeRequest' | 'handshakeResponse' | 'closed' | 'error';
-    direction?: 'sent' | 'received';
-    opcode?: number;
 }
 
 export type ResolvedStartSessionInput = Omit<StartSessionInput, 'target'> & {
@@ -89,6 +72,7 @@ export class InteractiveController {
     private readonly session = new BrowserSession();
     private appium?: { process: ManagedProcess; port: number };
     private target?: TargetConfig;
+    private preparedCapture?: PreparedObsCapture;
     private video?: {
         id: string;
         recorder: VideoRecorder;
@@ -103,17 +87,11 @@ export class InteractiveController {
         actualScope: 'screen' | 'viewport';
         geometry: { samples: GeometrySample[] };
     };
-    private readonly diagnosticEvents: DiagnosticEvent[] = [];
-    private readonly requestTimestamps = new Map<string, number>();
-    private readonly webSocketUrls = new Map<string, string>();
-    private androidPermissions?: AndroidCameraUtilities;
-    private originPermissions: Array<{ name: string; origin: string }> = [];
+    private readonly browserDiagnostics = new BrowserDiagnostics();
+    private readonly permissions = new SessionPermissions((path, body) =>
+        this.appiumCommand(path, body),
+    );
     private pendingBrowserClose?: Promise<void>;
-    private permissionMetadata?: {
-        requested: Array<{ name: string; origin: string }>;
-        confirmed: Array<{ name: string; origin: string }>;
-        packageName?: string;
-    };
 
     async start(options: ResolvedStartSessionInput): Promise<Record<string, unknown>> {
         if (!TargetRegistry.isSupported(options.target)) {
@@ -155,6 +133,23 @@ export class InteractiveController {
             let browserStarted = false;
 
             try {
+                const recording = options.require?.recording as
+                    | { viewport?: boolean; screen?: boolean; explicitLifecycle?: boolean }
+                    | undefined;
+
+                if (
+                    target.name === 'safari-ios' &&
+                    target.deviceKind === 'physical' &&
+                    (options.videoPath ||
+                        recording?.viewport ||
+                        recording?.screen ||
+                        recording?.explicitLifecycle)
+                ) {
+                    // USB screen capture can reconnect the device. Initialize it before
+                    // Appium establishes its Safari and XCTest connections.
+                    this.preparedCapture = await ObsCapture.prepareIosSession(target);
+                }
+
                 if (TargetRegistry.definitions[options.target].kind === 'mobile') {
                     this.appium = await ServiceManager.startAppium();
                 }
@@ -173,12 +168,11 @@ export class InteractiveController {
                     await this.session.navigate('about:blank');
                 }
 
-                const permissions = await this.preparePermissions(
+                const permissions = await this.permissions.prepare(
                     target,
                     browser,
                     options.permissions ?? [],
                 );
-                this.permissionMetadata = permissions;
 
                 if (options.videoPath) {
                     await this.startRecording({ outputPath: options.videoPath, scope: 'screen' });
@@ -202,48 +196,18 @@ export class InteractiveController {
                         await this.session.navigate(options.url);
                     }
 
-                    const requestedUrl = new URL(options.url);
                     const actualUrl = permissions.requested.length
-                        ? await this.session.active.getUrl()
+                        ? await browser.getUrl()
                         : options.url;
-                    const actualUrlValue = new URL(actualUrl);
-                    const redirectedPermissions = permissions.requested
-                        .filter(
-                            (permission) =>
-                                permission.origin === requestedUrl.origin &&
-                                permission.origin !== actualUrlValue.origin &&
-                                InteractiveController.isEquivalentPermissionOrigin(
-                                    requestedUrl,
-                                    actualUrlValue,
-                                ),
+
+                    if (
+                        await this.permissions.grantRedirect(
+                            target,
+                            browser,
+                            options.url,
+                            actualUrl,
                         )
-                        .map((permission) => ({ ...permission, origin: actualUrlValue.origin }));
-
-                    for (const permission of redirectedPermissions) {
-                        try {
-                            await this.setOriginPermission(target, browser, permission, 'granted');
-                        } catch (error) {
-                            throw new TestbenchError(
-                                'PERMISSION_DENIED',
-                                `Could not grant ${permission.name} for redirected origin ${permission.origin}.`,
-                                {
-                                    operation: 'permission.origin',
-                                    status: 403,
-                                    cause: error,
-                                    details: {
-                                        platform: target.name,
-                                        origin: permission.origin,
-                                        permission: permission.name,
-                                    },
-                                },
-                            );
-                        }
-
-                        this.originPermissions.push(permission);
-                        permissions.confirmed.push(permission);
-                    }
-
-                    if (redirectedPermissions.length) {
+                    ) {
                         await this.session.navigate(actualUrl);
                     }
                 }
@@ -550,7 +514,9 @@ export class InteractiveController {
 
     async startRecording(options: { outputPath: string; scope?: 'screen' | 'viewport' }): Promise<{
         id: string;
+        capturesAudio: boolean;
         startedAt: string;
+        startedAtMonotonicMs: number;
         requestedScope: 'screen' | 'viewport';
         actualScope: 'screen' | 'viewport';
         geometry: { samples: GeometrySample[] };
@@ -571,6 +537,21 @@ export class InteractiveController {
             throw new Error('No interactive target is active.');
         }
 
+        if (
+            this.target.name === 'safari-ios' &&
+            this.target.deviceKind === 'physical' &&
+            !this.preparedCapture
+        ) {
+            throw new LocalizedError({ key: 'recording.errors.iosSession' }, 409);
+        }
+
+        if (this.target.name === 'chrome-android' && this.appium) {
+            await AndroidBrowserUi.dismissTransientPrompts(
+                this.appium.port,
+                this.session.active.sessionId,
+            );
+        }
+
         const id = randomUUID();
         const scope = options.scope ?? 'screen';
         const geometry = [
@@ -579,8 +560,10 @@ export class InteractiveController {
         const recorder = await VideoRecorder.start(
             this.target,
             options.outputPath,
-            this.session.active.capabilities,
             this.session.active,
+            geometry[0]!,
+            scope,
+            this.preparedCapture,
         );
         this.video = {
             id,
@@ -588,12 +571,14 @@ export class InteractiveController {
             path: options.outputPath,
             scope,
             geometry,
-            startedAtMs: performance.now(),
+            startedAtMs: recorder.startedAtMonotonicMs,
         };
         this.lastRecording = undefined;
         return {
             id,
             startedAt: new Date().toISOString(),
+            startedAtMonotonicMs: recorder.startedAtMonotonicMs,
+            capturesAudio: recorder.capturesAudio,
             requestedScope: scope,
             actualScope: scope,
             geometry: { samples: geometry },
@@ -634,59 +619,75 @@ export class InteractiveController {
             video.geometry.push(endingGeometry);
         }
 
-        const recordedDurationMs = Math.max(1, Math.round(performance.now() - video.startedAtMs));
-        let artifact = await video.recorder.stop(signal);
-        const expectedVideo = video.geometry[0]!.video;
+        const artifact = await video.recorder.stop(signal);
+        this.video = undefined;
 
-        if (artifact.width !== expectedVideo.width || artifact.height !== expectedVideo.height) {
+        if (video.geometry.length !== 1) {
             throw new TestbenchError(
                 'RECORDING_GEOMETRY_CHANGED',
-                'Recording and screen geometry do not have the same bounds.',
+                'Viewport geometry changed during recording.',
+                {
+                    operation: 'recording.stop',
+                    status: 409,
+                    details: { partialArtifact: artifact },
+                },
+            );
+        }
+
+        const sample = video.geometry[0]!;
+        const expectedVideo = video.scope === 'viewport' ? sample.viewportInVideo : sample.video;
+
+        // Encoders may align odd dimensions, but a wrong screen/capture must not pass.
+        if (
+            Math.abs(artifact.width - expectedVideo.width) > 3 ||
+            Math.abs(artifact.height - expectedVideo.height) > 1
+        ) {
+            throw new TestbenchError(
+                'RECORDING_GEOMETRY_CHANGED',
+                'Recording and requested geometry do not have the same bounds.',
                 {
                     operation: 'recording.stop',
                     status: 409,
                     details: {
                         recording: { width: artifact.width, height: artifact.height },
-                        screenshot: expectedVideo,
+                        screenshot: { width: expectedVideo.width, height: expectedVideo.height },
+                        partialArtifact: artifact,
                     },
                 },
             );
         }
 
-        const repairDuration =
-            artifact.durationMs + 100 < recordedDurationMs ? recordedDurationMs : undefined;
-
-        if (video.scope === 'viewport') {
-            if (video.geometry.length !== 1) {
-                throw new TestbenchError(
-                    'RECORDING_GEOMETRY_CHANGED',
-                    'Viewport geometry changed during recording.',
-                    {
-                        operation: 'recording.stop',
-                        status: 409,
-                        details: { partialArtifact: artifact, samples: video.geometry },
-                    },
-                );
-            }
-
-            await VideoUtilities.crop(
-                artifact.path,
-                video.geometry[0]!.viewportInVideo,
-                repairDuration,
-            );
-            artifact = await RecordingProbe.inspect(artifact.path);
-        } else if (repairDuration) {
-            await VideoUtilities.normalizeDuration(artifact.path, repairDuration);
-            artifact = await RecordingProbe.inspect(artifact.path);
-        }
-
-        this.video = undefined;
+        const viewport =
+            video.scope === 'viewport'
+                ? {
+                      ...sample.viewportInVideo,
+                      x: 0,
+                      y: 0,
+                      width: artifact.width,
+                      height: artifact.height,
+                  }
+                : sample.viewportInVideo;
         this.lastRecording = {
             ...artifact,
             id: video.id,
             requestedScope: video.scope,
             actualScope: video.scope,
-            geometry: { samples: video.geometry },
+            geometry: {
+                samples: [
+                    {
+                        ...sample,
+                        video: { width: artifact.width, height: artifact.height },
+                        viewportInVideo: viewport,
+                        insets: {
+                            ...sample.insets,
+                            top: viewport.y,
+                            left: viewport.x,
+                            right: artifact.width - viewport.x - viewport.width,
+                            bottom: artifact.height - viewport.y - viewport.height,
+                        },
+                    },
+                ],
+            },
         };
         return this.lastRecording;
     }
@@ -916,8 +917,7 @@ export class InteractiveController {
     }
 
     async diagnostics(): Promise<DiagnosticEvent[]> {
-        await this.collectDiagnostics();
-        return [...this.diagnosticEvents];
+        return this.browserDiagnostics.read(this.session.active);
     }
 
     async diagnosticBundle(): Promise<Record<string, unknown>> {
@@ -949,7 +949,7 @@ export class InteractiveController {
             dom: source.status === 'fulfilled' ? source.value : undefined,
             screenshot: screenshot.status === 'fulfilled' ? screenshot.value : undefined,
             browserEvents: diagnostics.status === 'fulfilled' ? diagnostics.value : [],
-            permissions: this.permissionMetadata,
+            permissions: this.permissions.metadata,
             recording,
             cleanup: { state: this.target ? 'active' : 'complete' },
             errors: [screenshot, source, diagnostics, inspection]
@@ -961,9 +961,7 @@ export class InteractiveController {
     }
 
     clearDiagnostics(): void {
-        this.diagnosticEvents.length = 0;
-        this.requestTimestamps.clear();
-        this.webSocketUrls.clear();
+        this.browserDiagnostics.clear();
     }
 
     async debugTools(): Promise<Record<string, unknown>> {
@@ -999,239 +997,6 @@ export class InteractiveController {
         };
     }
 
-    private async collectDiagnostics(): Promise<void> {
-        const browser = this.session.active;
-
-        try {
-            const entries = (await browser.logs('browser')) as Array<{
-                level?: { name?: string };
-                message?: string;
-                timestamp?: number;
-            }>;
-
-            for (const entry of entries) {
-                this.pushDiagnostic({
-                    type: 'console',
-                    timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                    level: entry.level?.name,
-                    message: entry.message,
-                });
-            }
-        } catch {
-            // Browser logs are driver-dependent. Unsupported targets simply return no console events.
-        }
-
-        try {
-            const entries = (await browser.logs('performance')) as Array<{
-                message?: string;
-                timestamp?: number;
-            }>;
-
-            for (const entry of entries) {
-                const envelope = JSON.parse(entry.message ?? '{}') as {
-                    message?: { method?: string; params?: Record<string, unknown> };
-                };
-                const message = envelope.message;
-
-                if (message?.method === 'Network.requestWillBeSent') {
-                    const request = message.params?.request as
-                        | {
-                              method?: string;
-                              url?: string;
-                              headers?: Record<string, unknown>;
-                              postData?: string;
-                          }
-                        | undefined;
-                    const requestId = message.params?.requestId as string | undefined;
-                    const timestamp = message.params?.timestamp as number | undefined;
-
-                    if (requestId && timestamp) {
-                        this.requestTimestamps.set(requestId, timestamp);
-                    }
-
-                    this.pushDiagnostic({
-                        type: 'request',
-                        timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                        method: request?.method,
-                        url: request?.url,
-                        headers: request?.headers,
-                        body: request?.postData?.slice(0, TestbenchDefaults.PAGE_SOURCE_LIMIT),
-                    });
-                }
-
-                if (message?.method === 'Network.responseReceived') {
-                    const response = message.params?.response as
-                        | {
-                              status?: number;
-                              url?: string;
-                              mimeType?: string;
-                              headers?: Record<string, unknown>;
-                          }
-                        | undefined;
-                    const requestId = message.params?.requestId as string | undefined;
-                    const timestamp = message.params?.timestamp as number | undefined;
-                    const startedAt = requestId ? this.requestTimestamps.get(requestId) : undefined;
-                    const body = requestId
-                        ? await this.responseBody(browser, requestId)
-                        : undefined;
-                    this.pushDiagnostic({
-                        type: 'response',
-                        timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                        status: response?.status,
-                        url: response?.url,
-                        mimeType: response?.mimeType,
-                        headers: response?.headers,
-                        body,
-                        durationMs:
-                            timestamp && startedAt
-                                ? Math.round((timestamp - startedAt) * 1_000)
-                                : undefined,
-                    });
-
-                    if (requestId) {
-                        this.requestTimestamps.delete(requestId);
-                    }
-                }
-
-                if (message?.method === 'Network.loadingFailed') {
-                    const requestId = message.params?.requestId as string | undefined;
-                    this.pushDiagnostic({
-                        type: 'requestFailed',
-                        timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                        error: message.params?.errorText as string | undefined,
-                    });
-
-                    if (requestId) {
-                        this.requestTimestamps.delete(requestId);
-                    }
-                }
-
-                if (message?.method === 'Network.webSocketCreated') {
-                    const requestId = message.params?.requestId as string | undefined;
-                    const url = message.params?.url as string | undefined;
-
-                    if (requestId && url) {
-                        this.webSocketUrls.set(requestId, url);
-                    }
-
-                    this.pushDiagnostic({
-                        type: 'webSocket',
-                        phase: 'created',
-                        timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                        requestId,
-                        url,
-                    });
-                }
-
-                if (message?.method === 'Network.webSocketWillSendHandshakeRequest') {
-                    const requestId = message.params?.requestId as string | undefined;
-                    const request = message.params?.request as
-                        { headers?: Record<string, unknown> } | undefined;
-                    this.pushDiagnostic({
-                        type: 'webSocket',
-                        phase: 'handshakeRequest',
-                        timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                        requestId,
-                        url: requestId ? this.webSocketUrls.get(requestId) : undefined,
-                        headers: request?.headers,
-                    });
-                }
-
-                if (message?.method === 'Network.webSocketHandshakeResponseReceived') {
-                    const requestId = message.params?.requestId as string | undefined;
-                    const response = message.params?.response as
-                        | {
-                              status?: number;
-                              statusText?: string;
-                              headers?: Record<string, unknown>;
-                          }
-                        | undefined;
-                    this.pushDiagnostic({
-                        type: 'webSocket',
-                        phase: 'handshakeResponse',
-                        timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                        requestId,
-                        url: requestId ? this.webSocketUrls.get(requestId) : undefined,
-                        status: response?.status,
-                        statusText: response?.statusText,
-                        headers: response?.headers,
-                    });
-                }
-
-                if (
-                    message?.method === 'Network.webSocketFrameSent' ||
-                    message?.method === 'Network.webSocketFrameReceived'
-                ) {
-                    const requestId = message.params?.requestId as string | undefined;
-                    const frame = message.params?.response as
-                        { opcode?: number; payloadData?: string } | undefined;
-                    this.pushDiagnostic({
-                        type: 'webSocketFrame',
-                        timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                        requestId,
-                        url: requestId ? this.webSocketUrls.get(requestId) : undefined,
-                        direction:
-                            message.method === 'Network.webSocketFrameSent' ? 'sent' : 'received',
-                        opcode: frame?.opcode,
-                        body: frame?.payloadData?.slice(0, TestbenchDefaults.PAGE_SOURCE_LIMIT),
-                    });
-                }
-
-                if (message?.method === 'Network.webSocketFrameError') {
-                    const requestId = message.params?.requestId as string | undefined;
-                    this.pushDiagnostic({
-                        type: 'webSocket',
-                        phase: 'error',
-                        timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                        requestId,
-                        url: requestId ? this.webSocketUrls.get(requestId) : undefined,
-                        error: message.params?.errorMessage as string | undefined,
-                    });
-                }
-
-                if (message?.method === 'Network.webSocketClosed') {
-                    const requestId = message.params?.requestId as string | undefined;
-                    this.pushDiagnostic({
-                        type: 'webSocket',
-                        phase: 'closed',
-                        timestamp: new Date(entry.timestamp ?? Date.now()).toISOString(),
-                        requestId,
-                        url: requestId ? this.webSocketUrls.get(requestId) : undefined,
-                    });
-
-                    if (requestId) {
-                        this.webSocketUrls.delete(requestId);
-                    }
-                }
-            }
-        } catch {
-            // Performance logging is currently available on Chromium targets only.
-        }
-    }
-
-    private async responseBody(
-        browser: BrowserSession['active'],
-        requestId: string,
-    ): Promise<string | undefined> {
-        try {
-            const result = (await browser.devtools('Network.getResponseBody', { requestId })) as {
-                body?: string;
-                base64Encoded?: boolean;
-            };
-
-            if (!result.body) {
-                return undefined;
-            }
-
-            const body = result.base64Encoded
-                ? Buffer.from(result.body, 'base64').toString('utf8')
-                : result.body;
-            return body.slice(0, TestbenchDefaults.PAGE_SOURCE_LIMIT);
-        } catch {
-            return undefined;
-        }
-    }
-
     private async appiumCommand<T = void>(path: string, body: Record<string, unknown>): Promise<T> {
         if (!this.appium) {
             throw new Error('This command requires an active mobile session.');
@@ -1256,31 +1021,6 @@ export class InteractiveController {
         }
     }
 
-    private pushDiagnostic(event: DiagnosticEvent): void {
-        this.diagnosticEvents.push({
-            ...event,
-            ...(event.headers ? { headers: this.redactHeaders(event.headers) } : {}),
-        });
-
-        if (this.diagnosticEvents.length > TestbenchDefaults.DIAGNOSTIC_EVENT_LIMIT) {
-            this.diagnosticEvents.splice(
-                0,
-                this.diagnosticEvents.length - TestbenchDefaults.DIAGNOSTIC_EVENT_LIMIT,
-            );
-        }
-    }
-
-    private redactHeaders(headers: Record<string, unknown>): Record<string, unknown> {
-        return Object.fromEntries(
-            Object.entries(headers).map(([name, value]) => [
-                name,
-                /^(authorization|proxy-authorization|cookie|set-cookie)$/iu.test(name)
-                    ? '[REDACTED]'
-                    : value,
-            ]),
-        );
-    }
-
     async close(): Promise<{ videoPath?: string }> {
         const target = this.target;
         const failures: unknown[] = [];
@@ -1296,8 +1036,10 @@ export class InteractiveController {
             videoPath = this.lastRecording?.path;
         }
 
-        await this.resetOriginPermissions().catch((error) => failures.push(error));
-        await this.androidPermissions?.restore().catch((error) => failures.push(error));
+        await this.permissions
+            .resetOrigins(this.target!, () => this.session.active)
+            .catch((error) => failures.push(error));
+        await this.permissions.restoreNative().catch((error) => failures.push(error));
         const browserClose = (this.pendingBrowserClose ??= this.session.close());
         let browserCloseTimedOut = false;
         await this.withCleanupTimeout('browser session', browserClose).catch((error) => {
@@ -1321,6 +1063,8 @@ export class InteractiveController {
         }
 
         await IosSessionCleanup.run(target).catch((error) => failures.push(error));
+        await this.preparedCapture?.workspace.close().catch((error) => failures.push(error));
+        this.preparedCapture = undefined;
 
         if (failures.length > 0) {
             throw new AggregateError(failures, 'Session cleanup failed.');
@@ -1335,115 +1079,9 @@ export class InteractiveController {
         this.lastRecording = undefined;
         this.appium = undefined;
         this.target = undefined;
-        this.diagnosticEvents.length = 0;
-        this.requestTimestamps.clear();
-        this.webSocketUrls.clear();
-        this.androidPermissions = undefined;
-        this.originPermissions = [];
+        this.browserDiagnostics.clear();
+        this.permissions.clear();
         this.pendingBrowserClose = undefined;
-        this.permissionMetadata = undefined;
-    }
-
-    private static isEquivalentPermissionOrigin(requested: URL, actual: URL): boolean {
-        const hostname = (url: URL): string => url.hostname.replace(/^www\./iu, '');
-        return (
-            requested.protocol === actual.protocol &&
-            requested.port === actual.port &&
-            hostname(requested) === hostname(actual)
-        );
-    }
-
-    private async preparePermissions(
-        target: TargetConfig,
-        browser: BrowserSession['active'],
-        requested: Array<{
-            name: 'camera' | 'microphone' | 'geolocation' | 'notifications';
-            origin: string;
-        }>,
-    ): Promise<{ requested: typeof requested; confirmed: typeof requested; packageName?: string }> {
-        let packageName: string | undefined;
-
-        if (target.name === 'chrome-android') {
-            const native = requested
-                .map((permission) => permission.name)
-                .filter(
-                    (name): name is 'camera' | 'microphone' =>
-                        name === 'camera' || name === 'microphone',
-                );
-
-            if (native.length) {
-                this.androidPermissions = new AndroidCameraUtilities(target, browser.capabilities);
-                packageName = (await this.androidPermissions.grant(native)).packageName;
-            }
-        }
-
-        for (const permission of requested) {
-            try {
-                await this.setOriginPermission(target, browser, permission, 'granted');
-            } catch (error) {
-                throw new TestbenchError(
-                    'PERMISSION_DENIED',
-                    `Could not grant ${permission.name} for ${permission.origin}.`,
-                    {
-                        operation: 'permission.origin',
-                        status: 403,
-                        cause: error,
-                        details: {
-                            platform: target.name,
-                            packageName,
-                            origin: permission.origin,
-                            permission: permission.name,
-                        },
-                    },
-                );
-            }
-
-            this.originPermissions.push(permission);
-        }
-
-        return { requested, confirmed: [...requested], ...(packageName ? { packageName } : {}) };
-    }
-
-    private async resetOriginPermissions(): Promise<void> {
-        if (!this.originPermissions.length) {
-            return;
-        }
-
-        const browser = this.session.active;
-        const permissions = this.originPermissions;
-        this.originPermissions = [];
-        const results = await Promise.allSettled(
-            permissions.map((permission) =>
-                this.setOriginPermission(this.target!, browser, permission, 'prompt'),
-            ),
-        );
-        const failures = results.filter(
-            (result): result is PromiseRejectedResult => result.status === 'rejected',
-        );
-
-        if (failures.length) {
-            throw new AggregateError(
-                failures.map((failure) => failure.reason),
-                'Could not reset origin permissions.',
-            );
-        }
-    }
-
-    private async setOriginPermission(
-        target: TargetConfig,
-        browser: BrowserSession['active'],
-        permission: { name: string; origin: string },
-        setting: 'granted' | 'denied' | 'prompt',
-    ): Promise<void> {
-        if (target.name !== 'chrome-android') {
-            await browser.permission(permission.name, setting, permission.origin);
-            return;
-        }
-
-        await this.appiumCommand('goog/cdp/execute', {
-            cmd: 'Browser.setPermission',
-            params: { permission: { name: permission.name }, setting, origin: permission.origin },
-        });
     }
 
     private async iosStartupDiagnostic(target: TargetConfig, error: unknown): Promise<string> {

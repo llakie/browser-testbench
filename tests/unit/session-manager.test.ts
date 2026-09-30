@@ -169,6 +169,35 @@ describe('SessionManager', () => {
         await sessions.close(session.id);
     });
 
+    it('samples the active recording clock from the recorder readiness epoch', async () => {
+        vi.spyOn(TargetCatalogService, 'sessionOptions').mockResolvedValue({
+            target: { id: 'chrome', serial: false },
+            options: {},
+        } as never);
+        vi.spyOn(InteractiveController.prototype, 'start').mockResolvedValue({});
+        vi.spyOn(InteractiveController.prototype, 'startRecording').mockImplementation(
+            async () =>
+                ({
+                    id: 'recording',
+                    startedAt: new Date().toISOString(),
+                    startedAtMonotonicMs: performance.now(),
+                    requestedScope: 'screen',
+                    actualScope: 'screen',
+                    geometry: { samples: [{}] },
+                }) as never,
+        );
+        vi.spyOn(InteractiveController.prototype, 'close').mockResolvedValue({});
+        const sessions = new SessionManager();
+        const session = await sessions.start({ target: 'chrome' });
+        await sessions.startRecording(session.id, { outputPath: 'video.mp4', scope: 'screen' });
+
+        const clock = sessions.recordingClock(session.id);
+
+        expect(clock.recordingTimeMs).toBeGreaterThanOrEqual(0);
+        expect(clock.sessionTimeMs).toBeGreaterThanOrEqual(clock.recordingTimeMs);
+        await sessions.close(session.id);
+    });
+
     it('records public operations for diagnostic bundles', async () => {
         vi.spyOn(TargetCatalogService, 'sessionOptions').mockResolvedValue({
             target: { id: 'chrome', serial: false },

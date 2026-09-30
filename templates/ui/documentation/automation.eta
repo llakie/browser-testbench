@@ -1,0 +1,28 @@
+<section id="automation">
+    <p class="eyebrow"><%=
+it.t(
+    'documentation.content.automation.eyebrow',
+)
+%></p>
+    <h2><%=
+it.t(
+    'documentation.content.automation.title',
+)
+%></h2>
+    <p><%=
+it.t(
+    'documentation.content.automation.intro',
+)
+%></p>
+    <pre><code>npm install --save-dev browser-testbench</code></pre>
+    <pre><code>import { RemoteTestbench } from "browser-testbench/client";
+
+const testbench = new RemoteTestbench();
+const targets = await testbench.availableTargets(["chrome"]);
+
+await testbench.forEachTarget(targets, { url: "http://127.0.0.1:3000" }, async browser => {
+  await browser.fill("#email", "test@example.com");
+  await browser.click('button[type="submit"]');
+  await browser.waitForText("Welcome");
+});</code></pre>
+</section>

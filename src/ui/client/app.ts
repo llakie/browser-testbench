@@ -7,6 +7,7 @@ import { CommandBlock } from './components/command-block.js';
 import { DeviceSetupChecklist } from './components/device-setup-checklist.js';
 import { OverviewPage } from './components/overview-page.js';
 import { TargetsPage } from './components/targets-page.js';
+import { RecordingSettings } from './components/recording-settings.js';
 import { workbenchStore } from './stores/workbench-store.js';
 import { translator } from './core/translator.js';
 
@@ -33,6 +34,7 @@ const attachTemplate = (component: Component, selector: string): void => {
 attachTemplate(OverviewPage, '#overview-page-template');
 attachTemplate(TargetsPage, '#targets-page-template');
 attachTemplate(DeviceSetupChecklist, '#device-setup-checklist-template');
+attachTemplate(RecordingSettings, '#recording-settings-template');
 
 const RootApp = defineComponent({
     data: () => ({
@@ -197,4 +199,5 @@ app.component('command-block', CommandBlock);
 app.component('device-setup-checklist', DeviceSetupChecklist);
 app.component('overview-page', OverviewPage);
 app.component('targets-page', TargetsPage);
+app.component('recording-settings', RecordingSettings);
 app.mount(appElement);

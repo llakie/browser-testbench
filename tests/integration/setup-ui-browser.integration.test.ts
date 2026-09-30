@@ -379,6 +379,31 @@ describe('workbench UI browser flow', () => {
                 ).toContain('Availability on this machine');
                 expect(
                     await browser.active.execute(
+                        `const card = document.querySelector('[data-check-id="chrome"]');
+                        const button = card.querySelector('.check-card__title .button--ghost');
+                        const status = card.querySelector('.status-icon').getBoundingClientRect();
+                        const name = card.querySelector('.check-card__name > span').getBoundingClientRect();
+                        const bounds = button.getBoundingClientRect();
+                        const style = getComputedStyle(button);
+                        return {
+                            gear: !!button.querySelector('.fa-gear'),
+                            leftOfStatus: bounds.right <= status.left,
+                            besideName: Math.abs(bounds.left - name.right - parseFloat(getComputedStyle(button.parentElement).gap)) < 1,
+                            aligned: Math.abs(bounds.top + bounds.height / 2 - status.top - status.height / 2) < 1,
+                            background: style.backgroundColor,
+                            border: style.borderTopColor,
+                        };`,
+                    ),
+                ).toEqual({
+                    gear: true,
+                    leftOfStatus: true,
+                    besideName: true,
+                    aligned: true,
+                    background: 'rgba(0, 0, 0, 0)',
+                    border: 'rgba(0, 0, 0, 0)',
+                });
+                expect(
+                    await browser.active.execute(
                         "return ['safari-ios', 'chrome-android'].map(id => { const link = document.querySelector(`[data-check-id=\"${id}\"] a[href^=\"/docs#physical-\"]`); return { id, href: link?.getAttribute('href'), text: link?.textContent.trim() }; })",
                     ),
                 ).toEqual([
@@ -398,6 +423,27 @@ describe('workbench UI browser flow', () => {
                         .$('[data-check-id="chrome-android"] .device-option')
                         .getText(),
                 ).toContain('Physical device · Version 16 · Connected via USB');
+                expect(
+                    await browser.active.execute(
+                        `const row = document.querySelector('[data-check-id="chrome-android"] .device-option__name');
+                        const button = row.querySelector('.button--ghost');
+                        const name = row.querySelector('strong').getBoundingClientRect();
+                        const bounds = button.getBoundingClientRect();
+                        return {
+                            gear: !!button.querySelector('.fa-gear'),
+                            besideName: bounds.left >= name.right,
+                            square: Math.abs(bounds.width - bounds.height) < 1,
+                            aligned: Math.abs(bounds.top + bounds.height / 2 - name.top - name.height / 2) < 1,
+                            background: getComputedStyle(button).backgroundColor,
+                        };`,
+                    ),
+                ).toEqual({
+                    gear: true,
+                    besideName: true,
+                    square: true,
+                    aligned: true,
+                    background: 'rgba(0, 0, 0, 0)',
+                });
                 await browser.active.waitForScript(
                     "return document.documentElement.dataset.environmentStream === 'connected'",
                     [],
@@ -547,11 +593,11 @@ describe('workbench UI browser flow', () => {
             });
           };
         `);
-                await browser.active.$('.test-target__actions > .button').click();
+                await browser.active.$('[data-action=verify-target]').click();
                 await waitForText(browser, 'Busy');
                 expect(
                     await browser.active.execute(
-                        `return [...document.querySelectorAll(".test-target")].find(target => target.querySelector(".test-target__status")?.textContent.includes("Busy"))?.querySelector(".test-target__actions > .button")?.disabled`,
+                        `return [...document.querySelectorAll(".test-target")].find(target => target.querySelector(".test-target__status")?.textContent.includes("Busy"))?.querySelector("[data-action=verify-target]")?.disabled`,
                     ),
                 ).toBe(true);
                 await browser.active.execute('window.fetch = window.__busyFetch');
@@ -609,9 +655,9 @@ describe('workbench UI browser flow', () => {
                 await browser.active.setWindowRect(1000, 812);
                 expect(
                     await browser.active.execute(`
-            const card = [...document.querySelectorAll(".test-target")].find(item => item.querySelector(".test-target__actions > .button"));
+            const card = [...document.querySelectorAll(".test-target")].find(item => item.querySelector("[data-action=verify-target]"));
             const command = card.querySelector(".command-block").getBoundingClientRect();
-            const button = card.querySelector(".test-target__actions > .button").getBoundingClientRect();
+            const button = card.querySelector("[data-action=verify-target]").getBoundingClientRect();
             const status = card.querySelector(".test-target__status").getBoundingClientRect();
             const detail = card.querySelector(".test-target__content > small");
             return {
@@ -632,9 +678,9 @@ describe('workbench UI browser flow', () => {
                 await browser.active.setWindowRect(1600, 812);
                 expect(
                     await browser.active.execute(`
-            const card = [...document.querySelectorAll(".test-target")].find(item => item.querySelector(".test-target__actions > .button"));
+            const card = [...document.querySelectorAll(".test-target")].find(item => item.querySelector("[data-action=verify-target]"));
             const command = card.querySelector(".command-block").getBoundingClientRect();
-            const button = card.querySelector(".test-target__actions > .button").getBoundingClientRect();
+            const button = card.querySelector("[data-action=verify-target]").getBoundingClientRect();
             return Math.abs(command.top - button.top) < 1;
           `),
                 ).toBe(true);
@@ -810,10 +856,10 @@ describe('workbench UI browser flow', () => {
             ? new Promise((resolve, reject) => setTimeout(() => originalFetch(...argumentsList).then(resolve, reject), 500))
             : originalFetch(...argumentsList);
         `);
-                await browser.active.$('#test-target-list .test-target__actions .button').click();
+                await browser.active.$('#test-target-list [data-action=verify-target]').click();
                 expect(
                     await browser.active
-                        .$('#test-target-list .test-target__actions .button')
+                        .$('#test-target-list [data-action=verify-target]')
                         .getText(),
                 ).toBe('Test running …');
                 await waitForText(browser, 'was tested successfully');
@@ -839,7 +885,7 @@ describe('workbench UI browser flow', () => {
           };
         `);
                 const readyTargetCount = await browser.active.execute<number>(
-                    "return document.querySelectorAll('#test-target-list .test-target__actions .button').length",
+                    "return document.querySelectorAll('#test-target-list [data-action=verify-target]').length",
                 );
                 await browser.active.$('#verify-all-targets').click();
                 await waitForText(browser, 'completed successfully');
@@ -1070,6 +1116,62 @@ describe('workbench UI browser flow', () => {
                         "return document.querySelector('#ios-setup-checklist [data-step-id=access]').classList.contains('is-complete')",
                     ),
                 ).toBe(true);
+                await browser.navigate(`${baseUrl}/setup`);
+                await browser.active.waitForScript(
+                    `return !!document.querySelector('[data-check-id="safari-ios"] .device-option__name .button--ghost')`,
+                    [],
+                    15_000,
+                );
+                await browser.active.execute(
+                    `document.querySelector('[data-check-id="safari-ios"] .device-options').open = true;
+                    document.querySelector('[data-check-id="safari-ios"] .device-option__name .button--ghost').click()`,
+                );
+                expect(
+                    await browser.active.execute(
+                        `const row = document.querySelector('dialog[open] .recording-dialog__source');
+                        const select = row.querySelector('select');
+                        const button = row.querySelector('button');
+                        const inputBounds = select.getBoundingClientRect();
+                        const buttonBounds = button.getBoundingClientRect();
+                        return {
+                            besideSelect: buttonBounds.left >= inputBounds.right,
+                            aligned: Math.abs(buttonBounds.top + buttonBounds.height / 2 - inputBounds.top - inputBounds.height / 2) < 1,
+                            square: Math.abs(buttonBounds.width - buttonBounds.height) < 1,
+                            iconOnly: button.textContent.trim() === '',
+                            reloadIcon: !!button.querySelector('.fa-rotate-right'),
+                            accessible: !!button.getAttribute('aria-label') && select.labels.length === 1,
+                        };`,
+                    ),
+                ).toEqual({
+                    besideSelect: true,
+                    aligned: true,
+                    square: true,
+                    iconOnly: true,
+                    reloadIcon: true,
+                    accessible: true,
+                });
+                expect(
+                    await browser.active.execute(
+                        `const dialog = document.querySelector('dialog[open]');
+                        const input = dialog.querySelector('input');
+                        const hint = document.getElementById(input.getAttribute('aria-describedby'));
+                        const label = input.parentElement.querySelector('span');
+                        const style = getComputedStyle(hint);
+                        return {
+                            belowInput: input.nextElementSibling === hint,
+                            sameSize: style.fontSize === getComputedStyle(label).fontSize,
+                            compactGap: Math.abs(hint.getBoundingClientRect().top - input.getBoundingClientRect().bottom - parseFloat(style.marginTop)) < 1,
+                            muted: style.color === getComputedStyle(dialog.querySelector('header p')).color,
+                            hints: dialog.querySelectorAll('.field-hint').length,
+                        };`,
+                    ),
+                ).toEqual({
+                    belowInput: true,
+                    sameSize: true,
+                    compactGap: true,
+                    muted: true,
+                    hints: 2,
+                });
                 await browser.navigate(`${baseUrl}/docs#android-debugging`);
                 expect(
                     await browser.active.execute(
@@ -1083,12 +1185,97 @@ describe('workbench UI browser flow', () => {
                     await browser.active.execute(
                         "return document.querySelectorAll('.sidebar__subnav .sidebar__sublink').length",
                     ),
-                ).toBe(9);
+                ).toBe(10);
                 expect(
                     await browser.active.execute(
                         "return document.querySelector('.sidebar__subnav .sidebar__sublink').getAttribute('href')",
                     ),
                 ).toBe('#start');
+                expect(
+                    await browser.active.execute(
+                        `const sections = [...document.querySelectorAll('.docs-content > section')].map(section => section.id);
+                        const links = [...document.querySelectorAll('.sidebar__subnav .sidebar__sublink')].map(link => link.getAttribute('href'));
+                        return {
+                            firstSection: sections[0],
+                            recordingAfterDevices: sections.indexOf('recording') > sections.indexOf('physical-ios'),
+                            lastLink: links.at(-1),
+                        };`,
+                    ),
+                ).toEqual({
+                    firstSection: 'start',
+                    recordingAfterDevices: true,
+                    lastLink: '#recording',
+                });
+                expect(
+                    await browser.active.execute(
+                        `return {
+                            sections: document.querySelectorAll('#recording .docs-accordion').length,
+                            open: document.querySelectorAll('#recording .docs-accordion[open]').length,
+                            eyebrow: document.querySelector('#recording > .eyebrow')?.textContent.trim(),
+                        };`,
+                    ),
+                ).toEqual({ sections: 4, open: 0, eyebrow: 'Video recording' });
+                await browser.active.$('#recording-installation > summary').scrollIntoView();
+                await browser.active.$('#recording-installation > summary').click();
+                expect(
+                    await browser.active.execute(
+                        "return document.querySelector('#recording-installation').open",
+                    ),
+                ).toBe(true);
+                await browser.active.$('#recording-connection > summary').scrollIntoView();
+                await browser.active.$('#recording-connection > summary').click();
+                expect(
+                    await browser.active.execute(
+                        `return [...document.querySelectorAll('#recording .docs-accordion[open]')].map(section => section.id);`,
+                    ),
+                ).toEqual(['recording-connection']);
+                expect(
+                    await browser.active.execute(
+                        `const steps = document.querySelectorAll('#recording-connection li');
+                        return { count: steps.length, iconLabel: steps[4].querySelector('.fa-gear')?.getAttribute('aria-label') };`,
+                    ),
+                ).toEqual({ count: 5, iconLabel: 'Recording settings' });
+                await browser.navigate(`${baseUrl}/docs#recording-sync`);
+                expect(
+                    await browser.active.execute(
+                        "return document.querySelector('#recording-sync').open",
+                    ),
+                ).toBe(true);
+                expect(
+                    await browser.active.execute(
+                        `const icon = document.querySelector('#recording-sync .docs-accordion__content .fa-gear');
+                        return { role: icon?.getAttribute('role'), label: icon?.getAttribute('aria-label') };`,
+                    ),
+                ).toEqual({ role: 'img', label: 'Device settings' });
+                expect(
+                    await browser.active.execute(
+                        `const last = document.querySelector('#recording-sync');
+                        const next = document.querySelector('#mobile-controls');
+                        return [false, true].map(open => {
+                            last.open = open;
+                            const spacing = parseFloat(getComputedStyle(document.querySelector('#physical-ios')).paddingTop);
+                            const accordionSpacing = parseFloat(getComputedStyle(last.querySelector('summary')).paddingBottom);
+                            return {
+                                beforeLine: Math.abs(next.getBoundingClientRect().top - last.getBoundingClientRect().bottom - accordionSpacing) < 1,
+                                afterLine: parseFloat(getComputedStyle(next).paddingTop) === spacing,
+                                aboveHeading: parseFloat(getComputedStyle(last.parentElement).paddingTop) === spacing,
+                            };
+                        });`,
+                    ),
+                ).toEqual([
+                    { beforeLine: true, afterLine: true, aboveHeading: true },
+                    { beforeLine: true, afterLine: true, aboveHeading: true },
+                ]);
+                expect(
+                    await browser.active.execute(
+                        `const reference = parseFloat(getComputedStyle(document.querySelector('#physical-ios')).paddingTop);
+                        return [...document.querySelectorAll('.docs-content > section + section > .eyebrow')].every(eyebrow => {
+                            const section = eyebrow.parentElement;
+                            const gap = eyebrow.getBoundingClientRect().top - section.getBoundingClientRect().top - parseFloat(getComputedStyle(section).borderTopWidth);
+                            return Math.abs(gap - reference) < 1;
+                        });`,
+                    ),
+                ).toBe(true);
                 await browser.active.$('#menu-toggle').click();
                 expect(
                     await browser.active.execute(

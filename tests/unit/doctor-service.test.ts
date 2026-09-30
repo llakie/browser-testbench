@@ -1,10 +1,20 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DoctorService } from '../../src/setup/doctor-service.js';
 import { IosDeviceDiscovery } from '../../src/setup/ios-device-discovery.js';
 import { MediaTooling } from '../../src/infrastructure/media-tooling.js';
 import { AndroidDeviceService } from '../../src/setup/android-device-service.js';
+import { ObsSetup } from '../../src/setup/obs-setup.js';
 
 describe('DoctorService device discovery', () => {
+    beforeEach(() => {
+        vi.spyOn(ObsSetup, 'inspect').mockResolvedValue({
+            id: 'obs',
+            label: 'OBS Studio',
+            status: 'action',
+            detail: { key: 'environment.obsMissing' },
+        });
+    });
+
     afterEach(() => vi.restoreAllMocks());
 
     it.each([
@@ -68,7 +78,7 @@ describe('DoctorService device discovery', () => {
 
         const checks = await DoctorService.inspect([]);
 
-        expect(checks.map((check) => check.id)).toEqual(['node']);
+        expect(checks.map((check) => check.id)).toEqual(['node', 'obs']);
         expect(MediaTooling.missing).not.toHaveBeenCalled();
     });
 });

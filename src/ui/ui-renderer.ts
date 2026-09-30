@@ -21,6 +21,7 @@ const documentationNavigation: Array<{ href: string; label: MessageKey }> = [
     { href: '#physical-android', label: 'documentation.navigation.android' },
     { href: '#physical-ios', label: 'documentation.navigation.ios' },
     { href: '#ios-signing', label: 'documentation.navigation.signing' },
+    { href: '#recording', label: 'recording.title' },
 ];
 
 export class UiRenderer {

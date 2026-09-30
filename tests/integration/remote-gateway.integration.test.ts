@@ -19,6 +19,8 @@ import { DoctorService } from '../../src/setup/doctor-service.js';
 import { TargetCatalogService } from '../../src/setup/target-catalog-service.js';
 import { ApiServer } from '../../src/transports/api-server.js';
 import { RemoteTestbench } from '../../src/transports/testbench-client.js';
+import { RecordingSettingsStore } from '../../src/recording/settings-store.js';
+import { ObsIosCapture } from '../../src/recording/obs-ios-capture.js';
 
 const nonLoopbackAddress = Object.values(networkInterfaces())
     .flatMap((addresses) => addresses ?? [])
@@ -136,6 +138,31 @@ describe('remote gateway', () => {
         );
         mobileVerification.mockRestore();
         const signedRemote = connections.client()!;
+        const recordingSettings = { audioSyncOffsetMs: -90 };
+        const readRecordingSettings = vi
+            .spyOn(RecordingSettingsStore, 'read')
+            .mockResolvedValue(recordingSettings);
+        const writeRecordingSettings = vi
+            .spyOn(RecordingSettingsStore, 'write')
+            .mockResolvedValue(recordingSettings);
+        const discoverCaptureDevices = vi
+            .spyOn(ObsIosCapture, 'discover')
+            .mockResolvedValue([{ id: 'usb-iphone', label: 'iPhone' }]);
+        await expect(testbench.request('/v1/targets/edge/recording')).resolves.toEqual(
+            recordingSettings,
+        );
+        expect(readRecordingSettings).toHaveBeenCalledOnce();
+        await expect(
+            testbench.request('/v1/targets/edge/recording', {
+                method: 'PUT',
+                body: JSON.stringify(recordingSettings),
+            }),
+        ).rejects.toThrow('Administrative access is required');
+        await expect(
+            testbench.request('/v1/recording/ios-devices', { method: 'POST' }),
+        ).rejects.toThrow('Administrative access is required');
+        expect(writeRecordingSettings).not.toHaveBeenCalled();
+        expect(discoverCaptureDevices).not.toHaveBeenCalled();
         await expect(
             signedRemote.request('/v1/sessions', {
                 method: 'POST',
@@ -172,6 +199,20 @@ describe('remote gateway', () => {
         await vi.waitFor(() =>
             expect(connections.status()).toMatchObject({ remote: { role: 'admin' } }),
         );
+        await expect(
+            testbench.request('/v1/targets/edge/recording', {
+                method: 'PUT',
+                body: JSON.stringify(recordingSettings),
+            }),
+        ).resolves.toEqual(recordingSettings);
+        expect(writeRecordingSettings).toHaveBeenCalledWith(
+            expect.objectContaining({ name: 'edge' }),
+            recordingSettings,
+        );
+        await expect(
+            testbench.request('/v1/recording/ios-devices', { method: 'POST' }),
+        ).resolves.toEqual([{ id: 'usb-iphone', label: 'iPhone' }]);
+        expect(discoverCaptureDevices).toHaveBeenCalledOnce();
         await expect(
             signedRemote.request<Array<{ clientId: string; connected: boolean }>>(
                 '/v1/remote/clients',

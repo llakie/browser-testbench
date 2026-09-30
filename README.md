@@ -111,7 +111,11 @@ npm install --global browser-testbench
 browser-testbench start
 ```
 
-Video recording requires `ffmpeg` and `ffprobe` on `PATH`. They are not bundled with the npm package. Desktop Chrome, Edge, and Firefox record the browser viewport directly; mobile targets use their native recorder. FFprobe validates the MP4 output, including codec, dimensions, duration, and frame rate. FFmpeg creates desktop recordings, crops viewport recordings, and stabilizes frame rate and duration when a native backend produces irregular or missing frames. The Overview page detects both tools and shows the installation command for macOS, Windows, or Linux. All screenshot scopes remain available without them.
+For video and audio recording, install **OBS Studio** and **FFmpeg** on the computer running Browser Testbench. Browser automation and screenshots do not need OBS. Open OBS, complete its first-run assistant and enable the password-protected server under **Tools → WebSocket Server Settings**. Leave OBS running, then click **Check again** on Overview. For step-by-step instructions, open **Documentation → Recording** (`/docs#recording`).
+
+Keep browser and simulator windows visible. Their recordings include system audio, so silence other applications and notifications. Physical Android devices need Android 11+ and [scrcpy](https://github.com/Genymobile/scrcpy#readme) 3+; physical iPhone recording requires a Mac and USB connection. Linux recording requires X11. Use the **gear next to the device name** on Overview or Test targets to select an iPhone capture source or adjust audio/video synchronization.
+
+Only one recording can run per computer. Stop any OBS recordings, streams, replay buffer and virtual camera before starting. Browser Testbench reads OBS connection settings automatically. For nonstandard installations, set `OBS_URL` (localhost only) and `OBS_PASSWORD` in the Testbench process environment, never in a project file. The `ffmpeg` and `ffprobe` commands must be available on `PATH`.
 
 By default, the interface runs at `http://127.0.0.1:55808/setup` and opens on startup. To use a different address:
 
@@ -361,7 +365,35 @@ All element methods accept standards-compliant CSS selectors only. Prefer stable
 Screenshots are saved by the client inside the project. For downloads, provide the project-side `downloadDir` when
 opening the session; the gateway transfers remote downloads into it.
 
-`mockFetch()` replaces fetch responses in the currently loaded page. `blockUrls()`, network conditions, geolocation, permissions, PDF, and the native accessibility tree use Chromium DevTools and are therefore intended for Chrome and Edge. WebDriver-based forms, navigation, and state operations remain available on other targets. For mobile videos, set `videoPath` when opening the session; recording is finalized when the session closes.
+`mockFetch()` replaces fetch responses in the currently loaded page. `blockUrls()`, network conditions, geolocation, permissions, PDF, and the native accessibility tree use Chromium DevTools and are therefore intended for Chrome and Edge. WebDriver-based forms, navigation, and state operations remain available on other targets.
+
+### Video recording
+
+Request recording when opening the session, then start and stop it explicitly:
+
+```ts
+const browser = await testbench.open({
+    target: 'chrome',
+    url: 'https://example.com',
+    require: { recording: { viewport: true } },
+});
+
+try {
+    await browser.recording.start({ outputPath: './recording.mp4', scope: 'viewport' });
+    // Run your browser actions here.
+    await browser.recording.stop();
+} finally {
+    await browser.close();
+}
+```
+
+Use a target ID from Test targets to record another device. Physical iPhone sessions need the recording
+requirement at session creation so Testbench can prepare USB capture before connecting Safari. They reserve OBS
+until the session closes; stopping a recording leaves the session ready for another recording. Close the session
+to release OBS. Audio/video offset and USB source settings for these sessions are read when the session opens.
+
+Alternatively, set `videoPath` when opening a session to start a screen recording automatically and finalize it
+when the session closes.
 
 ## MCP
 

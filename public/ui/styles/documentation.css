@@ -1,0 +1,94 @@
+.docs-content a {
+    color: var(--color-primary);
+}
+
+.docs-content section {
+    scroll-margin-top: var(--docs-scroll-offset);
+}
+
+.docs-content section + section {
+    margin-top: var(--space-5);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-line);
+}
+
+.docs-disclosure {
+    margin-top: var(--space-3);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-small);
+    background: var(--color-surface);
+}
+
+.docs-disclosure > summary {
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-ink-muted);
+    font-size: var(--font-size-summary);
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.docs-disclosure__content {
+    padding: 0 var(--space-3);
+    border-top: 1px solid var(--color-line);
+}
+
+.docs-disclosure__content > :first-child {
+    margin-top: 0;
+}
+
+.docs-disclosure__content > :last-child {
+    margin-bottom: 0;
+}
+
+.docs-accordion {
+    scroll-margin-top: var(--docs-scroll-offset);
+    border-bottom: 1px solid var(--color-line);
+}
+
+.docs-accordion:last-child {
+    border-bottom: 0;
+}
+
+.docs-content section:has(> .docs-accordion:last-child) + section {
+    margin-top: var(--space-3);
+}
+
+.docs-accordion > summary {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    list-style: none;
+    color: var(--color-ink);
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.docs-accordion > summary::-webkit-details-marker {
+    display: none;
+}
+
+.docs-accordion__chevron {
+    flex: 0 0 auto;
+    color: var(--color-ink-muted);
+    font-size: var(--font-size-small);
+    transition: transform var(--transition);
+}
+
+.docs-accordion[open] > summary .docs-accordion__chevron {
+    transform: rotate(180deg);
+}
+
+.docs-accordion__content {
+    padding-bottom: var(--space-3);
+}
+
+.docs-accordion__content > :first-child {
+    margin-top: 0;
+}
+
+.docs-accordion__content > :last-child {
+    margin-bottom: 0;
+}

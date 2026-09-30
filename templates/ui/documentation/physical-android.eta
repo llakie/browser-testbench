@@ -1,0 +1,172 @@
+<section id="physical-android">
+    <p class="eyebrow"><%=
+it.t(
+    'documentation.content.android.eyebrow',
+)
+%></p>
+    <h2><%=
+it.t(
+    'documentation.content.android.title',
+)
+%></h2>
+    <device-setup-checklist platform="android"></device-setup-checklist>
+    <details class="docs-disclosure" id="android-detailed-setup">
+        <summary><%=
+it.t(
+    'documentation.content.android.showGuide',
+)
+%></summary>
+        <div class="docs-disclosure__content">
+            <details class="docs-accordion" id="android-tools" name="android-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.android.toolsTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <ol>
+                        <li><%=
+it.t(
+    'documentation.content.android.tools1',
+)
+%></li>
+                        <li>
+                            <%=
+                            it.t(
+                                'documentation.content.android.tools2Before',
+                            )
+                            %>
+                            <a href="/setup#environment-setup"><%=
+it.t(
+    'documentation.content.android.environmentSetup',
+)
+%></a
+                            ><%=
+it.t(
+    'documentation.content.android.tools2After',
+)
+%>
+                        </li>
+                    </ol>
+                </div>
+            </details>
+            <details class="docs-accordion" id="android-device-connection" name="android-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.android.deviceTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <ol>
+                        <li><%=
+it.t(
+    'documentation.content.android.device1',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.android.device2',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.android.device3',
+)
+%></li>
+                    </ol>
+                </div>
+            </details>
+            <details class="docs-accordion" id="android-debugging" name="android-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.android.debugTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <ol>
+                        <li><%=
+it.t(
+    'documentation.content.android.debug1',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.android.debug2',
+)
+%></li>
+                        <li>
+                            <%=
+                            it.t(
+                                'documentation.content.android.debug3Before',
+                            )
+                            %>
+                            <a href="/setup"><%=
+it.t(
+    'documentation.content.android.overview',
+)
+%></a> <%=
+it.t(
+    'documentation.content.android.debug3After',
+)
+%>
+                        </li>
+                    </ol>
+                </div>
+            </details>
+            <details class="docs-accordion" id="android-first-test" name="android-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.android.testTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <p>
+                        <%=
+                        it.t(
+                            'documentation.content.android.test1Before',
+                        )
+                        %>
+                        <a href="/targets"><%=
+it.t(
+    'documentation.content.android.testTargets',
+)
+%></a> <%=
+it.t(
+    'documentation.content.android.test1After',
+)
+%>
+                    </p>
+                    <p><%=
+it.t(
+    'documentation.content.android.test2',
+)
+%></p>
+                </div>
+            </details>
+        </div>
+    </details>
+</section>

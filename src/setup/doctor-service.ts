@@ -7,11 +7,13 @@ import { MediaTooling } from '../infrastructure/media-tooling.js';
 import { AndroidDeviceService } from './android-device-service.js';
 import { IosDeviceService } from './ios-device-service.js';
 import { VerificationStore } from './verification-store.js';
+import { ObsSetup } from './obs-setup.js';
 
 export class DoctorService {
     static async inspect(requestedTargets?: TargetName[]): Promise<DoctorCheck[]> {
         const checks: DoctorCheck[] = [];
         checks.push(await this.nodeCheck());
+        checks.push(await ObsSetup.inspect());
         const targets = requestedTargets ?? TargetRegistry.defaultTargets();
 
         if (targets.some((target) => target === 'safari-ios' || target === 'chrome-android')) {
