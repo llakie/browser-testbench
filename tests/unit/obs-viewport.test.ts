@@ -1,9 +1,9 @@
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserHandle } from '../../src/automation/browser-session.js';
-import { ObsViewport } from '../../src/automation/obs-viewport.js';
+import { ObsViewport } from '../../src/recording/obs-viewport.js';
 import { OperationWait } from '../../src/automation/operation-wait.js';
-import type { ObsConnection } from '../../src/infrastructure/obs-connection.js';
+import type { ObsConnection } from '../../src/recording/obs-connection.js';
 
 const marker = { r: 1, g: 254, b: 127 };
 

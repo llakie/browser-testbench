@@ -1,15 +1,15 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { TargetConfig } from '../config/types.js';
-import type { RecordingSettings } from '../config/recording-settings.js';
+import type { RecordingSettings } from './settings.js';
 import { AndroidSdk } from '../infrastructure/android-sdk.js';
 import { ProcessTerminator } from '../infrastructure/process-terminator.js';
-import { AndroidDeviceUtilities } from './android-device-utilities.js';
-import type { BrowserHandle } from './browser-session.js';
+import { AndroidDeviceUtilities } from '../automation/android-device-utilities.js';
+import type { BrowserHandle } from '../automation/browser-session.js';
 import { ObsIosCapture, IOS_CAPTURE_SOURCE } from './obs-ios-capture.js';
 import { ObsWorkspace } from './obs-workspace.js';
-import { OperationWait } from './operation-wait.js';
+import { OperationWait } from '../automation/operation-wait.js';
 import { LocalizedError } from '../i18n/translator.js';
-import { RecordingSettingsStore } from '../setup/recording-settings-store.js';
+import { RecordingSettingsStore } from './settings-store.js';
 
 const WINDOW = 'Testbench Window';
 const AUDIO = 'Testbench System Audio';

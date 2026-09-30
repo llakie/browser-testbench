@@ -1,0 +1,22 @@
+<section id="mobile-controls">
+    <p class="eyebrow"><%=
+it.t(
+    'documentation.content.controls.eyebrow',
+)
+%></p>
+    <h2><%=
+it.t(
+    'documentation.content.controls.title',
+)
+%></h2>
+    <p><%=
+it.t(
+    'documentation.content.controls.intro',
+)
+%></p>
+    <pre><code>import { BrowserOrientation, PinchDirection, SwipeDirection } from "browser-testbench/client";
+
+await browser.setOrientation(BrowserOrientation.Landscape);
+await browser.swipe({ direction: SwipeDirection.Up });
+await browser.pinch({ direction: PinchDirection.Out });</code></pre>
+</section>

@@ -1,7 +1,7 @@
 import sharp from 'sharp';
-import type { ObsConnection } from '../infrastructure/obs-connection.js';
-import type { BrowserHandle } from './browser-session.js';
-import { OperationWait } from './operation-wait.js';
+import type { ObsConnection } from './obs-connection.js';
+import type { BrowserHandle } from '../automation/browser-session.js';
+import { OperationWait } from '../automation/operation-wait.js';
 
 const MARKER_INSET = 8;
 

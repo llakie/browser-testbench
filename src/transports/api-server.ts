@@ -1,10 +1,8 @@
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { createReadStream } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { basename, join } from 'node:path';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { pipeline } from 'node:stream/promises';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { ZodError } from 'zod';
@@ -18,9 +16,10 @@ import { TestbenchPaths } from '../infrastructure/paths.js';
 import { UiRenderer } from '../ui/ui-renderer.js';
 import { UiLiveReload } from '../ui/ui-live-reload.js';
 import { TargetCatalogService } from '../setup/target-catalog-service.js';
-import { RecordingSettingsStore } from '../setup/recording-settings-store.js';
-import { recordingSettingsSchema } from '../config/recording-settings.js';
-import { ObsIosCapture } from '../automation/obs-ios-capture.js';
+import { RecordingSettingsStore } from '../recording/settings-store.js';
+import { RecordingArtifacts } from '../recording/artifacts.js';
+import { recordingSettingsSchema } from '../recording/settings.js';
+import { ObsIosCapture } from '../recording/obs-ios-capture.js';
 import { TargetVerificationService } from '../setup/target-verification-service.js';
 import { AndroidDeviceMonitor } from '../setup/android-device-monitor.js';
 import { IosDeviceMonitor } from '../setup/ios-device-monitor.js';
@@ -104,17 +103,7 @@ export class ApiServer {
     private readonly artifactHost = new RemoteArtifactHost();
     private readonly sessionAssets = new SessionAssetManager();
     private readonly remoteApi: RemoteApiController;
-    private readonly recordingDirectories = new Map<string, string>();
-    private readonly explicitRecordingSessions = new Set<string>();
-    private readonly recordingArtifacts = new Map<
-        string,
-        {
-            ownerId: string;
-            sessionId: string;
-            directory: string;
-            result: Awaited<ReturnType<SessionManager['stopRecording']>>;
-        }
-    >();
+    private readonly recordings = new RecordingArtifacts();
 
     constructor(
         private readonly options: ApiServerOptions,
@@ -457,16 +446,18 @@ export class ApiServer {
 
         this.clientLeases.clear();
         this.remoteApi.artifacts.clear();
-        const cleanup = await Promise.allSettled([
+        const closing = await Promise.allSettled([
             this.publisher.stop(),
             this.connections.disconnect(),
             this.sessions.closeAll(),
+        ]);
+        const cleanup = await Promise.allSettled([
             this.artifactHost.cleanup(),
             this.sessionAssets.cleanup(),
-            this.cleanupRecordings(),
+            this.recordings.cleanup(),
         ]);
         await new Promise<void>((resolve) => this.server.close(() => resolve()));
-        const failure = cleanup.find(
+        const failure = [...closing, ...cleanup].find(
             (result): result is PromiseRejectedResult => result.status === 'rejected',
         );
 
@@ -622,77 +613,42 @@ export class ApiServer {
         });
         this.app.post('/v1/sessions/:id/recording/start', async (request, response) => {
             const input = InputSchemas.recordingStart.parse(request.body);
-            const directory = await mkdtemp(join(tmpdir(), 'browser-testbench-recording-'));
-
-            try {
-                const result = await this.sessions.startRecording(
-                    request.params.id,
-                    {
-                        ...input,
-                        outputPath: join(
-                            directory,
-                            basename(input.outputPath.replaceAll('\\', '/')),
-                        ),
-                    },
-                    this.ownerId(request),
-                );
-                this.recordingDirectories.set(request.params.id, directory);
-                this.explicitRecordingSessions.add(request.params.id);
-                response.status(201).json(result);
-            } catch (error) {
-                await rm(directory, { recursive: true, force: true });
-                throw error;
-            }
+            const result = await this.recordings.start(
+                request.params.id,
+                input.outputPath,
+                (outputPath) =>
+                    this.sessions.startRecording(
+                        request.params.id,
+                        { ...input, outputPath },
+                        this.ownerId(request),
+                    ),
+            );
+            response.status(201).json(result);
         });
         this.app.post('/v1/sessions/:id/recording/clock', (request, response) => {
             response.json(this.sessions.recordingClock(request.params.id, this.ownerId(request)));
         });
         this.app.post('/v1/sessions/:id/recording/stop', async (request, response) => {
             const ownerId = this.ownerId(request);
-            const existing = [...this.recordingArtifacts.entries()].find(
-                ([, artifact]) =>
-                    artifact.sessionId === request.params.id && artifact.ownerId === ownerId,
+            const result = await this.recordings.finish(request.params.id, ownerId, () =>
+                this.sessions.stopRecording(
+                    request.params.id,
+                    ownerId,
+                    RequestAbort.signal(request, response),
+                ),
             );
-
-            if (existing) {
-                const [artifactId, artifact] = existing;
-                response.json({ ...ApiServer.publicRecordingResult(artifact.result), artifactId });
-                return;
-            }
-
-            const result = await this.sessions.stopRecording(
-                request.params.id,
-                ownerId,
-                RequestAbort.signal(request, response),
-            );
-            const directory = this.recordingDirectories.get(request.params.id);
-
-            if (!directory) {
-                response.json(ApiServer.publicRecordingResult(result));
-                return;
-            }
-
-            const artifactId = randomUUID();
-            this.recordingDirectories.delete(request.params.id);
-            this.recordingArtifacts.set(artifactId, {
-                ownerId,
-                sessionId: request.params.id,
-                directory,
-                result,
-            });
-            const { path: _serverPath, ...publicResult } = result;
-            response.json({ ...publicResult, artifactId });
+            response.json(result);
         });
         this.app.get(
             '/v1/sessions/:id/recording/artifacts/:artifactId',
             async (request, response) => {
-                const artifact = this.recordingArtifacts.get(request.params.artifactId);
+                const artifact = this.recordings.get(
+                    request.params.id,
+                    this.ownerId(request),
+                    request.params.artifactId,
+                );
 
-                if (
-                    !artifact ||
-                    artifact.sessionId !== request.params.id ||
-                    artifact.ownerId !== this.ownerId(request)
-                ) {
+                if (!artifact) {
                     throw new SessionNotFoundError('Recording artifact was not found.');
                 }
 
@@ -701,8 +657,7 @@ export class ApiServer {
                     size: artifact.result.size,
                     name: basename(artifact.result.path),
                 });
-                this.recordingArtifacts.delete(request.params.artifactId);
-                await rm(artifact.directory, { recursive: true, force: true });
+                await this.recordings.discard(request.params.artifactId);
             },
         );
         this.app.post('/v1/sessions', async (request, response) => {
@@ -771,13 +726,13 @@ export class ApiServer {
             } catch (error) {
                 await this.artifactHost.discardSession(request.params.id);
                 await this.sessionAssets.cleanupSession(request.params.id);
-                await this.cleanupRecordingSession(request.params.id);
+                await this.recordings.cleanupSession(request.params.id);
                 throw error;
             }
 
             await this.sessionAssets.cleanupSession(request.params.id);
-            const explicitRecording = this.explicitRecordingSessions.has(request.params.id);
-            await this.cleanupRecordingSession(request.params.id);
+            const explicitRecording = this.recordings.isExplicit(request.params.id);
+            await this.recordings.cleanupSession(request.params.id);
             const publicResult = explicitRecording ? {} : result;
             const artifact = await this.artifactHost.completeSession(
                 request.params.id,
@@ -1088,7 +1043,7 @@ export class ApiServer {
         const cleanup = await Promise.allSettled(
             sessionIds.flatMap((sessionId) => [
                 this.artifactHost.discardSession(sessionId),
-                this.cleanupRecordingSession(sessionId),
+                this.recordings.cleanupSession(sessionId),
             ]),
         );
 
@@ -1115,47 +1070,5 @@ export class ApiServer {
             'X-Browser-Testbench-Artifact-Name': encodeURIComponent(artifact.name),
         });
         await pipeline(createReadStream(artifact.path), response);
-    }
-
-    private async cleanupRecordingSession(sessionId: string): Promise<void> {
-        const directories = new Set<string>();
-        const active = this.recordingDirectories.get(sessionId);
-
-        if (active) {
-            directories.add(active);
-        }
-
-        this.recordingDirectories.delete(sessionId);
-        this.explicitRecordingSessions.delete(sessionId);
-
-        for (const [artifactId, artifact] of this.recordingArtifacts) {
-            if (artifact.sessionId !== sessionId) {
-                continue;
-            }
-
-            directories.add(artifact.directory);
-            this.recordingArtifacts.delete(artifactId);
-        }
-
-        await Promise.all(
-            [...directories].map((directory) => rm(directory, { recursive: true, force: true })),
-        );
-    }
-
-    private async cleanupRecordings(): Promise<void> {
-        const sessionIds = new Set([
-            ...this.recordingDirectories.keys(),
-            ...[...this.recordingArtifacts.values()].map((artifact) => artifact.sessionId),
-        ]);
-        await Promise.all(
-            [...sessionIds].map((sessionId) => this.cleanupRecordingSession(sessionId)),
-        );
-    }
-
-    private static publicRecordingResult(
-        result: Awaited<ReturnType<SessionManager['stopRecording']>>,
-    ): Omit<Awaited<ReturnType<SessionManager['stopRecording']>>, 'path'> {
-        const { path: _serverPath, ...publicResult } = result;
-        return publicResult;
     }
 }

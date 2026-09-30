@@ -1,5 +1,5 @@
 import type { DoctorCheck } from '../config/types.js';
-import { ObsConnection } from '../infrastructure/obs-connection.js';
+import { ObsConnection } from '../recording/obs-connection.js';
 
 export class ObsSetup {
     static async inspect(): Promise<DoctorCheck> {

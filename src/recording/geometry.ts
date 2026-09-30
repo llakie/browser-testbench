@@ -1,7 +1,7 @@
 import type { TargetConfig } from '../config/types.js';
 import { TestbenchError } from '../errors/testbench-error.js';
-import type { BrowserHandle } from './browser-session.js';
-import { AppiumSessionClient } from './appium-session-client.js';
+import type { BrowserHandle } from '../automation/browser-session.js';
+import { AppiumSessionClient } from '../automation/appium-session-client.js';
 
 export interface PixelRect {
     x: number;

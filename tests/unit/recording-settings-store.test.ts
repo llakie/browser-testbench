@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestbenchPaths } from '../../src/infrastructure/paths.js';
-import { RecordingSettingsStore } from '../../src/setup/recording-settings-store.js';
+import { RecordingSettingsStore } from '../../src/recording/settings-store.js';
 
 describe('RecordingSettingsStore', () => {
     let directory: string;

@@ -2,15 +2,15 @@ import { rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserHandle } from '../../src/automation/browser-session.js';
-import { ObsRecorder } from '../../src/automation/obs-recorder.js';
-import { ObsWorkspace } from '../../src/automation/obs-workspace.js';
-import { ObsCapture } from '../../src/automation/obs-capture.js';
-import { ObsViewport } from '../../src/automation/obs-viewport.js';
-import type { GeometrySample } from '../../src/automation/recording-geometry.js';
+import { ObsRecorder } from '../../src/recording/obs-recorder.js';
+import { ObsWorkspace } from '../../src/recording/obs-workspace.js';
+import { ObsCapture } from '../../src/recording/obs-capture.js';
+import { ObsViewport } from '../../src/recording/obs-viewport.js';
+import type { GeometrySample } from '../../src/recording/geometry.js';
 import { PersistentTargetLock } from '../../src/automation/target-lock-manager.js';
 import { CommandRunner } from '../../src/infrastructure/command-runner.js';
-import { ObsConnection } from '../../src/infrastructure/obs-connection.js';
-import { RecordingSettingsStore } from '../../src/setup/recording-settings-store.js';
+import { ObsConnection } from '../../src/recording/obs-connection.js';
+import { RecordingSettingsStore } from '../../src/recording/settings-store.js';
 
 describe('ObsRecorder', () => {
     const directories: string[] = [];

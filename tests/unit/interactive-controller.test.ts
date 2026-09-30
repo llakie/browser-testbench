@@ -5,9 +5,10 @@ import { IosPhysicalSafariNavigator } from '../../src/automation/ios-physical-sa
 import { ServiceManager } from '../../src/infrastructure/process-manager.js';
 import { TargetRegistry } from '../../src/config/target-registry.js';
 import { TestbenchDefaults } from '../../src/config/defaults.js';
-import { VideoRecorder, type RecordingArtifact } from '../../src/automation/video-recorder.js';
-import { RecordingGeometry, type GeometrySample } from '../../src/automation/recording-geometry.js';
-import { ObsCapture } from '../../src/automation/obs-capture.js';
+import { VideoRecorder, type RecordingArtifact } from '../../src/recording/video-recorder.js';
+import { RecordingGeometry, type GeometrySample } from '../../src/recording/geometry.js';
+import { ObsCapture } from '../../src/recording/obs-capture.js';
+import { AppiumSessionClient } from '../../src/automation/appium-session-client.js';
 
 describe('InteractiveController', () => {
     afterEach(() => {
@@ -47,22 +48,25 @@ describe('InteractiveController', () => {
 
     it('grants requested permissions to an HTTP redirect origin before reloading it', async () => {
         const controller = new InteractiveController();
+        const browser = {
+            sessionId: 'session-id',
+            capabilities: { deviceUDID: 'emulator-5554' },
+            getUrl: vi.fn().mockResolvedValue('https://www.example.com/scan'),
+        };
         const navigate = vi.fn().mockResolvedValue(undefined);
-        const setOriginPermission = vi.fn().mockResolvedValue(undefined);
+        const permissionRequest = vi
+            .spyOn(AppiumSessionClient.prototype, 'request')
+            .mockResolvedValue(null);
         const stop = vi.fn().mockResolvedValue(undefined);
         vi.spyOn(ServiceManager, 'startAppium').mockResolvedValue({
             process: { stop, recentOutput: '' } as never,
             port: 1,
         });
         Object.assign(controller, {
-            setOriginPermission,
             session: {
-                start: vi.fn().mockResolvedValue({
-                    sessionId: 'session-id',
-                    capabilities: { deviceUDID: 'emulator-5554' },
-                }),
+                start: vi.fn().mockResolvedValue(browser),
                 navigate,
-                active: { getUrl: vi.fn().mockResolvedValue('https://www.example.com/scan') },
+                active: browser,
                 close: vi.fn().mockResolvedValue(undefined),
             },
         });
@@ -75,20 +79,17 @@ describe('InteractiveController', () => {
             permissions: [{ name: 'geolocation', origin: 'https://example.com' }],
         });
 
-        expect(setOriginPermission.mock.calls).toEqual([
-            [
-                expect.any(Object),
-                expect.any(Object),
-                { name: 'geolocation', origin: 'https://example.com' },
-                'granted',
-            ],
-            [
-                expect.any(Object),
-                expect.any(Object),
-                { name: 'geolocation', origin: 'https://www.example.com' },
-                'granted',
-            ],
-        ]);
+        expect(permissionRequest.mock.calls).toEqual(
+            ['https://example.com', 'https://www.example.com'].map((origin) => [
+                'goog/cdp/execute',
+                'POST',
+                {
+                    cmd: 'Browser.setPermission',
+                    params: { permission: { name: 'geolocation' }, setting: 'granted', origin },
+                },
+                TestbenchDefaults.ANDROID_ADB_COMMAND_TIMEOUT_MS,
+            ]),
+        );
         expect(navigate.mock.calls).toEqual([
             ['about:blank'],
             ['https://example.com/scan'],

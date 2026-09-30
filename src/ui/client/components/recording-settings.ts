@@ -1,5 +1,5 @@
 import { defineComponent, useId } from 'vue';
-import type { RecordingSettings as Settings } from '../../../config/recording-settings.js';
+import type { RecordingSettings as Settings } from '../../../recording/settings.js';
 import { ApiClient } from '../core/api-client.js';
 import { translator } from '../core/translator.js';
 import { workbenchStore } from '../stores/workbench-store.js';

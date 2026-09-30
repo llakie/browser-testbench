@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { recordingSettingsSchema, type RecordingSettings } from '../config/recording-settings.js';
+import { recordingSettingsSchema, type RecordingSettings } from './settings.js';
 import type { TargetConfig } from '../config/types.js';
 import { TestbenchPaths } from '../infrastructure/paths.js';
 

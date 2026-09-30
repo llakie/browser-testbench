@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   been removed.
 - Physical iPhone recording sessions prepare USB capture before connecting Safari. Request recording when opening
   the session and close it afterwards to release OBS. Saved audio offsets are applied before source activation.
+- Recording services and settings now share one module. Browser diagnostics, permission handling, and recording
+  artifacts have dedicated owners; UI styles and documentation are split into component files.
 
 ### Fixed
 
@@ -26,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Android emulator capture selects the window by its AVD name.
 - Emulator audio calibration stays attached to the AVD across restarts and changing runtime serials.
 - Element actions recognize Chrome's detached-document error and retry once with a fresh element reference.
+- Server shutdown finishes closing sessions before removing their recording and asset directories.
 
 ## [0.6.1] - 2026-09-29
 

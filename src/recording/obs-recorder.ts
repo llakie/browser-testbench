@@ -3,13 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TargetConfig } from '../config/types.js';
 import { CommandRunner } from '../infrastructure/command-runner.js';
-import { RecordingSettingsStore } from '../setup/recording-settings-store.js';
-import type { BrowserHandle } from './browser-session.js';
-import type { GeometrySample } from './recording-geometry.js';
+import { RecordingSettingsStore } from './settings-store.js';
+import type { BrowserHandle } from '../automation/browser-session.js';
+import type { GeometrySample } from './geometry.js';
 import { ObsCapture, type PreparedObsCapture } from './obs-capture.js';
 import { ObsViewport } from './obs-viewport.js';
 import { ObsWorkspace, OBS_SCENE } from './obs-workspace.js';
-import { OperationWait } from './operation-wait.js';
+import { OperationWait } from '../automation/operation-wait.js';
 
 export class ObsRecorder {
     private workspace?: ObsWorkspace;

@@ -1,0 +1,26 @@
+<section id="remote">
+    <p class="eyebrow"><%=
+it.t(
+    'documentation.content.remote.eyebrow',
+)
+%></p>
+    <h2><%=
+it.t(
+    'documentation.content.remote.title',
+)
+%></h2>
+    <p><%=
+it.t(
+    'documentation.content.remote.intro',
+)
+%></p>
+    <pre><code>browser-testbench discover
+browser-testbench connect &lt;name-or-instance-id&gt;
+browser-testbench status
+browser-testbench disconnect</code></pre>
+    <p><%=
+it.t(
+    'documentation.content.remote.network',
+)
+%></p>
+</section>

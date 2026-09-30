@@ -6,7 +6,7 @@ import { TargetLockManager } from './target-lock-manager.js';
 import { TestbenchDefaults } from '../config/defaults.js';
 import { TestbenchError } from '../errors/testbench-error.js';
 import { AndroidMediaUtilities, type CameraImageResource } from './android-media-utilities.js';
-import type { RecordingArtifact } from './video-recorder.js';
+import type { RecordingArtifact } from '../recording/video-recorder.js';
 
 export interface ManagedSession {
     id: string;

@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { TestbenchError } from '../errors/testbench-error.js';
-import { ImageDimensions, type PixelRect } from './recording-geometry.js';
+import { ImageDimensions, type PixelRect } from '../recording/geometry.js';
 
 export type ScreenshotScope = 'screen' | 'viewport' | 'fullPage' | 'element';
 

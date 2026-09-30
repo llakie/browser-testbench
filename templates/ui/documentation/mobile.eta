@@ -1,0 +1,17 @@
+<section id="mobile">
+    <p class="eyebrow"><%=
+it.t(
+    'documentation.content.mobile.eyebrow',
+)
+%></p>
+    <h2><%=
+it.t(
+    'documentation.content.mobile.title',
+)
+%></h2>
+    <p><%=
+it.t(
+    'documentation.content.mobile.intro',
+)
+%></p>
+</section>

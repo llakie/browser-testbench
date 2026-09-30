@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { RecordingGeometry } from '../../src/automation/recording-geometry.js';
+import { RecordingGeometry } from '../../src/recording/geometry.js';
 
 describe('RecordingGeometry', () => {
     afterEach(() => {

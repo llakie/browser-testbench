@@ -7,7 +7,7 @@ import {
     RecordingProbe,
     VideoRecorder,
     type RecordingArtifact,
-} from '../../src/automation/video-recorder.js';
+} from '../../src/recording/video-recorder.js';
 import { CommandRunner } from '../../src/infrastructure/command-runner.js';
 
 describe('RecordingProbe', () => {

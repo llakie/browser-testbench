@@ -19,8 +19,8 @@ import { DoctorService } from '../../src/setup/doctor-service.js';
 import { TargetCatalogService } from '../../src/setup/target-catalog-service.js';
 import { ApiServer } from '../../src/transports/api-server.js';
 import { RemoteTestbench } from '../../src/transports/testbench-client.js';
-import { RecordingSettingsStore } from '../../src/setup/recording-settings-store.js';
-import { ObsIosCapture } from '../../src/automation/obs-ios-capture.js';
+import { RecordingSettingsStore } from '../../src/recording/settings-store.js';
+import { ObsIosCapture } from '../../src/recording/obs-ios-capture.js';
 
 const nonLoopbackAddress = Object.values(networkInterfaces())
     .flatMap((addresses) => addresses ?? [])

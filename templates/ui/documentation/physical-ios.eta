@@ -1,0 +1,366 @@
+<section id="physical-ios">
+    <p class="eyebrow"><%=
+it.t(
+    'documentation.content.ios.eyebrow',
+)
+%></p>
+    <h2><%=
+it.t(
+    'documentation.content.ios.title',
+)
+%></h2>
+    <device-setup-checklist platform="ios"></device-setup-checklist>
+    <details class="docs-disclosure" id="ios-detailed-setup">
+        <summary><%=
+it.t(
+    'documentation.content.ios.showGuide',
+)
+%></summary>
+        <div class="docs-disclosure__content">
+            <details class="docs-accordion" id="ios-mac-setup" name="ios-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.ios.toolsTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <ol>
+                        <li><%=
+it.t(
+    'documentation.content.ios.tools1',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.tools2',
+)
+%></li>
+                        <li>
+                            <%=
+                            it.t(
+                                'documentation.content.ios.tools3Before',
+                            )
+                            %>
+                            <a href="/setup#environment-setup"><%=
+it.t(
+    'documentation.content.android.environmentSetup',
+)
+%></a>
+                            <%=
+                            it.t(
+                                'documentation.content.ios.tools3After',
+                            )
+                            %>
+                        </li>
+                    </ol>
+                </div>
+            </details>
+            <details class="docs-accordion" id="ios-device-connection" name="ios-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.ios.deviceTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <ol>
+                        <li><%=
+it.t(
+    'documentation.content.ios.device1',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.device2',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.device3',
+)
+%></li>
+                    </ol>
+                </div>
+            </details>
+            <details class="docs-accordion" id="ios-safari-settings" name="ios-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.ios.safariTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <ol>
+                        <li><%=
+it.t(
+    'documentation.content.ios.safari1',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.safari2',
+)
+%></li>
+                    </ol>
+                </div>
+            </details>
+            <details class="docs-accordion" id="ios-signing" name="ios-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.ios.signingTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <p><%=
+it.t(
+    'documentation.content.ios.signingIntro',
+)
+%></p>
+                    <h4><%=
+it.t(
+    'documentation.content.ios.identityTitle',
+)
+%></h4>
+                    <ol>
+                        <li>
+                            <%=
+                            it.t(
+                                'documentation.content.ios.identity1Before',
+                            )
+                            %>
+                            <a href="/setup#environment-setup"><%=
+it.t(
+    'documentation.content.android.environmentSetup',
+)
+%></a>
+                            <%=
+                            it.t(
+                                'documentation.content.ios.identity1After',
+                            )
+                            %>
+                        </li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.identity2',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.identity3',
+)
+%></li>
+                    </ol>
+                    <p><%=
+it.t(
+    'documentation.content.ios.teamId',
+)
+%></p>
+                    <h4><%=
+it.t(
+    'documentation.content.ios.certificateTitle',
+)
+%></h4>
+                    <ol>
+                        <li><%=
+it.t(
+    'documentation.content.ios.certificate1',
+)
+%></li>
+                        <li>
+                            <%=
+                            it.t(
+                                'documentation.content.ios.certificate2Before',
+                            )
+                            %>
+                            <a href="https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer"
+                                ><%=
+it.t(
+    'documentation.content.ios.certificateLink',
+)
+%></a
+                            >
+                            <%=
+                            it.t(
+                                'documentation.content.ios.certificate2After',
+                            )
+                            %>
+                        </li>
+                    </ol>
+                    <h4><%=
+it.t(
+    'documentation.content.ios.runTitle',
+)
+%></h4>
+                    <ol>
+                        <li><%=
+it.t(
+    'documentation.content.ios.run1',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.run2',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.run3',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.run4',
+)
+%></li>
+                        <li>
+                            <%=
+                            it.t(
+                                'documentation.content.ios.run5Before',
+                            )
+                            %>
+                            <a href="/targets"><%=
+it.t(
+    'documentation.content.android.testTargets',
+)
+%></a> <%=
+it.t(
+    'documentation.content.ios.run5After',
+)
+%>
+                        </li>
+                    </ol>
+                    <p><%=
+it.t(
+    'documentation.content.ios.expiry',
+)
+%></p>
+                </div>
+            </details>
+            <details class="docs-accordion" id="ios-xcode-compatibility" name="ios-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.ios.compatTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <p><%=
+it.t(
+    'documentation.content.ios.compatIntro',
+)
+%></p>
+                    <ol>
+                        <li>
+                            <%=
+                            it.t(
+                                'documentation.content.ios.compat1Before',
+                            )
+                            %>
+                            <a href="https://developer.apple.com/download/all/?q=Xcode%2026.2"
+                                ><%=
+it.t(
+    'documentation.content.ios.compatLink',
+)
+%></a
+                            >
+                            <%=
+                            it.t(
+                                'documentation.content.ios.compat1After',
+                            )
+                            %>
+                        </li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.compat2',
+)
+%></li>
+                        <li>
+                            <%=
+                            it.t(
+                                'documentation.content.ios.compat3',
+                            )
+                            %>
+                            <pre><code>sudo xcode-select --switch /Applications/Xcode-26.2.app/Contents/Developer
+xcodebuild -version</code></pre>
+                        </li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.compat4',
+)
+%></li>
+                        <li><%=
+it.t(
+    'documentation.content.ios.compat5',
+)
+%></li>
+                    </ol>
+                </div>
+            </details>
+            <details class="docs-accordion" id="ios-network-access" name="ios-setup">
+                <summary>
+                    <%=
+                    it.t(
+                        'documentation.content.ios.networkTitle',
+                    )
+                    %>
+                    <i
+                        class="fa-solid fa-chevron-down docs-accordion__chevron"
+                        aria-hidden="true"
+                    ></i>
+                </summary>
+                <div class="docs-accordion__content">
+                    <p><%=
+it.t(
+    'documentation.content.ios.networkIntro',
+)
+%></p>
+                    <p>
+                        <% if (it.remoteExecution) { %><%=
+it.t(
+    'documentation.content.ios.networkRemote',
+)
+%><% } else if (it.localNetworkAddress) { %><%=
+it.t(
+    'documentation.content.ios.networkLocal',
+    {
+        address: it.localNetworkAddress,
+    },
+)
+%><% } else { %><%=
+it.t(
+    'documentation.content.ios.networkMissing',
+)
+%><% } %>
+                    </p>
+                </div>
+            </details>
+        </div>
+    </details>
+</section>

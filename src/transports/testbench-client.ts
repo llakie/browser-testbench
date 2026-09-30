@@ -12,7 +12,8 @@ import {
     SwipeDirection,
     type BrowserOrientationValue,
 } from '../config/interaction-values.js';
-import type { DiagnosticEvent, PageInspection } from '../automation/interactive-controller.js';
+import type { PageInspection } from '../automation/interactive-controller.js';
+import type { DiagnosticEvent } from '../automation/browser-diagnostics.js';
 import type { GestureExecution } from '../automation/mobile-gestures.js';
 import {
     InputSchemas,
@@ -40,8 +41,8 @@ import { ErrorResponse, type ErrorResponsePayload } from '../i18n/error-response
 import { TestbenchError } from '../errors/testbench-error.js';
 import type { AssetReference } from '../automation/session-asset-manager.js';
 import type { SessionMark } from '../automation/session-manager.js';
-import type { RecordingArtifact } from '../automation/video-recorder.js';
-import type { GeometrySample } from '../automation/recording-geometry.js';
+import type { RecordingArtifact } from '../recording/video-recorder.js';
+import type { GeometrySample } from '../recording/geometry.js';
 import type { ScreenshotResult, ScreenshotScope } from '../automation/screenshot-utilities.js';
 import {
     TargetCapabilityService,

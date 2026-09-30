@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ObsConnection } from '../../src/infrastructure/obs-connection.js';
+import { ObsConnection } from '../../src/recording/obs-connection.js';
 
 const mocks = vi.hoisted(() => ({
     readFile: vi.fn(),

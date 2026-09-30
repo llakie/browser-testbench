@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { ObsConnection } from '../infrastructure/obs-connection.js';
-import { PersistentTargetLock } from './target-lock-manager.js';
+import { ObsConnection } from './obs-connection.js';
+import { PersistentTargetLock } from '../automation/target-lock-manager.js';
 import { LocalizedError } from '../i18n/translator.js';
 
 export const OBS_PROFILE = 'Browser Testbench';

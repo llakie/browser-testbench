@@ -6,9 +6,9 @@ import type { TargetConfig } from '../config/types.js';
 import { TestbenchError } from '../errors/testbench-error.js';
 import { CommandRunner } from '../infrastructure/command-runner.js';
 import { MediaTooling } from '../infrastructure/media-tooling.js';
-import type { BrowserHandle } from './browser-session.js';
+import type { BrowserHandle } from '../automation/browser-session.js';
 import { ObsRecorder } from './obs-recorder.js';
-import type { GeometrySample } from './recording-geometry.js';
+import type { GeometrySample } from './geometry.js';
 import type { PreparedObsCapture } from './obs-capture.js';
 
 export interface RecordingArtifact {

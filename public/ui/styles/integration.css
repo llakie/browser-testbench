@@ -1,0 +1,81 @@
+.integration-card,
+.project-command {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-medium);
+    background: var(--color-surface-muted);
+}
+
+.integration-card__icon {
+    display: grid;
+    flex: 0 0 2.5rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    border-radius: var(--radius-small);
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.integration-card__content,
+.project-command > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: var(--content-flow-space);
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+}
+
+.integration-card__content > *,
+.project-command > div > * {
+    margin-block: 0;
+}
+
+.integration-card__heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.integration-card p,
+.project-command p {
+    margin-bottom: 0;
+    color: var(--color-ink-muted);
+}
+
+.integration-status.is-ready {
+    color: var(--color-success);
+}
+
+.integration-status.is-action {
+    color: var(--color-warning);
+}
+
+.integration-status.is-blocked {
+    color: var(--color-danger);
+}
+
+.integration-client {
+    display: block;
+    width: min(22rem, 100%);
+}
+
+@media (max-width: 38rem) {
+    .integration-card__heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .integration-card,
+    .project-command {
+        flex-direction: column;
+        min-width: 0;
+    }
+}
