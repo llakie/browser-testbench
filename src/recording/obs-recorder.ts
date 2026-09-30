@@ -32,14 +32,12 @@ export class ObsRecorder {
             recorder.workspace = preparedCapture?.workspace ?? (await ObsWorkspace.open());
             await recorder.prepare(target, browser, geometry, scope);
             const obs = recorder.workspace.obs;
-            await obs.call('StartRecord');
+            // OBS outputDuration counts encoded frames and lags behind capture by the encoder buffer.
+            recorder.startedAtMonotonicMs = await obs.startRecording();
             recorder.started = true;
             await OperationWait.until(
                 async () => {
-                    const before = performance.now();
                     const status = await obs.call('GetRecordStatus');
-                    recorder.startedAtMonotonicMs =
-                        (before + performance.now()) / 2 - status.outputDuration;
                     return (
                         status.outputActive && status.outputBytes > 0 && status.outputDuration > 0
                     );
