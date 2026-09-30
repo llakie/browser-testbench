@@ -113,6 +113,25 @@ export class ObsConnection {
         }
     }
 
+    async startRecording(): Promise<number> {
+        let started: (event: { outputState: string }) => void = () => undefined;
+        const epoch = new Promise<number>((resolve) => {
+            started = (event) => {
+                if (event.outputState === 'OBS_WEBSOCKET_OUTPUT_STARTED') {
+                    resolve(performance.now());
+                }
+            };
+            this.socket.on('RecordStateChanged', started);
+        });
+
+        try {
+            await this.call('StartRecord');
+            return await this.timeout(epoch, REQUEST_TIMEOUT_MS);
+        } finally {
+            this.socket.off('RecordStateChanged', started);
+        }
+    }
+
     private async timeout<T>(work: Promise<T>, milliseconds: number): Promise<T> {
         let timer: NodeJS.Timeout | undefined;
 

@@ -52,6 +52,10 @@ describe('ObsRecorder', () => {
             call,
             close,
             stopRecording,
+            startRecording: async () => {
+                await call('StartRecord');
+                return 1234;
+            },
         } as never);
         vi.spyOn(PersistentTargetLock.prototype, 'acquire').mockResolvedValue(undefined);
         vi.spyOn(PersistentTargetLock.prototype, 'release').mockResolvedValue(undefined);
@@ -147,6 +151,7 @@ describe('ObsRecorder', () => {
             ['SetCurrentProfile', { profileName: 'Browser Testbench' }],
         ]);
         expect(title).toBe('Application');
+        expect(recorder.startedAtMonotonicMs).toBe(1234);
         await recorder.stop();
         expect(call.mock.calls.slice(-2)).toEqual([
             ['SetCurrentSceneCollection', { sceneCollectionName: 'Personal' }],

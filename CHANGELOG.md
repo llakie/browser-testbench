@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-30
+
+### Fixed
+
+- Anchor the recording clock to OBS's recording-start event instead of encoded-frame progress. Encoder buffering
+  no longer shifts timeline marks and downstream video cuts by about a second. Recorder readiness remains a
+  separate check, and captured audio/video and per-device audio offsets are unchanged.
+
 ## [0.7.0] - 2026-09-30
 
 ### Added
@@ -300,7 +308,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Dynamic Android AVD discovery and provisioning without fixed API levels or Pixel profiles.
 - Automated CI for macOS, Windows, and Linux and npm publishing through GitHub Actions.
 
-[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/llakie/browser-testbench/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/llakie/browser-testbench/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/llakie/browser-testbench/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/llakie/browser-testbench/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/llakie/browser-testbench/compare/v0.5.1...v0.6.0

@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
     readFile: vi.fn(),
     connect: vi.fn(),
     disconnect: vi.fn(),
+    call: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
 }));
 
 vi.mock('node:fs/promises', () => ({ readFile: mocks.readFile }));
@@ -14,6 +17,9 @@ vi.mock('obs-websocket-js', () => ({
     OBSWebSocket: class {
         connect = mocks.connect;
         disconnect = mocks.disconnect;
+        call = mocks.call;
+        on = mocks.on;
+        off = mocks.off;
     },
 }));
 
@@ -23,6 +29,9 @@ describe('ObsConnection configuration', () => {
         mocks.readFile.mockReset();
         mocks.connect.mockReset().mockResolvedValue({});
         mocks.disconnect.mockReset().mockResolvedValue(undefined);
+        mocks.call.mockReset();
+        mocks.on.mockReset();
+        mocks.off.mockReset();
     });
 
     afterEach(() => vi.unstubAllGlobals());
@@ -69,5 +78,34 @@ describe('ObsConnection configuration', () => {
         mocks.readFile.mockRejectedValue(Object.assign(new Error('Not found'), { code: 'ENOENT' }));
         await expect(ObsConnection.connect()).rejects.toThrow('Testbench host');
         expect(mocks.connect).not.toHaveBeenCalled();
+    });
+
+    it('anchors recording to the started event, before encoder readiness or the request response', async () => {
+        mocks.readFile.mockResolvedValue('{}');
+        const connection = await ObsConnection.connect();
+        let eventTime = 0;
+        mocks.call.mockImplementation(async () => {
+            const listener = mocks.on.mock.calls[0]![1] as (event: { outputState: string }) => void;
+            listener({ outputState: 'OBS_WEBSOCKET_OUTPUT_STARTING' });
+            eventTime = performance.now();
+            listener({ outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED' });
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+        const epoch = await connection.startRecording();
+        expect(epoch).toBeGreaterThanOrEqual(eventTime);
+        expect(epoch - eventTime).toBeLessThan(10);
+        expect(performance.now() - epoch).toBeGreaterThanOrEqual(15);
+        expect(mocks.call).toHaveBeenCalledWith('StartRecord', undefined);
+        expect(mocks.off).toHaveBeenCalledWith('RecordStateChanged', mocks.on.mock.calls[0]![1]);
+        await connection.close();
+    });
+
+    it('removes the recording event listener if starting fails', async () => {
+        mocks.readFile.mockResolvedValue('{}');
+        mocks.call.mockRejectedValue(new Error('Encoder unavailable'));
+        const connection = await ObsConnection.connect();
+        await expect(connection.startRecording()).rejects.toThrow('Encoder unavailable');
+        expect(mocks.off).toHaveBeenCalledWith('RecordStateChanged', mocks.on.mock.calls[0]![1]);
+        await connection.close();
     });
 });
