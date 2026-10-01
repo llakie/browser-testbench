@@ -45,6 +45,7 @@
         "beforeRecording": "Only one recording can run per computer. First stop any OBS recordings, streams, replay buffer and virtual camera.",
         "desktopGuide": "Desktop and simulators: Keep the browser or simulator window visible and not minimized. System audio is included, so silence other applications and notifications. Linux requires X11; Wayland is not supported. iOS simulators require macOS.",
         "androidGuide": "Android devices: You need Android 11 or newer and scrcpy version 3 or newer on your computer. Connect the device via USB, enable USB debugging and approve the connection on the device. Keep it unlocked when recording starts. Browser Testbench opens the mirroring window automatically.",
+        "androidEmulatorMemory": "Android emulators: For recording memory-intensive pages, allocate 8 GB of RAM to the AVD in Android Studio. Too little emulator memory can cause Chrome to close during recording. This does not apply to physical devices.",
         "iosGuide": "iPhones: Recording requires a Mac. Connect the iPhone via USB, unlock it and confirm Trust This Computer. Then select it as the USB capture source in device settings. Video and audio are captured directly from the iPhone.",
         "calibrationTitle": "Audio and video synchronization",
         "calibrationGuide": "If audio and video are out of sync, you can adjust the offset in milliseconds for each device individually by clicking {settingsIcon}."
