@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-01
+
+### Fixed
+
+- Closing an Android session after Chrome crashes now stops an active recording without querying the failed browser and releases the device lock after Appium shuts down.
+- Pin transitive Axios to a patched release used by Appium.
+
 ## [0.7.1] - 2026-09-30
 
 ### Fixed

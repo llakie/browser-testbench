@@ -1028,7 +1028,8 @@ export class InteractiveController {
 
         if (this.video) {
             try {
-                videoPath = (await this.stopRecording()).path;
+                videoPath = (await this.video.recorder.stop()).path;
+                this.video = undefined;
             } catch (error) {
                 failures.push(error);
             }
@@ -1042,11 +1043,12 @@ export class InteractiveController {
         await this.permissions.restoreNative().catch((error) => failures.push(error));
         const browserClose = (this.pendingBrowserClose ??= this.session.close());
         let browserCloseTimedOut = false;
+        let browserCloseFailure: unknown;
         await this.withCleanupTimeout('browser session', browserClose).catch((error) => {
             if (error instanceof CleanupTimeoutError) {
                 browserCloseTimedOut = true;
             } else {
-                failures.push(error);
+                browserCloseFailure = error;
             }
         });
 
@@ -1054,12 +1056,33 @@ export class InteractiveController {
             this.pendingBrowserClose = undefined;
         }
 
-        await this.appium?.process.stop().catch((error) => failures.push(error));
+        let appiumStopped = false;
+
+        if (this.appium) {
+            await this.appium.process
+                .stop()
+                .then(() => {
+                    appiumStopped = true;
+                })
+                .catch((error) => failures.push(error));
+        }
 
         if (browserCloseTimedOut) {
             await this.withCleanupTimeout('browser session after stopping Appium', browserClose)
                 .then(() => (this.pendingBrowserClose = undefined))
-                .catch((error) => failures.push(error));
+                .catch((error) => (browserCloseFailure = error));
+        }
+
+        if (
+            browserCloseFailure &&
+            !(
+                target?.name === 'chrome-android' &&
+                appiumStopped &&
+                browserCloseFailure instanceof Error &&
+                browserCloseFailure.message.includes('tab crashed')
+            )
+        ) {
+            failures.push(browserCloseFailure);
         }
 
         await IosSessionCleanup.run(target).catch((error) => failures.push(error));

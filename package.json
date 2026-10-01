@@ -1,6 +1,6 @@
 {
     "name": "browser-testbench",
-    "version": "0.7.1",
+    "version": "0.7.2",
     "description": "Cross-platform testbench for desktop browsers, iOS simulators and devices, and Android emulators and devices",
     "author": "Lars-Erich Kiefer",
     "license": "MIT",
@@ -104,6 +104,7 @@
         "vue": "3.5.43"
     },
     "overrides": {
+        "axios": "1.20.0",
         "morgan": "1.12.1"
     }
 }

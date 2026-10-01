@@ -476,6 +476,43 @@ describe('InteractiveController', () => {
         });
     });
 
+    it('stops an Android recording during cleanup without reading a crashed browser', async () => {
+        const controller = new InteractiveController();
+        const stopRecording = vi.fn().mockResolvedValue(recordingArtifact());
+        const stopAppium = vi.fn().mockResolvedValue(undefined);
+        const closeBrowser = vi.fn().mockResolvedValue(undefined);
+        const capture = vi
+            .spyOn(RecordingGeometry, 'capture')
+            .mockRejectedValue(new Error('tab crashed'));
+        vi.spyOn(IosSessionCleanup, 'run').mockResolvedValue(undefined);
+        Object.assign(controller, {
+            session: { close: closeBrowser },
+            video: { recorder: { stop: stopRecording }, path: 'video.mp4' },
+            appium: { process: { stop: stopAppium }, port: 1234 },
+            target: { name: 'chrome-android', deviceKind: 'emulator' },
+        });
+
+        await expect(controller.close()).resolves.toEqual({ videoPath: 'video.mp4' });
+        expect(stopRecording).toHaveBeenCalledOnce();
+        expect(capture).not.toHaveBeenCalled();
+        expect(closeBrowser).toHaveBeenCalledOnce();
+        expect(stopAppium).toHaveBeenCalledOnce();
+    });
+
+    it('finishes Android cleanup when a crashed browser rejects session deletion', async () => {
+        const controller = new InteractiveController();
+        const stopAppium = vi.fn().mockResolvedValue(undefined);
+        vi.spyOn(IosSessionCleanup, 'run').mockResolvedValue(undefined);
+        Object.assign(controller, {
+            session: { close: vi.fn().mockRejectedValue(new Error('tab crashed')) },
+            appium: { process: { stop: stopAppium }, port: 1234 },
+            target: { name: 'chrome-android', deviceKind: 'emulator' },
+        });
+
+        await expect(controller.close()).resolves.toEqual({});
+        expect(stopAppium).toHaveBeenCalledOnce();
+    });
+
     it('waits for a stalled browser close to settle after stopping Appium', async () => {
         vi.useFakeTimers();
         const controller = new InteractiveController();
