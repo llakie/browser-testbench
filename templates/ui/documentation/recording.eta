@@ -64,6 +64,11 @@
                         >scrcpy</a
                     >
                 </li>
+                <li><%=
+it.t(
+    'recording.androidEmulatorMemory',
+)
+%></li>
                 <li><%= it.t('recording.iosGuide') %></li>
             </ul>
         </div>

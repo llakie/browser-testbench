@@ -42,6 +42,8 @@ such as `http://127.0.0.1:3000` are forwarded over USB for the duration of the s
 
 For Android emulator testing, setup reuses an existing compatible Google Play AVD. If none exists and no physical device is connected, it selects the newest matching Google Play system image already installed for the host architecture and the newest available generic Pixel hardware profile. The generated AVD name contains both values, for example `browser-testbench-pixel-10-api-37-1`. Only when no suitable image is installed does the setup ask you to install the latest one through Android Studio's SDK Manager; no API level or Pixel model is hard-coded.
 
+For recording memory-intensive pages in an Android emulator, allocate 8 GB of RAM to the AVD in Android Studio. Too little emulator memory can cause Chrome to close during recording. Physical Android devices are not subject to this emulator setting.
+
 ### Physical iPhones and iPads
 
 Safari on a physical iPhone or iPad requires a macOS host with Xcode, a USB connection, and an Apple Account signed
