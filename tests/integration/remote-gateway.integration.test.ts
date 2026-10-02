@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -21,6 +22,7 @@ import { ApiServer } from '../../src/transports/api-server.js';
 import { RemoteTestbench } from '../../src/transports/testbench-client.js';
 import { RecordingSettingsStore } from '../../src/recording/settings-store.js';
 import { ObsIosCapture } from '../../src/recording/obs-ios-capture.js';
+import { RecordingArtifacts } from '../../src/recording/artifacts.js';
 
 const nonLoopbackAddress = Object.values(networkInterfaces())
     .flatMap((addresses) => addresses ?? [])
@@ -114,6 +116,23 @@ describe('remote gateway', () => {
             mode: 'remote',
             remote: { instanceId: instance.instanceId, role: 'control' },
         });
+        const recordingBytes = Buffer.from([0, 1, 2, 3, 255, 128]);
+        const remoteRecordingPath = join(directory, 'remote-recording.mp4');
+        const localRecordingPath = join(directory, 'local-recording.mp4');
+        await writeFile(remoteRecordingPath, recordingBytes);
+        vi.spyOn(RecordingArtifacts.prototype, 'get').mockReturnValue({
+            result: { path: remoteRecordingPath, size: recordingBytes.length },
+        } as never);
+        await testbench.downloadRecording(
+            'recording-session',
+            'recording-artifact',
+            localRecordingPath,
+            {
+                size: recordingBytes.length,
+                sha256: createHash('sha256').update(recordingBytes).digest('hex'),
+            },
+        );
+        expect(await readFile(localRecordingPath)).toEqual(recordingBytes);
         expect((await testbench.targets()).map((target) => target.id)).toContain('edge');
         expect(
             JSON.stringify(withoutLocalMcpClients(await testbench.request('/v1/workbench'))),

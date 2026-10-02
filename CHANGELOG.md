@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-02
+
+### Fixed
+
+- Explicit recordings from a paired remote Testbench now stream through the local gateway as binary artifacts, so the finished video is saved and integrity-checked on the controlling computer.
+
 ## [0.7.2] - 2026-10-01
 
 ### Fixed

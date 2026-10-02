@@ -239,8 +239,9 @@ a LAN interface and pass the development machine's LAN URL, for example `http://
 Testbench detects loopback URLs before starting a remote session and reports this requirement without rewriting
 the URL.
 
-Screenshots, uploads, downloads, PDFs, and mobile video results cross the gateway so project paths remain on the
-development machine. Individual transferred files are limited to 50 MiB. Disconnect closes this client's
+Screenshots, uploads, downloads, PDFs, and video recordings cross the gateway so project paths remain on the
+development machine. Ordinary transferred files are limited to 50 MiB; recordings use a separate streamed transfer.
+Disconnect closes this client's
 sessions and queued device requests; a heartbeat and server-side lease clean up a client that disappears
 unexpectedly.
 
