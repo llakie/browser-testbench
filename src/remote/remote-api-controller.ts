@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import type { Express, NextFunction, Request, Response } from 'express';
 import { InputSchemas, type StartSessionInput } from '../config/input-schemas.js';
 import { TestbenchDefaults } from '../config/defaults.js';
@@ -220,6 +222,38 @@ export class RemoteApiController {
             const remoteResponse = await client.response(path, remoteRequest);
             await this.assertRemoteResponse(remoteResponse);
             response.json(await this.artifacts.receiveDownload(sessionMatch[1]!, remoteResponse));
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            /^\/v1\/sessions\/[^/]+\/recording\/artifacts\/[^/]+$/u.test(request.path)
+        ) {
+            const remoteResponse = await client.response(path, remoteRequest);
+            await this.assertRemoteResponse(remoteResponse);
+
+            if (!remoteResponse.body) {
+                throw new Error('The remote recording artifact has no body.');
+            }
+
+            const size = Number(remoteResponse.headers.get('content-length'));
+
+            if (!Number.isSafeInteger(size) || size < 0) {
+                throw new Error('The remote recording artifact has no valid size.');
+            }
+
+            response.status(200).set({
+                'Content-Type':
+                    remoteResponse.headers.get('content-type') ?? 'application/octet-stream',
+                'Content-Length': String(size),
+                'X-Browser-Testbench-Artifact-Name':
+                    remoteResponse.headers.get('x-browser-testbench-artifact-name') ?? '',
+            });
+            await pipeline(
+                Readable.from(remoteResponse.body as AsyncIterable<Uint8Array>),
+                response,
+                { signal: remoteRequest.signal },
+            );
             return;
         }
 
