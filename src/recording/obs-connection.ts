@@ -1,10 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
+import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
 import { OBSWebSocket, type OBSRequestTypes, type OBSResponseTypes } from 'obs-websocket-js';
 import { LocalizedError } from '../i18n/translator.js';
 
 const REQUEST_TIMEOUT_MS = 10_000;
+const OBS_NOT_READY_CODE = 207;
+const OBS_READY_RETRY_MS = 100;
 
 export class ObsConnection {
     private readonly socket = new OBSWebSocket();
@@ -28,6 +31,7 @@ export class ObsConnection {
                 ),
                 timeoutMs,
             );
+            await connection.waitUntilReady(timeoutMs);
             return connection;
         } catch {
             await connection.close();
@@ -91,6 +95,39 @@ export class ObsConnection {
 
     async close(): Promise<void> {
         await this.socket.disconnect();
+    }
+
+    private async waitUntilReady(timeoutMs: number): Promise<void> {
+        const startedAt = performance.now();
+        let lastError: unknown;
+
+        for (;;) {
+            try {
+                await this.call('GetVersion');
+                return;
+            } catch (error) {
+                if (!this.isNotReadyError(error)) {
+                    throw error;
+                }
+
+                lastError = error;
+            }
+
+            const remainingMs = timeoutMs - (performance.now() - startedAt);
+
+            if (remainingMs <= 0) {
+                throw lastError;
+            }
+
+            await delay(Math.min(OBS_READY_RETRY_MS, remainingMs));
+        }
+    }
+
+    private isNotReadyError(error: unknown): boolean {
+        return (
+            error instanceof Error &&
+            (error as Error & { code?: number }).code === OBS_NOT_READY_CODE
+        );
     }
 
     async stopRecording(): Promise<string> {

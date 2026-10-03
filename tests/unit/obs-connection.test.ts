@@ -71,6 +71,28 @@ describe('ObsConnection configuration', () => {
         await connection.close();
     });
 
+    it('waits for OBS to become ready after the WebSocket connects', async () => {
+        vi.useFakeTimers();
+        mocks.readFile.mockResolvedValue('{}');
+        let attempts = 0;
+        mocks.call.mockImplementation(async (request: string) => {
+            if (request === 'GetVersion' && attempts++ < 2) {
+                throw Object.assign(new Error('OBS is not ready to perform the request.'), {
+                    code: 207,
+                });
+            }
+
+            return {};
+        });
+
+        const promise = ObsConnection.connect();
+        await vi.advanceTimersByTimeAsync(250);
+        const connection = await promise;
+
+        expect(attempts).toBe(3);
+        await connection.close();
+    });
+
     it('does not hide damaged configuration files', async () => {
         mocks.readFile.mockResolvedValue('invalid json');
         await expect(ObsConnection.connect()).rejects.toThrow();
@@ -106,7 +128,13 @@ describe('ObsConnection configuration', () => {
 
     it('removes the recording event listener if starting fails', async () => {
         mocks.readFile.mockResolvedValue('{}');
-        mocks.call.mockRejectedValue(new Error('Encoder unavailable'));
+        mocks.call.mockImplementation(async (request: string) => {
+            if (request === 'StartRecord') {
+                throw new Error('Encoder unavailable');
+            }
+
+            return {};
+        });
         const connection = await ObsConnection.connect();
         await expect(connection.startRecording()).rejects.toThrow('Encoder unavailable');
         expect(mocks.off).toHaveBeenCalledWith('RecordStateChanged', mocks.on.mock.calls[0]![1]);
