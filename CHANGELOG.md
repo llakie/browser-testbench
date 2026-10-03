@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-10-03
+
+### Fixed
+
+- OBS connections now wait until the recording service is ready after the WebSocket handshake, avoiding transient `OBS is not ready to perform the request` failures when a recording starts immediately.
+
 ## [0.7.3] - 2026-10-02
 
 ### Fixed
