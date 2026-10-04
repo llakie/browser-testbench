@@ -11,7 +11,7 @@ The responsibilities are deliberately clear:
 
 Browser Testbench does not import test files from a project or run third-party test runners.
 
-Release documentation: [Browser Testbench 0.6.1](docs/releases/0.6.1.md), [Browser Testbench 0.6.0](docs/releases/0.6.0.md), [Browser Testbench 0.5.1](docs/releases/0.5.1.md), [Browser Testbench 0.5.0](docs/releases/0.5.0.md), and [migration from 0.4.x](docs/releases/0.5.0-migration.md).
+Release documentation: [Browser Testbench 0.7.5](docs/releases/0.7.5.md), [Browser Testbench 0.7.4](docs/releases/0.7.4.md), [Browser Testbench 0.7.0](docs/releases/0.7.0.md), [Browser Testbench 0.6.1](docs/releases/0.6.1.md), [Browser Testbench 0.6.0](docs/releases/0.6.0.md), [Browser Testbench 0.5.1](docs/releases/0.5.1.md), [Browser Testbench 0.5.0](docs/releases/0.5.0.md), and [migration from 0.4.x](docs/releases/0.5.0-migration.md).
 
 ## Supported targets
 

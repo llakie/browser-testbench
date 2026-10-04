@@ -9,6 +9,7 @@ import { VideoRecorder, type RecordingArtifact } from '../../src/recording/video
 import { RecordingGeometry, type GeometrySample } from '../../src/recording/geometry.js';
 import { ObsCapture } from '../../src/recording/obs-capture.js';
 import { AppiumSessionClient } from '../../src/automation/appium-session-client.js';
+import sharp from 'sharp';
 
 describe('InteractiveController', () => {
     afterEach(() => {
@@ -327,6 +328,59 @@ describe('InteractiveController', () => {
         await expect(controller.captureStructuredScreenshot('screen')).rejects.toMatchObject({
             code: 'SCREENSHOT_SCOPE_UNSUPPORTED',
         });
+    });
+
+    it('uses Safari body pixels for structured viewport screenshots', async () => {
+        const png = Buffer.alloc(24);
+        png.set(Buffer.from([0x89, 0x50, 0x4e, 0x47]), 0);
+        png.writeUInt32BE(1280, 16);
+        png.writeUInt32BE(720, 20);
+        const screenshot = vi.fn().mockResolvedValue(png.toString('base64'));
+        const takeScreenshot = vi.fn();
+        const controller = new InteractiveController();
+        Object.assign(controller, {
+            target: { name: 'safari' },
+            session: {
+                active: {
+                    $: vi.fn().mockReturnValue({ screenshot }),
+                    takeScreenshot,
+                },
+            },
+        });
+
+        await expect(controller.captureStructuredScreenshot('viewport')).resolves.toMatchObject({
+            scope: 'viewport',
+            width: 1280,
+            height: 720,
+            screenBounds: null,
+            viewportBounds: { x: 0, y: 0, width: 1280, height: 720 },
+        });
+        expect(screenshot).toHaveBeenCalledOnce();
+        expect(takeScreenshot).not.toHaveBeenCalled();
+    });
+
+    it('removes fully transparent Firefox screenshot rows below the viewport', async () => {
+        const source = await sharp(Buffer.from([236, 176, 0, 255, 0, 0, 0, 0]), {
+            raw: { width: 1, height: 2, channels: 4 },
+        })
+            .png()
+            .toBuffer();
+        const controller = new InteractiveController();
+        Object.assign(controller, {
+            target: { name: 'firefox' },
+            session: {
+                active: { takeScreenshot: vi.fn().mockResolvedValue(source.toString('base64')) },
+            },
+        });
+
+        const result = await controller.captureStructuredScreenshot('viewport');
+        const image = await sharp(Buffer.from(result.base64, 'base64'))
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+
+        expect(image.info.height).toBe(1);
+        expect([...image.data]).toEqual([236, 176, 0, 255]);
     });
 
     it('collects WebSocket lifecycle, handshake, frame, and error diagnostics', async () => {

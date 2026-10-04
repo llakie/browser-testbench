@@ -786,7 +786,24 @@ export class InteractiveController {
         }
 
         if (!mobile) {
-            const base64 = await browser.takeScreenshot();
+            if (this.target.name === 'safari') {
+                const base64 = await browser.$('body').screenshot();
+                const size = ImageDimensions.png(Buffer.from(base64, 'base64'));
+
+                return ScreenshotUtilities.result(base64, scope, null, {
+                    x: 0,
+                    y: 0,
+                    ...size,
+                    coordinateSystem: 'viewport-css-pixels',
+                    edges: 'left-top-inclusive-right-bottom-exclusive',
+                });
+            }
+
+            const screenshot = await browser.takeScreenshot();
+            const base64 =
+                this.target.name === 'firefox'
+                    ? await ScreenshotUtilities.withoutTransparentBottomRows(screenshot)
+                    : screenshot;
             const size = ImageDimensions.png(Buffer.from(base64, 'base64'));
             return ScreenshotUtilities.result(base64, scope, null, {
                 x: 0,

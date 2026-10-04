@@ -21,6 +21,48 @@ export interface ScreenshotResult {
 }
 
 export class ScreenshotUtilities {
+    static async withoutTransparentBottomRows(base64: string): Promise<string> {
+        const { data, info } = await sharp(Buffer.from(base64, 'base64'))
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+        let height = info.height;
+
+        while (height > 0) {
+            const rowOffset = (height - 1) * info.width * info.channels;
+            let transparent = true;
+
+            for (
+                let index = rowOffset + info.channels - 1;
+                index < rowOffset + info.width * info.channels;
+                index += info.channels
+            ) {
+                if (data[index] !== 0) {
+                    transparent = false;
+                    break;
+                }
+            }
+
+            if (!transparent) {
+                break;
+            }
+
+            height -= 1;
+        }
+
+        if (height === info.height) {
+            return base64;
+        }
+
+        return sharp(data, {
+            raw: { width: info.width, height: info.height, channels: info.channels },
+        })
+            .extract({ left: 0, top: 0, width: info.width, height })
+            .png()
+            .toBuffer()
+            .then((image) => image.toString('base64'));
+    }
+
     static result(
         base64: string,
         scope: ScreenshotScope,
