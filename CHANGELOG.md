@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-10-04
+
+### Fixed
+
+- Structured desktop Safari screenshots now use the page pixels instead of Safari's rounded native window corners.
+- Structured Firefox viewport screenshots now preserve their existing RGB pixels while making the image fully opaque.
+
 ## [0.7.4] - 2026-10-03
 
 ### Fixed
